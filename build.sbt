@@ -22,6 +22,8 @@ lazy val arch = (project in file("arch"))
     name                      := "arch",
     // chisel/vopts
     libraryDependencies ++= Seq(
+      "dashygo097"        %% "vutils" % "0.1.0",
+      "dashygo097"        %% "vamba"  % "0.1.0",
       "dashygo097"        %% "utils"  % "0.1.0",
       "dashygo097"        %% "math"   % "0.1.0",
       "dashygo097"        %% "com"    % "0.1.0",

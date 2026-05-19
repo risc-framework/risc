@@ -1,35 +1,71 @@
 package arch.system.crossbar
 
 import arch.configs._
-import vopts.com.amba._
 import chisel3._
+import vamba.axi4.lite._
 
 object AXILiteCrossbarUtils extends RegisteredUtils[BusCrossbarUtils] {
   override def utils: BusCrossbarUtils = new BusCrossbarUtils {
     override def name: String = "axil"
 
-    override def masterType: Bundle            =
-      Flipped(new AXILiteMasterExtIO(addrWidth = p(XLen), dataWidth = p(XLen)))
-    override def slaveType: Bundle             =
-      Flipped(new AXILiteSlaveExtIO(addrWidth = p(XLen), dataWidth = p(XLen)))
-    override def addressMap: Seq[(Long, Long)] = p(BusAddressMap).map { case desc => (desc.base, desc.base + desc.size) }
+    private def axiParams: Axi4LiteParams =
+      Axi4LiteParams(addrWidth = p(XLen), dataWidth = p(XLen))
+
+    private def ranges: Seq[Axi4LiteAddressRange] =
+      p(BusAddressMap).map(desc => Axi4LiteAddressRange.fromSize(desc.base, desc.size))
+
+    private def cfg: Axi4LiteFabricConfig = {
+      val d = p(BusCrossbarFifoDepthPerClient)
+
+      Axi4LiteFabricConfig(
+        decoderRouteDepth = d,
+        arbiterAwDepth = d,
+        arbiterWDepth = d,
+        arbiterArDepth = d,
+        arbiterBRouteDepth = 3 * d,
+        arbiterRRouteDepth = 3 * d,
+        queuePipe = true,
+      )
+    }
+
+    override def masterType: Bundle =
+      new Axi4LiteSlavePort(axiParams)
+
+    override def slaveType: Bundle =
+      new Axi4LiteMasterPins(axiParams)
+
+    override def addressMap: Seq[(Long, Long)] =
+      p(BusAddressMap).map(desc => (desc.base, desc.base + desc.size))
 
     override def createInterface(ibus: Bundle, dbus: Bundle, mbus: Bundle): Vec[Bundle] = {
-      val crossbar  = Module(new AXILiteCrossbar(p(XLen), p(XLen), 3, addressMap, p(BusCrossbarFifoDepthPerClient)))
-      val interface = Wire(Vec(addressMap.length, slaveType.cloneType))
+      val crossbar = Module(
+        new Axi4LiteCrossbar(
+          p = axiParams,
+          numMasters = 3,
+          addressMap = ranges,
+          cfg = cfg
+        )
+      )
 
-      crossbar.masters_ext(0) <> ibus
-      crossbar.masters_ext(1) <> dbus
-      crossbar.masters_ext(2) <> mbus
+      val interface = Wire(Vec(ranges.length, new Axi4LiteMasterPins(axiParams)))
+
+      crossbar.io.masters(0) <> ibus.asInstanceOf[Axi4LiteSlavePort]
+      crossbar.io.masters(1) <> dbus.asInstanceOf[Axi4LiteSlavePort]
+      crossbar.io.masters(2) <> mbus.asInstanceOf[Axi4LiteSlavePort]
 
       for (i <- interface.indices)
-        interface(i) <> crossbar.slaves_ext(i)
+        Axi4LitePins.connectMasterPins(interface(i), crossbar.io.slaves(i))
 
-      interface
+      interface.asInstanceOf[Vec[Bundle]]
     }
-    override def connect(ext: Bundle, intf: Bundle): Unit                               =
-      ext.asInstanceOf[AXILiteMasterExtIO].connect(intf.asInstanceOf[AXILiteMasterIO])
+
+    override def connect(ext: Bundle, inner: Bundle): Unit =
+      Axi4Lite.connect(
+        inner.asInstanceOf[Axi4LiteMasterPort],
+        ext.asInstanceOf[Axi4LiteSlavePort]
+      )
   }
 
-  override def factory: UtilsFactory[BusCrossbarUtils] = BusCrossbarUtilsFactory
+  override def factory: UtilsFactory[BusCrossbarUtils] =
+    BusCrossbarUtilsFactory
 }
