@@ -1,6 +1,6 @@
 ThisBuild / scalaVersion := "2.13.16"
 ThisBuild / version      := "0.1.0"
-ThisBuild / organization := "dashygo097"
+ThisBuild / organization := "risc.framework"
 
 val chiselVersion = "7.0.0"
 ThisBuild / resolvers += Resolver.file("local-ivy", file(Path.userHome + "/.ivy2/local"))(
@@ -22,8 +22,8 @@ lazy val arch = (project in file("arch"))
     name                      := "arch",
     // chisel/vopts
     libraryDependencies ++= Seq(
-      "dashygo097"        %% "vutils" % "0.1.0",
-      "dashygo097"        %% "vamba"  % "0.1.0",
+      "risc.framework"    %% "vutils" % "0.1.0",
+      "risc.framework"    %% "vamba"  % "0.1.0",
       "dashygo097"        %% "utils"  % "0.1.0",
       "dashygo097"        %% "math"   % "0.1.0",
       "dashygo097"        %% "com"    % "0.1.0",
