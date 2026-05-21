@@ -4,7 +4,7 @@ import arch.configs._
 import chisel3._
 import chisel3.util.{ Cat, log2Ceil, is, switch }
 import vamba.axi4.full._
-import vopts.mem.cache._
+import vcache._
 
 object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
   override def utils: BusBridgeUtils = new BusBridgeUtils {
@@ -21,7 +21,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
     override def busType: Bundle =
       new Axi4FullMasterPort(axiP)
 
-    override def createBridge[T <: Data](gen: T, memory: CacheIO[T], isMmio: Boolean = false): Bundle = {
+    override def createBridge[T <: Data](gen: T, memory: CachePortIO[T], isMmio: Boolean = false): Bundle = {
       val axi = Wire(new Axi4FullMasterPort(axiP))
 
       val bytesPerGen    = memory.req.bits.data.getWidth / 8
@@ -47,18 +47,19 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      memory.req.ready      := false.B
-      memory.resp.valid     := false.B
-      memory.resp.bits.data := DontCare
-      memory.resp.bits.last := false.B
-      memory.resp.bits.hit  := false.B
+      memory.req.ready        := false.B
+      memory.resp.valid       := false.B
+      memory.resp.bits.data   := DontCare
+      memory.resp.bits.last   := false.B
+      memory.resp.bits.hit    := false.B
+      memory.resp.bits.source := 0.U
 
       switch(state) {
         is(AXIBridgeState.IDLE) {
           memory.req.ready := true.B
           when(memory.req.fire) {
             req_addr := memory.req.bits.addr
-            when(memory.req.bits.op === CacheOp.READ) {
+            when(memory.req.bits.cmd === CacheCommand.Read) {
               state := AXIBridgeState.AR
             }.otherwise {
               state         := AXIBridgeState.AW
@@ -220,7 +221,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       axi
     }
 
-    override def createBridgeReadOnly[T <: Data](gen: T, memory: CacheReadOnlyIO[T], isMmio: Boolean = false): Bundle = {
+    override def createBridgeReadOnly[T <: Data](gen: T, memory: CachePortIO[T], isMmio: Boolean = false): Bundle = {
       val axi = Wire(new Axi4FullMasterPort(axiP))
 
       val bytesPerGen    = memory.resp.bits.data.getWidth / 8
@@ -242,11 +243,12 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      memory.req.ready      := false.B
-      memory.resp.valid     := false.B
-      memory.resp.bits.data := DontCare
-      memory.resp.bits.last := false.B
-      memory.resp.bits.hit  := false.B
+      memory.req.ready        := false.B
+      memory.resp.valid       := false.B
+      memory.resp.bits.data   := DontCare
+      memory.resp.bits.last   := false.B
+      memory.resp.bits.hit    := false.B
+      memory.resp.bits.source := 0.U
 
       switch(state) {
         is(AXIBridgeState.IDLE) {

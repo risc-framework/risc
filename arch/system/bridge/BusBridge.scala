@@ -1,7 +1,7 @@
 package arch.system.bridge
 
 import arch.configs._
-import vopts.mem.cache._
+import vcache._
 import chisel3._
 
 class BusBridge(implicit p: Parameters) extends Module {
@@ -9,9 +9,9 @@ class BusBridge(implicit p: Parameters) extends Module {
 
   val utils = BusBridgeUtilsFactory.getOrThrow(p(BusType))
 
-  val imem = IO(Flipped(new CacheReadOnlyIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(XLen))))
-  val dmem = IO(Flipped(new CacheIO(UInt(p(XLen).W), p(XLen))))
-  val mmio = IO(Flipped(new CacheIO(UInt(p(XLen).W), p(XLen))))
+  val imem = IO(Flipped(new CachePortIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))))
+  val dmem = IO(Flipped(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))))
+  val mmio = IO(Flipped(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))))
 
   val ibus = IO(utils.busType)
   val dbus = IO(utils.busType)

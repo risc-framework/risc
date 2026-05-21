@@ -1,7 +1,7 @@
 package arch.core.lsu
 
 import arch.configs._
-import vopts.mem.cache._
+import vcache._
 import chisel3._
 import chisel3.util.{ log2Ceil, Decoupled, Valid, Cat, Mux1H, PopCount }
 
@@ -72,8 +72,8 @@ class StoreBuffer(numLoadPorts: Int, numStorePorts: Int)(implicit p: Parameters)
     val busy        = Output(Bool())
     val oldestValid = Output(Bool())
     val oldestSeq   = Output(UInt(64.W))
-    val mem         = new CacheIO(UInt(p(XLen).W), p(XLen))
-    val mmio        = new CacheIO(UInt(p(XLen).W), p(XLen))
+    val mem         = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
+    val mmio        = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
     val flush       = Input(Bool())
   })
 
@@ -167,17 +167,19 @@ class StoreBuffer(numLoadPorts: Int, numStorePorts: Int)(implicit p: Parameters)
   val headEntry = entries(head)
   val canDrain  = headEntry.valid && headEntry.committed && headEntry.addrValid && !drainOutstanding
 
-  io.mem.req.valid     := canDrain && headEntry.cacheable
-  io.mem.req.bits.op   := CacheOp.WRITE
-  io.mem.req.bits.addr := headEntry.addr
-  io.mem.req.bits.data := headEntry.data
-  io.mem.req.bits.strb := headEntry.mask
+  io.mem.req.valid       := canDrain && headEntry.cacheable
+  io.mem.req.bits.cmd    := CacheCommand.Write
+  io.mem.req.bits.addr   := headEntry.addr
+  io.mem.req.bits.data   := headEntry.data
+  io.mem.req.bits.strb   := headEntry.mask
+  io.mem.req.bits.source := 0.U
 
-  io.mmio.req.valid     := canDrain && !headEntry.cacheable
-  io.mmio.req.bits.op   := CacheOp.WRITE
-  io.mmio.req.bits.addr := headEntry.addr
-  io.mmio.req.bits.data := headEntry.data
-  io.mmio.req.bits.strb := headEntry.mask
+  io.mmio.req.valid       := canDrain && !headEntry.cacheable
+  io.mmio.req.bits.cmd    := CacheCommand.Write
+  io.mmio.req.bits.addr   := headEntry.addr
+  io.mmio.req.bits.data   := headEntry.data
+  io.mmio.req.bits.strb   := headEntry.mask
+  io.mmio.req.bits.source := 0.U
 
   io.mem.resp.ready  := drainOutstanding && drainIsCacheable
   io.mmio.resp.ready := drainOutstanding && !drainIsCacheable

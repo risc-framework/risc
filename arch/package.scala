@@ -5,7 +5,8 @@ package object configs {
   import proto.DeviceType._
   import proto.FunctionalUnitType._
   import isa._
-  import vopts.mem.cache._
+  import vcache._
+  import vcache.repl._
   import chisel3.util.{ BitPat, log2Ceil }
 
   // NOTE: User Options: You should only modify these parameters
@@ -55,19 +56,19 @@ package object configs {
   // Branch Prediction
   object BTBWays        extends Field[Int](2)
   object BTBSets        extends Field[Int](128)
-  object BTBReplPolicy  extends Field[ReplacementPolicy](PseudoLRU)
+  object BTBReplPolicy  extends Field[ReplacementPolicy](ReplacementPolicy.PseudoLRU)
   object GShareGhrWidth extends Field[Int](10)
 
   // Cache Parameters
   object L1ICacheWays       extends Field[Int](2)
   object L1ICacheSets       extends Field[Int](8)
   object L1ICacheLineSize   extends Field[Int](64) // in bytes
-  object L1ICacheReplPolicy extends Field[ReplacementPolicy](LRU)
+  object L1ICacheReplPolicy extends Field[ReplacementPolicy](ReplacementPolicy.LRU)
 
   object L1DCacheWays       extends Field[Int](4)
   object L1DCacheSets       extends Field[Int](8)
   object L1DCacheLineSize   extends Field[Int](64) // in bytes
-  object L1DCacheReplPolicy extends Field[ReplacementPolicy](PseudoLRU)
+  object L1DCacheReplPolicy extends Field[ReplacementPolicy](ReplacementPolicy.PseudoLRU)
 
   // Bus Parameters
   object BusType                       extends Field[String]("axif")
@@ -104,6 +105,36 @@ package object configs {
   object NumFUs      extends Field[Int](FunctionalUnits().size)
   object NumLDs      extends Field[Int](FunctionalUnits().count(_.`type` == FUNCTIONAL_UNIT_TYPE_LD))
   object RobTagWidth extends Field[Int](log2Ceil(RobSize()))
+
+  object L1ICacheParams
+      extends Field[CacheParams](
+        CacheParams(
+          addrWidth = XLen(),
+          dataWidth = IssueWidth() * ILen(),
+          L1ICacheLineSize() / (IssueWidth() * BytesPerInstr()),
+          numSets = L1ICacheSets(),
+          numWays = L1ICacheWays(),
+          access = CacheAccess.ReadOnly,
+          missMode = CacheMissMode.NonBlocking,
+          replPolicy = L1ICacheReplPolicy(),
+          sourceWidth = 1
+        )
+      )
+
+  object L1DCacheParams
+      extends Field[CacheParams](
+        CacheParams(
+          addrWidth = XLen(),
+          dataWidth = XLen(),
+          wordsPerLine = L1DCacheLineSize() / BytesPerWord(),
+          numSets = L1DCacheSets(),
+          numWays = L1DCacheWays(),
+          access = CacheAccess.ReadWrite,
+          missMode = CacheMissMode.NonBlocking,
+          replPolicy = L1DCacheReplPolicy(),
+          sourceWidth = 1
+        )
+      )
 
   implicit val p: Parameters = Parameters.empty ++ Map(
     ISA         -> ISA(),
@@ -157,10 +188,12 @@ package object configs {
     L1ICacheSets       -> L1ICacheSets(),
     L1ICacheLineSize   -> L1ICacheLineSize(),
     L1ICacheReplPolicy -> L1ICacheReplPolicy(),
+    L1ICacheParams     -> L1ICacheParams(),
     L1DCacheWays       -> L1DCacheWays(),
     L1DCacheSets       -> L1DCacheSets(),
     L1DCacheLineSize   -> L1DCacheLineSize(),
     L1DCacheReplPolicy -> L1DCacheReplPolicy(),
+    L1DCacheParams     -> L1DCacheParams(),
 
     // Bus
     BusType                       -> BusType(),

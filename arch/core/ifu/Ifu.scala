@@ -1,14 +1,14 @@
 package arch.core.ifu
 
 import arch.configs._
-import vopts.mem.cache.CacheReadOnlyIO
+import vcache._
 import chisel3._
 import chisel3.util.{ log2Ceil, Queue, PriorityEncoder }
 
 class Ifu(implicit p: Parameters) extends Module {
   override def desiredName: String = s"${p(ISA).name}_ifu"
 
-  val mem = IO(new CacheReadOnlyIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(XLen)))
+  val mem = IO(new CacheReadOnlyPortIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams)))
 
   val bru_taken  = IO(Input(Bool()))
   val bru_target = IO(Input(UInt(p(XLen).W)))
@@ -91,6 +91,7 @@ class Ifu(implicit p: Parameters) extends Module {
   meta_q.io.flush.get := do_redirect
   mem.req.valid       := meta_q.io.enq.ready && ibuffer.enq_ready && !do_redirect
   mem.req.bits.addr   := aligned_pc
+  mem.req.bits.source := 0.U
   mem.resp.ready      := ibuffer.enq_ready
 
   fetch_pc   := pc

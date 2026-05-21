@@ -4,7 +4,7 @@ import arch.configs._
 import chisel3._
 import chisel3.util.{ Cat, log2Ceil, is, switch }
 import vamba.axi4.lite._
-import vopts.mem.cache._
+import vcache._
 
 object AXIBridgeState extends ChiselEnum { val IDLE, AR, R, AW, W, B = Value }
 
@@ -18,14 +18,14 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
     override def busType: Bundle =
       new Axi4LiteMasterPort(axiP)
 
-    override def createBridge[T <: Data](gen: T, memory: CacheIO[T], isMmio: Boolean = false): Bundle = {
+    override def createBridge[T <: Data](gen: T, memory: CachePortIO[T], isMmio: Boolean = false): Bundle = {
       val axi = Wire(new Axi4LiteMasterPort(axiP))
 
       val beats = (gen.getWidth / p(XLen)).max(1)
 
       val state    = RegInit(AXIBridgeState.IDLE)
       val req_addr = RegInit(0.U(p(XLen).W))
-      val req_op   = RegInit(CacheOp.READ)
+      val req_cmd  = RegInit(CacheCommand.Read)
 
       val w_data = Reg(UInt(gen.getWidth.max(p(XLen)).W))
       val w_strb = Reg(UInt((gen.getWidth / 8).max(p(BytesPerWord)).W))
@@ -42,22 +42,23 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       axi.w.bits   := DontCare
       axi.b.ready  := false.B
 
-      memory.req.ready      := false.B
-      memory.resp.valid     := false.B
-      memory.resp.bits.data := DontCare
-      memory.resp.bits.hit  := false.B
-      memory.resp.bits.last := true.B
+      memory.req.ready        := false.B
+      memory.resp.valid       := false.B
+      memory.resp.bits.data   := DontCare
+      memory.resp.bits.hit    := false.B
+      memory.resp.bits.last   := true.B
+      memory.resp.bits.source := 0.U
 
       switch(state) {
         is(AXIBridgeState.IDLE) {
           memory.req.ready := true.B
           when(memory.req.fire) {
             req_addr := memory.req.bits.addr
-            req_op   := memory.req.bits.op
+            req_cmd  := memory.req.bits.cmd
             w_data   := memory.req.bits.data.asUInt
             w_strb   := memory.req.bits.strb
             beat     := 0.U
-            state    := Mux(memory.req.bits.op === CacheOp.READ, AXIBridgeState.AR, AXIBridgeState.AW)
+            state    := Mux(memory.req.bits.cmd === CacheCommand.Read, AXIBridgeState.AR, AXIBridgeState.AW)
           }
         }
 
@@ -126,7 +127,7 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       axi
     }
 
-    override def createBridgeReadOnly[T <: Data](gen: T, memory: CacheReadOnlyIO[T], isMmio: Boolean = false): Bundle = {
+    override def createBridgeReadOnly[T <: Data](gen: T, memory: CachePortIO[T], isMmio: Boolean = false): Bundle = {
       val axi = Wire(new Axi4LiteMasterPort(axiP))
 
       val bytesPerGen    = memory.resp.bits.data.getWidth / 8
@@ -151,11 +152,12 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      memory.req.ready      := false.B
-      memory.resp.valid     := false.B
-      memory.resp.bits.data := DontCare
-      memory.resp.bits.last := false.B
-      memory.resp.bits.hit  := false.B
+      memory.req.ready        := false.B
+      memory.resp.valid       := false.B
+      memory.resp.bits.data   := DontCare
+      memory.resp.bits.last   := false.B
+      memory.resp.bits.hit    := false.B
+      memory.resp.bits.source := 0.U
 
       switch(state) {
         is(AXIBridgeState.IDLE) {

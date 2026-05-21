@@ -13,7 +13,8 @@ import div._
 import ooo._
 import arch.configs._
 import arch.configs.proto.FunctionalUnitType._
-import vopts.mem.cache._
+import vcache._
+import vcache.nonblocking._
 import chisel3._
 import chisel3.util.{ log2Ceil, MuxCase, Mux1H, PopCount }
 
@@ -22,9 +23,9 @@ class RiscCore(implicit p: Parameters) extends Module {
 
   val regfile_utils = RegfileUtilsFactory.getOrThrow(p(ISA).name)
 
-  val imem = IO(new CacheReadOnlyIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(XLen)))
-  val dmem = IO(new CacheIO(UInt(p(XLen).W), p(XLen)))
-  val mmio = IO(new CacheIO(UInt(p(XLen).W), p(XLen)))
+  val imem = IO(new CachePortIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams)))
+  val dmem = IO(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams)))
+  val mmio = IO(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams)))
   val irq  = IO(new CoreInterruptIO)
 
   val bpu            = Module(new Bpu)
@@ -36,24 +37,16 @@ class RiscCore(implicit p: Parameters) extends Module {
   val memory_arbiter = Module(new MemoryArbiter)
 
   val l1_icache = Module(
-    new SetAssociativeStreamingCacheReadOnly(
+    new ReadOnlyNonBlockingCache(
       Vec(p(IssueWidth), UInt(p(ILen).W)),
-      p(XLen),
-      p(L1ICacheLineSize) / (p(IssueWidth) * p(BytesPerInstr)),
-      p(L1ICacheSets),
-      p(L1ICacheWays),
-      p(L1ICacheReplPolicy)
+      p(L1ICacheParams)
     )
   )
 
   val l1_dcache = Module(
-    new SetAssociativeStreamingCache(
+    new NonBlockingCache(
       UInt(p(XLen).W),
-      p(XLen),
-      p(L1DCacheLineSize) / p(BytesPerWord),
-      p(L1DCacheSets),
-      p(L1DCacheWays),
-      p(L1DCacheReplPolicy)
+      p(L1DCacheParams)
     )
   )
 

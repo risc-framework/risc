@@ -4,7 +4,7 @@ import arch.core.ooo._
 import arch.core.imm._
 import arch.core.pma._
 import arch.configs._
-import vopts.mem.cache._
+import vcache._
 import chisel3._
 import chisel3.util.{ switch, is }
 
@@ -24,8 +24,8 @@ class LoadCtrl(implicit p: Parameters) extends Bundle {
 class LoadFU(implicit p: Parameters) extends FunctionalUnit {
   override def desiredName: String = s"${p(ISA).name}_load_fu"
 
-  val mem           = IO(new CacheIO(UInt(p(XLen).W), p(XLen)))
-  val mmio          = IO(new CacheIO(UInt(p(XLen).W), p(XLen)))
+  val mem           = IO(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams)))
+  val mmio          = IO(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams)))
   val sbFwd         = IO(Flipped(new StoreForwardPort))
   val sbOldestValid = IO(Input(Bool()))
   val sbOldestSeq   = IO(Input(UInt(64.W)))
@@ -103,17 +103,19 @@ class LoadFU(implicit p: Parameters) extends FunctionalUnit {
   val memReqAddr      = Mux(memReqFromAccept, acceptAlignedAddr, alignedAddrReg)
   val memReqMask      = Mux(memReqFromAccept, acceptLoadMask, loadMaskReg)
 
-  mem.req.valid     := memReqActive && memReqCacheable && !io.flush
-  mem.req.bits.op   := CacheOp.READ
-  mem.req.bits.addr := memReqAddr
-  mem.req.bits.data := 0.U
-  mem.req.bits.strb := memReqMask
+  mem.req.valid       := memReqActive && memReqCacheable && !io.flush
+  mem.req.bits.cmd    := CacheCommand.Read
+  mem.req.bits.addr   := memReqAddr
+  mem.req.bits.data   := 0.U
+  mem.req.bits.strb   := memReqMask
+  mem.req.bits.source := 0.U
 
-  mmio.req.valid     := memReqActive && !memReqCacheable && !io.flush
-  mmio.req.bits.op   := CacheOp.READ
-  mmio.req.bits.addr := memReqAddr
-  mmio.req.bits.data := 0.U
-  mmio.req.bits.strb := memReqMask
+  mmio.req.valid       := memReqActive && !memReqCacheable && !io.flush
+  mmio.req.bits.cmd    := CacheCommand.Read
+  mmio.req.bits.addr   := memReqAddr
+  mmio.req.bits.data   := 0.U
+  mmio.req.bits.strb   := memReqMask
+  mmio.req.bits.source := 0.U
 
   io.resp.valid        := currentRespValid
   io.resp.bits.result  := Mux(fwdCompleteNow, fwdResult, Mux(memCompleteNow, memResult, resultReg))

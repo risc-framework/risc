@@ -1,7 +1,7 @@
 package arch.configs
 
 import proto._
-import vopts.mem.cache._
+import vcache.repl._
 import scalapb.json4s.JsonFormat
 import java.nio.file.{ Files, Paths }
 import java.nio.charset.StandardCharsets
@@ -111,12 +111,12 @@ object RiscDump {
   }
 
   private def toProtoRepl(p: ReplacementPolicy): ReplPolicy = p match {
-    case Random    => ReplPolicy.REPL_POLICY_RANDOM
-    case FIFO      => ReplPolicy.REPL_POLICY_FIFO
-    case LFU       => ReplPolicy.REPL_POLICY_LFU
-    case LRU       => ReplPolicy.REPL_POLICY_LRU
-    case PseudoLRU => ReplPolicy.REPL_POLICY_PSEUDO_LRU
-    case _         => ReplPolicy.REPL_POLICY_UNKNOWN
+    case ReplacementPolicy.Random    => ReplPolicy.REPL_POLICY_RANDOM
+    case ReplacementPolicy.FIFO      => ReplPolicy.REPL_POLICY_FIFO
+    case ReplacementPolicy.LFU       => ReplPolicy.REPL_POLICY_LFU
+    case ReplacementPolicy.LRU       => ReplPolicy.REPL_POLICY_LRU
+    case ReplacementPolicy.PseudoLRU => ReplPolicy.REPL_POLICY_PSEUDO_LRU
+    case _                           => ReplPolicy.REPL_POLICY_UNKNOWN
   }
 
   private def toProtoBus(s: String): BusType = s match {
