@@ -1,7 +1,6 @@
 package arch.core.bpu
 
 import arch.configs._
-import vopts.mem.cache._
 import chisel3._
 import chisel3.util.{ PriorityEncoder, UIntToOH, log2Ceil }
 
@@ -53,7 +52,7 @@ class Btb(implicit p: Parameters) extends Module with BHTConsts {
   val targetArray = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(p(XLen).W))))
   val ctrlArray   = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(SZ_BHT.W))))
 
-  val replStates = Seq.fill(p(BTBSets))(new PseudoLRUState(p(BTBWays)))
+  val replStates = Seq.fill(p(BTBSets))(p(BTBReplPolicy).build(p(BTBWays)))
 
   def getIndex(pc: UInt): UInt =
     if (rawIndexWidth > 0) pc(rawIndexWidth + p(PCAlign) - 1, p(PCAlign)) else 0.U(indexWidth.W)
