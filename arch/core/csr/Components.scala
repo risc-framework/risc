@@ -1,7 +1,7 @@
 package arch.core.csr
 
+import arch.core.regfile.Register
 import arch.configs._
-import vopts.utils.Register
 import chisel3._
 
 object CsrUpdateBehavior {

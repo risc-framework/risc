@@ -25,10 +25,7 @@ lazy val arch = (project in file("arch"))
       "risc.framework"    %% "vutils" % "0.1.0",
       "risc.framework"    %% "vamba"  % "0.1.0",
       "risc.framework"    %% "vcache" % "0.1.0",
-      "dashygo097"        %% "utils"  % "0.1.0",
       "dashygo097"        %% "math"   % "0.1.0",
-      "dashygo097"        %% "com"    % "0.1.0",
-      "dashygo097"        %% "mem"    % "0.1.0",
       "org.chipsalliance" %% "chisel" % chiselVersion
     ),
     Compile / unmanagedSourceDirectories += baseDirectory.value,

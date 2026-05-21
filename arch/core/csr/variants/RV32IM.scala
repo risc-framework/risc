@@ -1,9 +1,9 @@
 package arch.core.csr.riscv
 
 import arch.core.csr._
+import arch.core.regfile.Register
 import arch.configs._
 import chisel3._
-import vopts.utils.Register
 
 object RV32IMCsrUtils extends RegisteredUtils[CsrUtils] {
   override def utils: CsrUtils = new CsrUtils {

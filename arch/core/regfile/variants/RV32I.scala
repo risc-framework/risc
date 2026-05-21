@@ -2,7 +2,6 @@ package arch.core.regfile.riscv
 
 import arch.core.regfile._
 import arch.configs._
-import vopts.utils._
 import chisel3._
 
 object RV32IRegfileUtils extends RegisteredUtils[RegfileUtils] {

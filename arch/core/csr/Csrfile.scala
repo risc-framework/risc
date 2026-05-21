@@ -1,7 +1,7 @@
 package arch.core.csr
 
+import arch.core.regfile.Register
 import arch.configs._
-import vopts.utils.{ CombTree, Register }
 import chisel3._
 
 class CsrCtrl(val opWidth: Int) extends Bundle {
@@ -60,9 +60,10 @@ class CsrFile(implicit p: Parameters) extends Module {
   val trap_ret = en && ctrl.is_sys
 
   val hits: Seq[Bool]          = addrMap.map(_ === addr)
-  val addrMatch: Bool          = CombTree.orTree(hits)
+  val addrMatch: Bool          = hits.reduce(_ || _)
   val writableHits: Seq[Bool]  = csrTable.zip(hits).map { case (reg, h) => h && reg.writable.B }
-  val writeAccessAllowed: Bool = addrMatch && CombTree.orTree(writableHits) && !ctrl.is_sys
+  val writableAddrMatch: Bool  = writableHits.reduce(_ || _)
+  val writeAccessAllowed: Bool = addrMatch && writableAddrMatch && !ctrl.is_sys
 
   val srcData: UInt = Mux(ctrl.is_imm, utils.genImm(instr), src)
 
@@ -100,5 +101,7 @@ class CsrFile(implicit p: Parameters) extends Module {
 
   val readCases: Seq[(Bool, UInt)] = hits.zip(csrRegs)
 
-  rd := Mux(en && !ctrl.is_sys, CombTree.oneHotMux(readCases), 0.U(p(XLen).W))
+  val read_w      = readCases.head._2.getWidth
+  val read_masked = readCases.map { case (cond, v) => Mux(cond, v, 0.U(read_w.W)) }
+  rd := Mux(en && !ctrl.is_sys, read_masked.reduce(_ | _), 0.U(p(XLen).W))
 }

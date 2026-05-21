@@ -1,8 +1,8 @@
 package arch.core.csr.riscv
 
 import arch.core.csr._
+import arch.core.regfile.Register
 import arch.configs._
-import vopts.utils.Register
 import chisel3._
 import chisel3.util.{ BitPat, MuxLookup, Cat }
 

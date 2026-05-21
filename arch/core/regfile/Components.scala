@@ -1,8 +1,15 @@
 package arch.core.regfile
 
 import arch.configs._
-import vopts.utils.Register
 import chisel3._
+
+case class Register(
+  name: String,
+  addr: BigInt,
+  initValue: BigInt = 0L,
+  writable: Boolean = true,
+  readable: Boolean = true
+)
 
 trait RegfileUtils extends Utils {
   def getRs1(instr: UInt): UInt
