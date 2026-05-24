@@ -2,7 +2,6 @@ package arch.core.mult.riscv
 
 import arch.core.mult._
 import arch.configs._
-import vopts.math.Multiplier
 import chisel3._
 import chisel3.util.BitPat
 
@@ -31,27 +30,6 @@ object RV32IMMultUtils extends RegisteredUtils[MultUtils] with RV32IMMultUOpCons
       ctrl
     }
 
-    override def fn(en: Bool, kill: Bool, src1: UInt, src2: UInt, a_signed: Bool, b_signed: Bool, high: Bool): (UInt, Bool, Bool) = {
-      val result = WireDefault(0.U(p(XLen).W))
-      val busy   = WireDefault(false.B)
-      val done   = WireDefault(true.B)
-
-      val mult = Module(new Multiplier(p(XLen), p(MultPipelineStages)))
-
-      mult.start        := en
-      mult.kill         := kill
-      mult.multiplicand := src1
-      mult.multiplier   := src2
-      mult.a_signed     := a_signed
-      mult.b_signed     := b_signed
-      mult.take_high    := high
-
-      result := mult.result
-      done   := mult.done
-      busy   := mult.busy
-
-      (result, busy, done)
-    }
   }
 
   override def factory: UtilsFactory[MultUtils] = MultUtilsFactory

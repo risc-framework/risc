@@ -15,9 +15,6 @@ object RV32IDivUtils extends RegisteredUtils[DivUtils] {
       ctrl
     }
 
-    // RV32I has no integer divide extension.
-    override def fn(en: Bool, kill: Bool, src1: UInt, src2: UInt, is_signed: Bool, is_rem: Bool): (UInt, Bool, Bool) =
-      (0.U(p(XLen).W), false.B, true.B)
   }
 
   override def factory: UtilsFactory[DivUtils] = DivUtilsFactory

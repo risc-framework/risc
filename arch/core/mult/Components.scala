@@ -5,7 +5,6 @@ import chisel3._
 
 trait MultUtils extends Utils {
   def decode(uop: UInt): MultCtrl
-  def fn(en: Bool, kill: Bool, src1: UInt, src2: UInt, a_signed: Bool, b_signed: Bool, high: Bool): (UInt, Bool, Bool)
 }
 
 object MultUtilsFactory extends UtilsFactory[MultUtils]("Mult")

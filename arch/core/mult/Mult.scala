@@ -1,7 +1,9 @@
 package arch.core.mult
 
 import arch.configs._
+import vutils.math.mul.IntegerMultiplier
 import chisel3._
+import chisel3.util.Decoupled
 
 class MultCtrl extends Bundle {
   val a_signed = Bool()
@@ -9,27 +11,46 @@ class MultCtrl extends Bundle {
   val high     = Bool()
 }
 
+class MultReq(implicit p: Parameters) extends Bundle {
+  val src1 = UInt(p(XLen).W)
+  val src2 = UInt(p(XLen).W)
+  val ctrl = new MultCtrl
+}
+
+class MultResp(implicit p: Parameters) extends Bundle {
+  val result = UInt(p(XLen).W)
+}
+
+class MultIO(implicit p: Parameters) extends Bundle {
+  val req  = Flipped(Decoupled(new MultReq))
+  val resp = Decoupled(new MultResp)
+
+  val kill = Input(Bool())
+  val busy = Output(Bool())
+}
+
 class Mult(implicit p: Parameters) extends Module {
-  override def desiredName: String = s"${p(ISA).name}_multiplier"
+  override def desiredName: String = s"${p(ISA).name}_mult"
 
-  val utils = MultUtilsFactory.getOrThrow(p(ISA).name)
+  val io = IO(new MultIO)
 
-  val en   = IO(Input(Bool()))
-  val kill = IO(Input(Bool()))
+  private val multiplier =
+    Module(new IntegerMultiplier(p(XLen), p(MultPipelineStages)))
 
-  val src1     = IO(Input(UInt(p(XLen).W)))
-  val src2     = IO(Input(UInt(p(XLen).W)))
-  val a_signed = IO(Input(Bool()))
-  val b_signed = IO(Input(Bool()))
-  val high     = IO(Input(Bool()))
+  multiplier.io.kill := io.kill
 
-  val result = IO(Output(UInt(p(XLen).W)))
-  val busy   = IO(Output(Bool()))
-  val done   = IO(Output(Bool()))
+  multiplier.io.in.valid             := io.req.valid && !io.kill
+  multiplier.io.in.bits.multiplicand := io.req.bits.src1
+  multiplier.io.in.bits.multiplier   := io.req.bits.src2
+  multiplier.io.in.bits.aSigned      := io.req.bits.ctrl.a_signed
+  multiplier.io.in.bits.bSigned      := io.req.bits.ctrl.b_signed
+  multiplier.io.in.bits.takeHigh     := io.req.bits.ctrl.high
 
-  val ctrls = utils.fn(en, kill, src1, src2, a_signed, b_signed, high)
+  io.req.ready := multiplier.io.in.ready && !io.kill
 
-  result := ctrls._1
-  busy   := ctrls._2
-  done   := ctrls._3
+  io.resp.valid           := multiplier.io.out.valid && !io.kill
+  io.resp.bits.result     := multiplier.io.out.bits.result
+  multiplier.io.out.ready := io.resp.ready && !io.kill
+
+  io.busy := multiplier.io.busy
 }

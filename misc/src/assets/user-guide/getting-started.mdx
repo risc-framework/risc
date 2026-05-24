@@ -14,20 +14,22 @@ This project is still under active development.
 - **sbt** - version defined in `project/build.properties` (currently `1.10.11`)
 - **Chisel / Scala** — versions defined in `build.sbt`
 - **Protobuf** 
-- **[Vopts](https://github.com/dashygo097/Vopts.git)** — must be installed before building
+- **[Vutils](https://github.com/risc-framework/Vutils.git)** — must be installed before building
+- **[Vamba](https://github.com/risc-framework/Vamba.git)** — must be installed before building
+- **[Vcache](https://github.com/risc-framework/Vcache.git)** — must be installed before building
 
-### Vopts
-`Vopts` is a libarary containing many useful utilities and modules for this project, including `AXI4 interfaces`, `Cache`, `Multiplier` etc.
+### Vxxx
+`Vxxx` is the libarary containing many useful utilities and modules for this project, including `AXI4 interfaces`, `Cache`, `Multiplier` etc.
 It is required for building this project.
 
-1. Install `Vopts` locally
+1. Install `Vxxx` locally (Vxxx = Vutils/Vamba/Vcache etc.)
 ```bash
-git clone https://github.com/dashygo097/Vopts.git 
-cd Vopts
+git clone https://github.com/dashygo097/Vxxx.git 
+cd Vxxx
 make localpublish
 ```
 
-2. Add `Vopts` as a dependency
+2. Add `Vxxx` as a dependency
 
 Simplily run:
 ```bash
