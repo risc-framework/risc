@@ -1,7 +1,7 @@
 package arch.configs
 
 abstract class Field[T] private (
-  val default: Option[T]
+  val default: Option[T],
 ) {
   def this() = this(None)
   def this(default: T) = this(Some(default))

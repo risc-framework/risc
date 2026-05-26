@@ -49,11 +49,6 @@ class Parameters(
 object Parameters {
   def empty: Parameters = new Parameters(Map.empty)
 
-  def apply(configs: Config*): Parameters =
-    configs.foldRight(empty) { (config, params) =>
-      config.toInstance(params)
-    }
-
   def apply(
     site: Map[Any, Any],
     up: Option[Parameters] = None,
