@@ -21,7 +21,7 @@ DemuSimulator::DemuSimulator(bool enabled_trace, int threads, int argc,
 
   dut_ = std::make_unique<system_t>(context_.get(), "TOP");
 
-  device_manager_ = std::make_unique<hal::DeviceManager>();
+  device_manager_ = std::make_unique<demu::hal::DeviceManager>();
 
   timer_irq_ = std::make_unique<demu::hal::InterruptLine>();
   soft_irq_ = std::make_unique<demu::hal::InterruptLine>();
@@ -112,7 +112,12 @@ auto DemuSimulator::load_elf(const std::string &filename) -> bool {
 void DemuSimulator::init() {
   DEMU_INFO("DEMU Simulator Initializing...");
 
-  register_devices();
+  hal::register_generated_devices<system_t>(*device_manager_, dut_.get(),
+                                            hal::GeneratedDeviceContext{
+                                                .timer_irq = timer_irq_.get(),
+                                                .soft_irq = soft_irq_.get(),
+                                            });
+
   device_manager_->dump_device_map();
 
 #ifdef ENABLE_TRACE

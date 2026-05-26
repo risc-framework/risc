@@ -12,21 +12,6 @@ public:
       : DemuSimulator(enabled_trace, threads, argc, argv) {}
 
 protected:
-  void register_devices() override {
-    register_port<0, demu::hal::axif::AXIFullPortHandler,
-                  demu::hal::axif::AXIFullSRAM>("imem");
-    register_port<1, demu::hal::axif::AXIFullPortHandler,
-                  demu::hal::axif::AXIFullSRAM>("dmem");
-    register_port<2, demu::hal::axif::AXIFullPortHandler,
-                  demu::hal::axif::AXIFullUART>("uart");
-
-#if defined(__ISA_RV32I__) || defined(__ISA_RV32IM__)
-    register_port<3, demu::hal::axif::AXIFullPortHandler,
-                  demu::hal::axif::AXIFullCLINT>(
-        "clint", demu::sys_def::FREQ, timer_irq_.get(), soft_irq_.get());
-#endif
-  };
-
   void on_init() override {}
   void on_clock_tick() override {}
   void on_exit() override {}

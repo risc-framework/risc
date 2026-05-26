@@ -146,7 +146,6 @@ protected:
   void handle_performance_profiling();
 
   // Overridable hooks
-  virtual void register_devices() {};
   virtual void on_clock_tick() {};
   virtual void on_init() {};
   virtual void on_exit() {};
@@ -169,42 +168,6 @@ protected:
   [[nodiscard]] auto read_retire_lane(uint32_t lane) const noexcept
       -> demu::RetirePacket {
     return demu::RetireSignalInfo<system_t>::read(dut_.get(), lane);
-  }
-
-  // device registry helper
-  template <size_t PortID, typename HandlerType, typename DeviceType,
-            typename... Args>
-  auto register_port(const std::string &region_name, Args &&...args) -> void {
-
-    auto *specific_dut = static_cast<system_t *>(this->dut_.get());
-
-    if constexpr (demu::hal::SignalBinder<system_t, HandlerType,
-                                          PortID>::exists) {
-
-      const auto *region = sys_def::BUS_ADDRESS_MAP.data() + PortID;
-
-      if (!region) {
-        DEMU_WARN("Region '{}' for Port {} not found. Skipping.", region_name,
-                  PortID);
-        return;
-      }
-
-      device_manager_->register_device<DeviceType>(PortID, *region,
-                                                   std::forward<Args>(args)...);
-
-      device_manager_->register_handler(
-          PortID, std::make_unique<HandlerType>([specific_dut]() -> auto {
-            return demu::hal::SignalBinder<system_t, HandlerType, PortID>::bind(
-                specific_dut);
-          }));
-
-      DEMU_DEBUG("Registered '{}' on Port {}", region_name, PortID)
-
-    } else {
-      DEMU_ERROR(
-          "Compile-Time SFINAE Failed: Port {} does not exist on DUT for '{}'",
-          PortID, region_name);
-    }
   }
 };
 } // namespace demu

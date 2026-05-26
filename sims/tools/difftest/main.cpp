@@ -35,8 +35,7 @@ public:
       : DemuSimulator(enabled_trace, threads, argc, argv),
         ref_model_(std::move(ref_model)),
         batch_size_(batch_size > 0 ? batch_size : 1),
-        max_queue_batches_(max_queue_batches > 0 ? max_queue_batches : 1),
-        safe_loop_counter_(0) {}
+        max_queue_batches_(max_queue_batches > 0 ? max_queue_batches : 1) {}
 
   auto load_bin(const std::string &filename, addr_t base_addr = 0) -> bool {
     entry_point_ = base_addr;
@@ -106,21 +105,6 @@ protected:
         .reg_data = static_cast<word_t>(dut_->debug_reg_data_1),
     };
   }
-
-  void register_devices() override {
-    register_port<0, demu::hal::axif::AXIFullPortHandler,
-                  demu::hal::axif::AXIFullSRAM>("imem");
-    register_port<1, demu::hal::axif::AXIFullPortHandler,
-                  demu::hal::axif::AXIFullSRAM>("dmem");
-    register_port<2, demu::hal::axif::AXIFullPortHandler,
-                  demu::hal::axif::AXIFullUART>("uart");
-
-#if defined(__ISA_RV32I__) || defined(__ISA_RV32IM__)
-    register_port<3, demu::hal::axif::AXIFullPortHandler,
-                  demu::hal::axif::AXIFullCLINT>(
-        "clint", demu::sys_def::FREQ, timer_irq_.get(), soft_irq_.get());
-#endif
-  };
 
   void on_init() override {
     difftest_error_.store(false);
@@ -209,7 +193,6 @@ private:
   std::vector<CommitState> local_batch_;
   size_t batch_size_;
   size_t max_queue_batches_;
-  size_t safe_loop_counter_;
 
   std::atomic<bool> sim_running_{false};
   std::atomic<bool> difftest_error_{false};
@@ -293,8 +276,6 @@ void print_usage(const char *prog) {
   std::cout << "  -t, --trace                   Enable VCD trace\n";
   std::cout << "  -T, --threads <n>             Number of Verilator threads "
                "(default: NUM_THREADS)\n";
-  std::cout << "  -SLT, --safe-loop-terminate               Safe return when "
-               "stucking at infinite loop (default: false)\n";
   std::cout
       << "  -c, --cycles <n>              Run for n cycles (0=unlimited)\n";
   std::cout

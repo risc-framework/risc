@@ -1,8 +1,8 @@
 #pragma once
 
 #include "./allocator.hh"
-#include "./device.hh"
 #include "./device_manager.hh"
+#include "./device_registry.hh"
 #include "./hardware.hh"
 #include "./interrupt.hh"
 #include "./port_handler.hh"
