@@ -20,7 +20,7 @@ public:
     pin_awsize = size;
     pin_awburst = burst;
   }
-  virtual auto aw_ready() const noexcept -> bool { return true; }
+  [[nodiscard]] virtual auto aw_ready() const noexcept -> bool { return true; }
 
   // W
   virtual void w_valid(bool valid, word_t data, byte_t strb, bool last) {
@@ -29,17 +29,17 @@ public:
     pin_wstrb = strb;
     pin_wlast = last;
   }
-  virtual auto w_ready() const noexcept -> bool { return true; }
+  [[nodiscard]] virtual auto w_ready() const noexcept -> bool { return true; }
 
   // B
   virtual void b_ready(bool ready) { pin_bready = ready; }
-  virtual auto b_valid() const noexcept -> bool {
+  [[nodiscard]] virtual auto b_valid() const noexcept -> bool {
     return !_write_resp_queue.empty();
   }
-  virtual auto b_resp() const noexcept -> uint8_t {
+  [[nodiscard]] virtual auto b_resp() const noexcept -> uint8_t {
     return b_valid() ? _write_resp_queue.front().resp : 0;
   }
-  virtual auto b_id() const noexcept -> uint8_t {
+  [[nodiscard]] virtual auto b_id() const noexcept -> uint8_t {
     return b_valid() ? _write_resp_queue.front().id : 0;
   }
 
@@ -53,23 +53,23 @@ public:
     pin_arsize = size;
     pin_arburst = burst;
   }
-  virtual auto ar_ready() const noexcept -> bool { return true; }
+  [[nodiscard]] virtual auto ar_ready() const noexcept -> bool { return true; }
 
   // R
   virtual void r_ready(bool ready) { pin_rready = ready; }
-  virtual auto r_valid() const noexcept -> bool {
+  [[nodiscard]] virtual auto r_valid() const noexcept -> bool {
     return !_read_data_queue.empty();
   }
-  virtual auto r_data() const noexcept -> word_t {
+  [[nodiscard]] virtual auto r_data() const noexcept -> word_t {
     return r_valid() ? _read_data_queue.front().data : 0;
   }
-  virtual auto r_resp() const noexcept -> uint8_t {
+  [[nodiscard]] virtual auto r_resp() const noexcept -> uint8_t {
     return r_valid() ? _read_data_queue.front().resp : 0;
   }
-  virtual auto r_id() const noexcept -> uint32_t {
+  [[nodiscard]] virtual auto r_id() const noexcept -> uint32_t {
     return r_valid() ? _read_data_queue.front().id : 0;
   }
-  virtual auto r_last() const noexcept -> bool {
+  [[nodiscard]] virtual auto r_last() const noexcept -> bool {
     return r_valid() ? _read_data_queue.front().last : false;
   }
 

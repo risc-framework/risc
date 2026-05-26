@@ -9,20 +9,20 @@ class AXILiteSlave : public Device {
 public:
   explicit AXILiteSlave(const sys_def::DeviceDescriptor &desc) : Device(desc) {}
 
-  ~AXILiteSlave() = default;
+  ~AXILiteSlave() override = default;
 
   // AW
   virtual void aw_valid(addr_t addr) { _write_addr_queue.push(addr); };
-  virtual auto aw_ready() const noexcept -> bool { return true; };
+  [[nodiscard]] virtual auto aw_ready() const noexcept -> bool { return true; };
 
   // W
   virtual void w_valid(word_t data, byte_t strb) {
     _write_data_queue.push({data, strb});
   }
-  virtual auto w_ready() const noexcept -> bool { return true; }
+  [[nodiscard]] virtual auto w_ready() const noexcept -> bool { return true; }
 
   // B
-  virtual auto b_valid() const noexcept -> bool {
+  [[nodiscard]] virtual auto b_valid() const noexcept -> bool {
     return !_write_resp_queue.empty();
   }
   virtual void b_ready(bool ready) {
@@ -30,16 +30,16 @@ public:
       _write_resp_queue.pop();
     }
   }
-  virtual auto b_resp() const noexcept -> uint8_t {
+  [[nodiscard]] virtual auto b_resp() const noexcept -> uint8_t {
     return _write_resp_queue.empty() ? 0u : _write_resp_queue.front().resp;
   }
 
   // AR
   virtual void ar_valid(addr_t addr) { _read_queue.push({addr, 0u, false}); }
-  virtual auto ar_ready() const noexcept -> bool { return true; }
+  [[nodiscard]] virtual auto ar_ready() const noexcept -> bool { return true; }
 
   // R
-  virtual auto r_valid() const noexcept -> bool {
+  [[nodiscard]] virtual auto r_valid() const noexcept -> bool {
     return !_read_queue.empty() && _read_queue.front().processed;
   }
   virtual void r_ready(bool ready) {
@@ -47,10 +47,10 @@ public:
       _read_queue.pop();
     }
   }
-  virtual auto r_data() const noexcept -> word_t {
+  [[nodiscard]] virtual auto r_data() const noexcept -> word_t {
     return _read_queue.empty() ? 0u : _read_queue.front().data;
   }
-  virtual auto r_resp() const noexcept -> uint8_t { return 0u; }
+  [[nodiscard]] virtual auto r_resp() const noexcept -> uint8_t { return 0u; }
 
 protected:
   struct WriteData {
