@@ -31,7 +31,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       val totalAxiBeats = wordsPerLine * axiBeatsPerGen
       val burstLen      = (totalAxiBeats - 1).max(0).U(8.W)
 
-      val state    = RegInit(AXIBridgeState.IDLE)
+      val state    = RegInit(AXIBridgeState.Idle)
       val req_addr = RegInit(0.U(p(XLen).W))
 
       val w_beat_count  = RegInit(0.U(8.W))
@@ -55,7 +55,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       memory.resp.bits.source := 0.U
 
       switch(state) {
-        is(AXIBridgeState.IDLE) {
+        is(AXIBridgeState.Idle) {
           memory.req.ready := true.B
           when(memory.req.fire) {
             req_addr := memory.req.bits.addr
@@ -97,7 +97,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
             memory.resp.bits.last := axi.r.bits.last
 
             when(axi.r.fire && axi.r.bits.last) {
-              state := AXIBridgeState.IDLE
+              state := AXIBridgeState.Idle
             }
           } else {
             val r_pack_count  = RegInit(0.U(log2Ceil(axiBeatsPerGen).max(1).W))
@@ -125,7 +125,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
             memory.resp.bits.last := axi.r.bits.last
 
             when(axi.r.fire && axi.r.bits.last) {
-              state := AXIBridgeState.IDLE
+              state := AXIBridgeState.Idle
             }
           }
         }
@@ -213,7 +213,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
 
           when(memory.resp.fire) {
             bDone := false.B
-            state := AXIBridgeState.IDLE
+            state := AXIBridgeState.Idle
           }
         }
       }
@@ -231,7 +231,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       val totalAxiBeats = wordsPerLine * axiBeatsPerGen
       val burstLen      = (totalAxiBeats - 1).max(0).U(8.W)
 
-      val state    = RegInit(AXIBridgeState.IDLE)
+      val state    = RegInit(AXIBridgeState.Idle)
       val req_addr = RegInit(0.U(p(XLen).W))
 
       axi.aw.valid := false.B
@@ -251,7 +251,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       memory.resp.bits.source := 0.U
 
       switch(state) {
-        is(AXIBridgeState.IDLE) {
+        is(AXIBridgeState.Idle) {
           memory.req.ready := true.B
           when(memory.req.fire) {
             req_addr := memory.req.bits.addr
@@ -286,7 +286,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
             memory.resp.bits.last := axi.r.bits.last
 
             when(axi.r.fire && axi.r.bits.last) {
-              state := AXIBridgeState.IDLE
+              state := AXIBridgeState.Idle
             }
           } else {
             val r_pack_count  = RegInit(0.U(log2Ceil(axiBeatsPerGen).max(1).W))
@@ -314,7 +314,7 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
             memory.resp.bits.last := axi.r.bits.last
 
             when(axi.r.fire && axi.r.bits.last) {
-              state := AXIBridgeState.IDLE
+              state := AXIBridgeState.Idle
             }
           }
         }

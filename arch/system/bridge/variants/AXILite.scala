@@ -6,7 +6,7 @@ import chisel3.util.{ Cat, log2Ceil, is, switch }
 import vamba.axi4.lite._
 import vcache._
 
-object AXIBridgeState extends ChiselEnum { val IDLE, AR, R, AW, W, B = Value }
+object AXIBridgeState extends ChiselEnum { val Idle, AR, R, AW, W, B = Value }
 
 object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
   override def utils: BusBridgeUtils = new BusBridgeUtils {
@@ -23,7 +23,7 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
 
       val beats = (gen.getWidth / p(XLen)).max(1)
 
-      val state    = RegInit(AXIBridgeState.IDLE)
+      val state    = RegInit(AXIBridgeState.Idle)
       val req_addr = RegInit(0.U(p(XLen).W))
       val req_cmd  = RegInit(CacheCommand.Read)
 
@@ -50,7 +50,7 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       memory.resp.bits.source := 0.U
 
       switch(state) {
-        is(AXIBridgeState.IDLE) {
+        is(AXIBridgeState.Idle) {
           memory.req.ready := true.B
           when(memory.req.fire) {
             req_addr := memory.req.bits.addr
@@ -86,7 +86,7 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
           when(axi.r.fire) {
             r_data(beat) := axi.r.bits.data
             beat         := beat + 1.U
-            state        := Mux(is_last, AXIBridgeState.IDLE, AXIBridgeState.AR)
+            state        := Mux(is_last, AXIBridgeState.Idle, AXIBridgeState.AR)
           }
         }
 
@@ -119,7 +119,7 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
 
           when(axi.b.fire) {
             beat  := beat + 1.U
-            state := Mux(is_last, AXIBridgeState.IDLE, AXIBridgeState.AW)
+            state := Mux(is_last, AXIBridgeState.Idle, AXIBridgeState.AW)
           }
         }
       }
@@ -136,7 +136,7 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       val wordsPerLine  = if (isMmio) 1 else p(L1ICacheLineSize) / bytesPerGen
       val totalAxiBeats = wordsPerLine * axiBeatsPerGen
 
-      val state    = RegInit(AXIBridgeState.IDLE)
+      val state    = RegInit(AXIBridgeState.Idle)
       val req_addr = RegInit(0.U(p(XLen).W))
 
       val r_beat_count  = RegInit(0.U(log2Ceil(totalAxiBeats + 1).max(1).W))
@@ -160,7 +160,7 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       memory.resp.bits.source := 0.U
 
       switch(state) {
-        is(AXIBridgeState.IDLE) {
+        is(AXIBridgeState.Idle) {
           memory.req.ready := true.B
           when(memory.req.fire) {
             req_addr     := memory.req.bits.addr
@@ -206,7 +206,7 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
             r_beat_count := r_beat_count + 1.U
 
             when(is_last_beat) {
-              state := AXIBridgeState.IDLE
+              state := AXIBridgeState.Idle
             }.otherwise {
               state := AXIBridgeState.AR
             }

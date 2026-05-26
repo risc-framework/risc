@@ -65,7 +65,7 @@ class RobBypassIO(implicit p: Parameters) extends Bundle {
   val pending = Output(Bool())
 }
 
-class ROBEntry(implicit p: Parameters) extends Bundle {
+class RobEntry(implicit p: Parameters) extends Bundle {
   val valid          = Bool()
   val ready          = Bool()
   val pc             = UInt(p(XLen).W)
@@ -120,7 +120,7 @@ class ReorderBuffer(implicit p: Parameters) extends Module {
     Mux(tail >= sub.U, tail - sub.U, tail + p(RobSize).U - sub.U)(p(RobTagWidth) - 1, 0)
   }
 
-  val buffer = RegInit(VecInit(Seq.fill(p(RobSize))(0.U.asTypeOf(new ROBEntry))))
+  val buffer = RegInit(VecInit(Seq.fill(p(RobSize))(0.U.asTypeOf(new RobEntry))))
   val head   = RegInit(0.U(p(RobTagWidth).W))
   val tail   = RegInit(0.U(p(RobTagWidth).W))
   val count  = RegInit(0.U(CntW.W))

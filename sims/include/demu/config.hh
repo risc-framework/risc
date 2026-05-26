@@ -44,15 +44,6 @@ public:
 
   [[nodiscard]] auto is_valid() const noexcept -> bool { return valid_; }
 
-  [[nodiscard]] auto l1i_line_words(uint32_t word_bytes = 4) const noexcept
-      -> uint32_t {
-    return proto_.l1i().line_size() / word_bytes;
-  }
-  [[nodiscard]] auto l1d_line_words(uint32_t word_bytes = 4) const noexcept
-      -> uint32_t {
-    return proto_.l1d().line_size() / word_bytes;
-  }
-
   auto validate() const -> bool {
     bool ok = true;
     if (!find_region("imem")) {
