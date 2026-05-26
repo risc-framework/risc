@@ -116,7 +116,7 @@ protected:
 #if defined(__ISA_RV32I__) || defined(__ISA_RV32IM__)
     register_port<3, demu::hal::axif::AXIFullPortHandler,
                   demu::hal::axif::AXIFullCLINT>(
-        "clint", config_->freq(), timer_irq_.get(), soft_irq_.get());
+        "clint", demu::sys_def::FREQ, timer_irq_.get(), soft_irq_.get());
 #endif
   };
 
@@ -207,7 +207,7 @@ protected:
   }
 
 private:
-  uint32_t entry_point_ = config_->ifu().reset_vector();
+  uint32_t entry_point_ = demu::sys_def::RESET_VECTOR;
   std::unique_ptr<demu::difftest::IRefModel> ref_model_;
 
   std::thread difftest_thread_;

@@ -26,7 +26,7 @@ protected:
 #if defined(__ISA_RV32I__) || defined(__ISA_RV32IM__)
     register_port<3, demu::hal::axif::AXIFullPortHandler,
                   demu::hal::axif::AXIFullCLINT>(
-        "clint", config_->freq(), timer_irq_.get(), soft_irq_.get());
+        "clint", demu::sys_def::FREQ, timer_irq_.get(), soft_irq_.get());
 #endif
   };
 

@@ -8,7 +8,7 @@ using namespace isa;
 
 class AXIFullSlave : public Device {
 public:
-  explicit AXIFullSlave(const risc::DeviceDescriptor &desc) : Device(desc) {}
+  explicit AXIFullSlave(const sys_def::DeviceDescriptor &desc) : Device(desc) {}
   ~AXIFullSlave() override = default;
 
   // AW

@@ -7,7 +7,7 @@ namespace demu::hal::axif {
 
 class AXIFullSRAM final : public AXIFullSlave {
 public:
-  explicit AXIFullSRAM(const risc::DeviceDescriptor &desc)
+  explicit AXIFullSRAM(const sys_def::DeviceDescriptor &desc)
       : AXIFullSlave(desc), sram_(std::make_unique<sram::SRAM>(desc)) {}
   ~AXIFullSRAM() override = default;
 

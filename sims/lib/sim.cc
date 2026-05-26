@@ -24,10 +24,6 @@ DemuSimulator::DemuSimulator(bool enabled_trace, int threads, int argc,
 
   timer_irq_ = std::make_unique<demu::hal::InterruptLine>();
   soft_irq_ = std::make_unique<demu::hal::InterruptLine>();
-
-  config_ = std::make_unique<RiscConfig>();
-  config_->dump();
-  config_->validate();
 }
 
 DemuSimulator::~DemuSimulator() {
@@ -159,7 +155,7 @@ void DemuSimulator::reset() {
 
   on_reset();
   DEMU_INFO("System Reset Complete. PC: 0x{:08x}",
-            static_cast<addr_t>(config_->ifu().reset_vector()))
+            static_cast<addr_t>(sys_def::RESET_VECTOR))
 }
 
 void DemuSimulator::step(uint64_t cycles) {

@@ -7,7 +7,7 @@ namespace demu::hal::axif {
 
 class AXIFullUART final : public AXIFullSlave {
 public:
-  explicit AXIFullUART(const risc::DeviceDescriptor &desc)
+  explicit AXIFullUART(const sys_def::DeviceDescriptor &desc)
       : AXIFullSlave(desc), uart_(std::make_unique<uart::UART>(desc)) {}
 
   ~AXIFullUART() override = default;

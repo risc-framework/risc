@@ -152,8 +152,7 @@ protected:
 
   // retire lane helper
   [[nodiscard]] auto active_retire_lanes() const noexcept -> uint32_t {
-    const uint32_t config_lanes =
-        static_cast<uint32_t>(config_->ifu().issue_width());
+    const uint32_t config_lanes = sys_def::ISSUE_WIDTH;
 
     constexpr uint32_t detected_lanes =
         demu::RetireSignalInfo<system_t>::detected_lanes;
@@ -180,10 +179,11 @@ protected:
     if constexpr (demu::hal::SignalBinder<system_t, HandlerType,
                                           PortID>::exists) {
 
-      const auto *region = config_->find_region(region_name);
+      const auto *region = sys_def::BUS_ADDRESS_MAP.data() + PortID;
+
       if (!region) {
-        DEMU_WARN("Region '{}' for Port {} not found in config. Skipping.",
-                  region_name, PortID);
+        DEMU_WARN("Region '{}' for Port {} not found. Skipping.", region_name,
+                  PortID);
         return;
       }
 

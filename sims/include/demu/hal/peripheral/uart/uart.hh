@@ -17,7 +17,7 @@ enum UartRegisters : addr_t {
 
 class UART final : public Device {
 public:
-  explicit UART(const risc::DeviceDescriptor &desc)
+  explicit UART(const sys_def::DeviceDescriptor &desc)
       : Device(desc), allocator_(std::make_unique<MemoryAllocator>(
                           base_address(), address_range())) {}
 

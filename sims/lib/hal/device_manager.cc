@@ -53,7 +53,7 @@ auto DeviceManager::find_device_for_address(addr_t addr) noexcept -> Device * {
   auto *device = get_device(it->second);
   if (device && device->owns_address(addr)) {
     HAL_TRACE("Address 0x{:08X} mapped to device '{}' (Port {})", addr,
-              slots_[it->second].desc.name(), it->second);
+              slots_[it->second].desc.name, it->second);
     return device;
   }
 
@@ -76,7 +76,7 @@ auto DeviceManager::find_device_for_address(addr_t addr) const noexcept
   const auto *device = get_device(it->second);
   if (device && device->owns_address(addr)) {
     HAL_TRACE("Address 0x{:08X} mapped to device '{}' (Port {})", addr,
-              slots_[it->second].desc.name(), it->second);
+              slots_[it->second].desc.name, it->second);
     return device;
   }
   return nullptr;
@@ -127,7 +127,7 @@ auto DeviceManager::get_device_name(port_id_t port) const noexcept
   if (!has_device_at(port)) {
     return std::nullopt;
   }
-  return std::string_view(slots_[port].desc.name());
+  return std::string_view(slots_[port].desc.name);
 }
 
 void DeviceManager::dump_device_map() const {
@@ -141,7 +141,7 @@ void DeviceManager::dump_device_map() const {
     const addr_t end = base + range - 1;
 
     HAL_INFO("Port {:>2}: {:<20} [0x{:08X} - 0x{:08X}] ({:>8} bytes)", port,
-             slot.desc.name(), static_cast<uint32_t>(base),
+             slot.desc.name, static_cast<uint32_t>(base),
              static_cast<uint32_t>(end), static_cast<uint32_t>(range));
   }
 }
@@ -158,7 +158,7 @@ void DeviceManager::rebuild_indices_for(port_id_t port) {
     return;
   }
 
-  name_indices_[slot.desc.name()] = port;
+  name_indices_[slot.desc.name.data()] = port;
   addr_indices_[slot.device->base_address()] = port;
 }
 
@@ -168,7 +168,7 @@ void DeviceManager::remove_indices_for(port_id_t port) {
     return;
   }
 
-  name_indices_.erase(slot.desc.name());
+  name_indices_.erase(slot.desc.name.data());
   addr_indices_.erase(slot.device->base_address());
 }
 

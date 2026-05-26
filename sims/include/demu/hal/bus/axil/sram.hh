@@ -8,7 +8,7 @@ namespace demu::hal::axil {
 
 class AXILiteSRAM final : public AXILiteSlave {
 public:
-  explicit AXILiteSRAM(const risc::DeviceDescriptor &desc)
+  explicit AXILiteSRAM(const sys_def::DeviceDescriptor &desc)
       : AXILiteSlave(desc), sram_(std::make_unique<sram::SRAM>(desc)) {}
 
   ~AXILiteSRAM() override = default;

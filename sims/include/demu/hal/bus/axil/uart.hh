@@ -8,7 +8,7 @@ namespace demu::hal::axil {
 
 class AXILiteUART final : public AXILiteSlave {
 public:
-  explicit AXILiteUART(const risc::DeviceDescriptor &desc)
+  explicit AXILiteUART(const sys_def::DeviceDescriptor &desc)
       : AXILiteSlave(desc), uart_(std::make_unique<uart::UART>(desc)) {}
 
   ~AXILiteUART() override = default;

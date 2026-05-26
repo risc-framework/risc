@@ -8,9 +8,9 @@ using namespace isa;
 
 class SRAM final : public Device {
 public:
-  explicit SRAM(const risc::DeviceDescriptor &desc)
+  explicit SRAM(const sys_def::DeviceDescriptor &desc)
       : Device(desc),
-        memory_(std::make_unique<MemoryAllocator>(desc.base(), desc.size())) {}
+        memory_(std::make_unique<MemoryAllocator>(desc.base, desc.size)) {}
 
   ~SRAM() override = default;
 

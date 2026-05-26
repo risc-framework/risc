@@ -29,7 +29,7 @@ public:
 
   // Device Registration
   template <typename T, typename... Args>
-  auto register_device(port_id_t port, risc::DeviceDescriptor desc,
+  auto register_device(port_id_t port, sys_def::DeviceDescriptor desc,
                        Args &&...args) -> T *;
 
   // Device Retrieval — by port
@@ -84,7 +84,7 @@ public:
 
 private:
   struct DeviceSlot {
-    risc::DeviceDescriptor desc;
+    sys_def::DeviceDescriptor desc;
     std::unique_ptr<Device> device;
     std::unique_ptr<PortHandler> handler;
   };
@@ -101,7 +101,8 @@ private:
 };
 
 template <typename T, typename... Args>
-auto DeviceManager::register_device(port_id_t port, risc::DeviceDescriptor desc,
+auto DeviceManager::register_device(port_id_t port,
+                                    sys_def::DeviceDescriptor desc,
                                     Args &&...args) -> T * {
   static_assert(std::is_base_of_v<Device, T>, "T must derive from Device");
 
@@ -120,12 +121,12 @@ auto DeviceManager::register_device(port_id_t port, risc::DeviceDescriptor desc,
 
     rebuild_indices_for(port);
 
-    HAL_DEBUG("Registered device '{}' on Port {} [Base: 0x{:08X}]", desc.name(),
+    HAL_DEBUG("Registered device '{}' on Port {} [Base: 0x{:08X}]", desc.name,
               port, static_cast<addr_t>(ptr->base_address()));
 
     return ptr;
   } catch (const std::exception &e) {
-    HAL_ERROR("Failed to create device '{}' on Port {}: {}", desc.name(), port,
+    HAL_ERROR("Failed to create device '{}' on Port {}: {}", desc.name, port,
               e.what());
     return nullptr;
   }

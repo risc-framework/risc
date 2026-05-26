@@ -9,7 +9,7 @@ using namespace isa;
 
 class AXILiteSlave : public Device {
 public:
-  explicit AXILiteSlave(const risc::DeviceDescriptor &desc) : Device(desc) {}
+  explicit AXILiteSlave(const sys_def::DeviceDescriptor &desc) : Device(desc) {}
 
   ~AXILiteSlave() = default;
 

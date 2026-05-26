@@ -2,7 +2,7 @@
 
 #include "./allocator.hh"
 #include "./hardware.hh"
-#include "demu/sys_def.hh"
+#include "demu/generated/sys_def.hh"
 #include <utility>
 
 namespace demu::hal {
@@ -21,7 +21,6 @@ public:
     return static_cast<size_t>(desc_.size);
   }
   [[nodiscard]] auto name() const noexcept -> const char * override {
-    // string_view -> c_str()
     return desc_.name.data();
   }
   [[nodiscard]] auto device_type() const noexcept -> sys_def::DeviceType {
