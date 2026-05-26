@@ -1,8 +1,6 @@
 package arch.core.ooo
 
 import arch.configs._
-import arch.configs.proto._
-import arch.configs.proto.FunctionalUnitType._
 import chisel3._
 import chisel3.util.{ Decoupled, Valid, log2Ceil }
 
@@ -23,20 +21,20 @@ abstract class Scheduler(implicit p: Parameters) extends Module {
     op.fu_type === t.index.U(p(FuTypeWidth).W)
 
   protected def isLoad(op: MicroOp): Bool =
-    isFuType(op, FUNCTIONAL_UNIT_TYPE_LD)
+    isFuType(op, FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
 
   protected def isStore(op: MicroOp): Bool =
-    isFuType(op, FUNCTIONAL_UNIT_TYPE_ST)
+    isFuType(op, FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
 
   protected def usesRs1(op: MicroOp): Bool =
-    op.fu_type =/= FUNCTIONAL_UNIT_TYPE_CSR.index.U(p(FuTypeWidth).W)
+    op.fu_type =/= FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR.index.U(p(FuTypeWidth).W)
 
   protected def usesRs2(op: MicroOp): Bool =
-    op.fu_type === FUNCTIONAL_UNIT_TYPE_ALU.index.U(p(FuTypeWidth).W) ||
-      op.fu_type === FUNCTIONAL_UNIT_TYPE_MULT.index.U(p(FuTypeWidth).W) ||
-      op.fu_type === FUNCTIONAL_UNIT_TYPE_DIV.index.U(p(FuTypeWidth).W) ||
-      op.fu_type === FUNCTIONAL_UNIT_TYPE_BRU.index.U(p(FuTypeWidth).W) ||
-      op.fu_type === FUNCTIONAL_UNIT_TYPE_ST.index.U(p(FuTypeWidth).W)
+    op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ALU.index.U(p(FuTypeWidth).W) ||
+      op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_MULT.index.U(p(FuTypeWidth).W) ||
+      op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV.index.U(p(FuTypeWidth).W) ||
+      op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU.index.U(p(FuTypeWidth).W) ||
+      op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U(p(FuTypeWidth).W)
 
   protected def defaultFuReqs(): Unit =
     for (i <- 0 until p(NumFUs)) {

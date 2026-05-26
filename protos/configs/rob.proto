@@ -1,8 +1,0 @@
-syntax = "proto3";
-
-package risc;
-
-option java_package = "arch.configs.proto";
-option java_outer_classname = "RobConfigProto";
-
-message RobConfig { uint32 size = 1; }

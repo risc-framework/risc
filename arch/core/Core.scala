@@ -12,7 +12,6 @@ import mult._
 import div._
 import ooo._
 import arch.configs._
-import arch.configs.proto.FunctionalUnitType._
 import vcache._
 import vcache.nonblocking._
 import chisel3._
@@ -54,14 +53,14 @@ class RiscCore(implicit p: Parameters) extends Module {
 
   val fus = p(FunctionalUnits).map { fuDesc =>
     fuDesc.`type` match {
-      case FUNCTIONAL_UNIT_TYPE_ALU  => Module(new AluFU)
-      case FUNCTIONAL_UNIT_TYPE_MULT => Module(new MultFU)
-      case FUNCTIONAL_UNIT_TYPE_DIV  => Module(new DivFU)
-      case FUNCTIONAL_UNIT_TYPE_BRU  => Module(new BruFU)
-      case FUNCTIONAL_UNIT_TYPE_LD   => Module(new LoadFU)
-      case FUNCTIONAL_UNIT_TYPE_ST   => Module(new StoreFU)
-      case FUNCTIONAL_UNIT_TYPE_CSR  => Module(new CsrFU)
-      case _                         => throw new Exception(s"Unknown FunctionalUnitType: ${fuDesc.`type`}")
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ALU  => Module(new AluFU)
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_MULT => Module(new MultFU)
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV  => Module(new DivFU)
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU  => Module(new BruFU)
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD   => Module(new LoadFU)
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST   => Module(new StoreFU)
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR  => Module(new CsrFU)
+      case _                                            => throw new Exception(s"Unknown FunctionalUnitType: ${fuDesc.`type`}")
     }
   }
 
@@ -164,14 +163,14 @@ class RiscCore(implicit p: Parameters) extends Module {
     decoded_rd_valid(w) := decoders(w).decoded.rd_valid && regfile_utils.writable(rds(w))
 
     inst_type(w) := MuxCase(
-      FUNCTIONAL_UNIT_TYPE_ALU.index.U(p(FuTypeWidth).W),
+      FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ALU.index.U(p(FuTypeWidth).W),
       Seq(
-        decoders(w).decoded.load  -> FUNCTIONAL_UNIT_TYPE_LD.index.U(p(FuTypeWidth).W),
-        decoders(w).decoded.store -> FUNCTIONAL_UNIT_TYPE_ST.index.U(p(FuTypeWidth).W),
-        decoders(w).decoded.div   -> FUNCTIONAL_UNIT_TYPE_DIV.index.U(p(FuTypeWidth).W),
-        decoders(w).decoded.mult  -> FUNCTIONAL_UNIT_TYPE_MULT.index.U(p(FuTypeWidth).W),
-        decoders(w).decoded.bru   -> FUNCTIONAL_UNIT_TYPE_BRU.index.U(p(FuTypeWidth).W),
-        decoders(w).decoded.csr   -> FUNCTIONAL_UNIT_TYPE_CSR.index.U(p(FuTypeWidth).W)
+        decoders(w).decoded.load  -> FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD.index.U(p(FuTypeWidth).W),
+        decoders(w).decoded.store -> FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U(p(FuTypeWidth).W),
+        decoders(w).decoded.div   -> FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV.index.U(p(FuTypeWidth).W),
+        decoders(w).decoded.mult  -> FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_MULT.index.U(p(FuTypeWidth).W),
+        decoders(w).decoded.bru   -> FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU.index.U(p(FuTypeWidth).W),
+        decoders(w).decoded.csr   -> FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR.index.U(p(FuTypeWidth).W)
       )
     )
   }

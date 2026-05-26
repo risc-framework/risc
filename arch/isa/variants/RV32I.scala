@@ -1,6 +1,5 @@
 package arch.isa
 
-import arch.isa.proto._
 import chisel3.util.BitPat
 
 object RV32I extends IsaWrapper {

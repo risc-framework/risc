@@ -2,7 +2,6 @@ package arch.core.ooo
 
 import arch.core.imm._
 import arch.configs._
-import arch.configs.proto._
 import chisel3._
 import chisel3.util.log2Ceil
 

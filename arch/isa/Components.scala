@@ -1,8 +1,31 @@
 package arch.isa
 
-import arch.isa.proto._
 import chisel3.util.BitPat
 import scala.collection.mutable.LinkedHashMap
+
+final case class InstructionEncoding(
+  name: String,
+  value: BigInt,
+  mask: BigInt
+)
+
+final case class InstructionSet(
+  nop: Option[InstructionEncoding] = None,
+  encodings: Seq[InstructionEncoding] = Seq.empty
+) {
+  def all: Seq[InstructionEncoding] =
+    nop.toSeq ++ encodings
+}
+
+final case class Isa(
+  name: String,
+  xlen: Int,
+  ilen: Int,
+  numArchRegs: Int,
+  isBigEndian: Boolean,
+  microOpWidth: Int,
+  instrSet: Option[InstructionSet] = None
+)
 
 abstract class IsaWrapper {
   def isa: Isa

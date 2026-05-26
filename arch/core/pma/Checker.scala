@@ -1,6 +1,5 @@
 package arch.core.pma
 
-import arch.configs.proto.DeviceType._
 import arch.configs._
 import chisel3._
 
@@ -18,9 +17,9 @@ class PmaChecker(implicit p: Parameters) extends Module {
     (d.`type`, hit)
   }
 
-  val is_sram = hits.filter(_._1 == DEVICE_TYPE_SRAM).map(_._2).reduce(_ || _)
-  val is_uart = hits.filter(_._1 == DEVICE_TYPE_UART).map(_._2).reduce(_ || _)
-  val is_irh  = hits.filter(_._1 == DEVICE_TYPE_IRH).map(_._2).reduce(_ || _)
+  val is_sram = hits.filter(_._1 == DeviceType.DEVICE_TYPE_SRAM).map(_._2).reduce(_ || _)
+  val is_uart = hits.filter(_._1 == DeviceType.DEVICE_TYPE_UART).map(_._2).reduce(_ || _)
+  val is_irh  = hits.filter(_._1 == DeviceType.DEVICE_TYPE_IRH).map(_._2).reduce(_ || _)
 
   valid     := is_sram || is_uart || is_irh
   readable  := is_sram || is_uart || is_irh

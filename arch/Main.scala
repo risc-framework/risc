@@ -34,13 +34,6 @@ object MainCore extends App {
     info = true,
     lowering = true,
   )
-  RiscDump.dump(
-    p = p,
-    configPath = "build/config.json",
-    isaPath = "build/isa.json",
-    binPath = Some("build/config.pb"),
-    isaBinPath = Some("build/isa.pb"),
-  )
 }
 
 object MainSystem extends App {
@@ -63,12 +56,5 @@ object MainSystem extends App {
     target = SystemVerilog,
     info = true,
     lowering = true,
-  )
-  RiscDump.dump(
-    p = p,
-    configPath = "build/config.json",
-    isaPath = "build/isa.json",
-    binPath = Some("build/config.pb"),
-    isaBinPath = Some("build/isa.pb"),
   )
 }

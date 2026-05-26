@@ -1,9 +1,6 @@
 package arch
 
 package object configs {
-  import proto._
-  import proto.DeviceType._
-  import proto.FunctionalUnitType._
   import isa._
   import vcache._
   import vcache.repl._
@@ -31,16 +28,16 @@ package object configs {
   object FunctionalUnits
       extends Field[Seq[FunctionalUnitDescriptor]](
         Seq(
-          FunctionalUnitDescriptor(name = "ALU_0", `type` = FUNCTIONAL_UNIT_TYPE_ALU),
-          FunctionalUnitDescriptor(name = "ALU_1", `type` = FUNCTIONAL_UNIT_TYPE_ALU),
-          FunctionalUnitDescriptor(name = "MULT_0", `type` = FUNCTIONAL_UNIT_TYPE_MULT),
-          FunctionalUnitDescriptor(name = "DIV_0", `type` = FUNCTIONAL_UNIT_TYPE_DIV),
-          FunctionalUnitDescriptor(name = "LD_0", `type` = FUNCTIONAL_UNIT_TYPE_LD),
-          FunctionalUnitDescriptor(name = "LD_1", `type` = FUNCTIONAL_UNIT_TYPE_LD),
-          FunctionalUnitDescriptor(name = "ST_0", `type` = FUNCTIONAL_UNIT_TYPE_ST),
-          FunctionalUnitDescriptor(name = "ST_1", `type` = FUNCTIONAL_UNIT_TYPE_ST),
-          FunctionalUnitDescriptor(name = "BRU_0", `type` = FUNCTIONAL_UNIT_TYPE_BRU),
-          FunctionalUnitDescriptor(name = "CSR", `type` = FUNCTIONAL_UNIT_TYPE_CSR),
+          FunctionalUnitDescriptor(name = "ALU_0", `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ALU),
+          FunctionalUnitDescriptor(name = "ALU_1", `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ALU),
+          FunctionalUnitDescriptor(name = "MULT_0", `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_MULT),
+          FunctionalUnitDescriptor(name = "DIV_0", `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV),
+          FunctionalUnitDescriptor(name = "LD_0", `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD),
+          FunctionalUnitDescriptor(name = "LD_1", `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD),
+          FunctionalUnitDescriptor(name = "ST_0", `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST),
+          FunctionalUnitDescriptor(name = "ST_1", `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST),
+          FunctionalUnitDescriptor(name = "BRU_0", `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU),
+          FunctionalUnitDescriptor(name = "CSR", `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR),
         )
       )
 
@@ -56,19 +53,19 @@ package object configs {
   // Branch Prediction
   object BTBWays        extends Field[Int](2)
   object BTBSets        extends Field[Int](128)
-  object BTBReplPolicy  extends Field[ReplacementPolicy](ReplacementPolicy.PseudoLRU)
+  object BTBReplPolicy  extends Field[ReplPolicy](ReplPolicy.PseudoLRU)
   object GShareGhrWidth extends Field[Int](10)
 
   // Cache Parameters
   object L1ICacheWays       extends Field[Int](2)
   object L1ICacheSets       extends Field[Int](8)
   object L1ICacheLineSize   extends Field[Int](64) // in bytes
-  object L1ICacheReplPolicy extends Field[ReplacementPolicy](ReplacementPolicy.LRU)
+  object L1ICacheReplPolicy extends Field[ReplPolicy](ReplPolicy.LRU)
 
   object L1DCacheWays       extends Field[Int](4)
   object L1DCacheSets       extends Field[Int](8)
   object L1DCacheLineSize   extends Field[Int](64) // in bytes
-  object L1DCacheReplPolicy extends Field[ReplacementPolicy](ReplacementPolicy.PseudoLRU)
+  object L1DCacheReplPolicy extends Field[ReplPolicy](ReplPolicy.PseudoLRU)
 
   // Bus Parameters
   object BusType                       extends Field[String]("axif")
@@ -77,10 +74,10 @@ package object configs {
   object BusAddressMap
       extends Field[Seq[DeviceDescriptor]](
         Seq(
-          DeviceDescriptor(name = "imem", `type` = DEVICE_TYPE_SRAM, base = 0x80000000L, size = 0x40000L),
-          DeviceDescriptor(name = "dmem", `type` = DEVICE_TYPE_SRAM, base = 0x80040000L, size = 0x40000L),
-          DeviceDescriptor(name = "uart", `type` = DEVICE_TYPE_UART, base = 0x10000000L, size = 0x1000L),
-          DeviceDescriptor(name = "clint", `type` = DEVICE_TYPE_IRH, base = 0x20000000L, size = 0x10000L)
+          DeviceDescriptor(name = "imem", `type` = DeviceType.DEVICE_TYPE_SRAM, base = 0x80000000L, size = 0x40000L),
+          DeviceDescriptor(name = "dmem", `type` = DeviceType.DEVICE_TYPE_SRAM, base = 0x80040000L, size = 0x40000L),
+          DeviceDescriptor(name = "uart", `type` = DeviceType.DEVICE_TYPE_UART, base = 0x10000000L, size = 0x1000L),
+          DeviceDescriptor(name = "clint", `type` = DeviceType.DEVICE_TYPE_IRH, base = 0x20000000L, size = 0x10000L)
         )
       )
   // --------------------------------------------
@@ -103,7 +100,7 @@ package object configs {
   object FuTypeWidth extends Field[Int](log2Ceil(FunctionalUnitType.values.size))
   object FuIdWidth   extends Field[Int](log2Ceil(FunctionalUnits().size))
   object NumFUs      extends Field[Int](FunctionalUnits().size)
-  object NumLDs      extends Field[Int](FunctionalUnits().count(_.`type` == FUNCTIONAL_UNIT_TYPE_LD))
+  object NumLDs      extends Field[Int](FunctionalUnits().count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD))
   object RobTagWidth extends Field[Int](log2Ceil(RobSize()))
 
   object L1ICacheParams
