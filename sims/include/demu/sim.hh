@@ -1,6 +1,5 @@
 #pragma once
 
-#include "./config.hh"
 #include "./hal/hal.hh"
 #include "./retire_lane.hh"
 #include "verilated.h"
@@ -102,8 +101,6 @@ public:
 
 protected:
   // components
-  std::unique_ptr<RiscConfig> config_;
-
   std::unique_ptr<VerilatedContext> context_;
   std::unique_ptr<system_t> dut_;
   std::unique_ptr<hal::DeviceManager> device_manager_;

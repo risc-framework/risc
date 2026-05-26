@@ -34,6 +34,12 @@ object MainCore extends App {
     info = true,
     lowering = true,
   )
+
+  CppCodegen.emit(
+    p,
+    "include/demu/sys_def.hh",
+    "include/demu/isa_def.hh"
+  )
 }
 
 object MainSystem extends App {
@@ -56,5 +62,11 @@ object MainSystem extends App {
     target = SystemVerilog,
     info = true,
     lowering = true,
+  )
+
+  CppCodegen.emit(
+    p,
+    "include/demu/sys_def.hh",
+    "include/demu/isa_def.hh"
   )
 }
