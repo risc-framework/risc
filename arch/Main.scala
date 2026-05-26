@@ -37,8 +37,8 @@ object MainCore extends App {
 
   CppCodegen.emit(
     p,
-    "include/demu/sys_def.hh",
-    "include/demu/isa_def.hh"
+    "include/demu/generated/sys_def.hh",
+    "include/demu/generated/isa_def.hh"
   )
 }
 
@@ -66,7 +66,7 @@ object MainSystem extends App {
 
   CppCodegen.emit(
     p,
-    "include/demu/sys_def.hh",
-    "include/demu/isa_def.hh"
+    "include/demu/generated/sys_def.hh",
+    "include/demu/generated/isa_def.hh"
   )
 }

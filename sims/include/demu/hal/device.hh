@@ -1,34 +1,34 @@
 #pragma once
 
-#include <utility>
-
 #include "./allocator.hh"
 #include "./hardware.hh"
-#include "risc.pb.h"
+#include "demu/sys_def.hh"
+#include <utility>
 
 namespace demu::hal {
 using namespace isa;
 
 class Device : public Hardware {
 public:
-  explicit Device(risc::DeviceDescriptor desc) : desc_(std::move(desc)) {}
+  explicit Device(sys_def::DeviceDescriptor desc) : desc_(std::move(desc)) {}
 
   ~Device() override = default;
 
   [[nodiscard]] auto base_address() const noexcept -> addr_t {
-    return static_cast<addr_t>(desc_.base());
+    return static_cast<addr_t>(desc_.base);
   }
   [[nodiscard]] auto address_range() const noexcept -> size_t {
-    return static_cast<size_t>(desc_.size());
+    return static_cast<size_t>(desc_.size);
   }
   [[nodiscard]] auto name() const noexcept -> const char * override {
-    return desc_.name().c_str();
+    // string_view -> c_str()
+    return desc_.name.data();
   }
-  [[nodiscard]] auto device_type() const noexcept -> risc::DeviceType {
-    return desc_.type();
+  [[nodiscard]] auto device_type() const noexcept -> sys_def::DeviceType {
+    return desc_.type;
   }
   [[nodiscard]] auto descriptor() const noexcept
-      -> const risc::DeviceDescriptor & {
+      -> const sys_def::DeviceDescriptor & {
     return desc_;
   }
 
@@ -59,7 +59,7 @@ public:
   }
 
 private:
-  risc::DeviceDescriptor desc_;
+  sys_def::DeviceDescriptor desc_;
 };
 
 } // namespace demu::hal
