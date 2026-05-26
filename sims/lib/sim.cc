@@ -119,8 +119,10 @@ void DemuSimulator::init() {
     Verilated::mkdir("logs");
     vcd_ = std::make_unique<VerilatedVcdC>();
     dut_->trace(vcd_.get(), 99);
-    vcd_->open(("logs/demu_" + std::string(ISA_NAME) + "_trace.vcd").c_str());
-    DEMU_DEBUG("VCD tracing enabled: logs/demu_{}_trace.vcd", ISA_NAME);
+    vcd_->open(
+        ("logs/demu_" + std::string(sys_def::ISA_NAME) + "_trace.vcd").c_str());
+    DEMU_DEBUG("VCD tracing enabled: logs/demu_{}_trace.vcd",
+               sys_def::ISA_NAME);
   }
 #endif
 }

@@ -133,68 +133,70 @@ package object configs {
         )
       )
 
-  implicit val p: Parameters = Parameters.empty ++ Map(
-    ISA         -> ISA(),
-    Frequency   -> Frequency(),
-    EnableDebug -> EnableDebug(),
+  implicit val p: Parameters = Parameters(
+    Map(
+      ISA         -> ISA(),
+      Frequency   -> Frequency(),
+      EnableDebug -> EnableDebug(),
 
-    // ISA
-    XLen             -> XLen(),
-    ILen             -> ILen(),
-    NumArchRegs      -> NumArchRegs(),
-    IsBigEndian      -> IsBigEndian(),
-    MicroOpWidth     -> MicroOpWidth(),
-    Bubble           -> Bubble(),
-    BytesPerWord     -> BytesPerWord(),
-    BytesOffsetWidth -> BytesOffsetWidth(),
-    BytesPerInstr    -> BytesPerInstr(),
-    PCStep           -> PCStep(),
-    PCAlign          -> PCAlign(),
+      // ISA
+      XLen             -> XLen(),
+      ILen             -> ILen(),
+      NumArchRegs      -> NumArchRegs(),
+      IsBigEndian      -> IsBigEndian(),
+      MicroOpWidth     -> MicroOpWidth(),
+      Bubble           -> Bubble(),
+      BytesPerWord     -> BytesPerWord(),
+      BytesOffsetWidth -> BytesOffsetWidth(),
+      BytesPerInstr    -> BytesPerInstr(),
+      PCStep           -> PCStep(),
+      PCAlign          -> PCAlign(),
 
-    // IFU
-    IBufferSize -> IBufferSize(),
-    ResetVector -> ResetVector(),
+      // IFU
+      IBufferSize -> IBufferSize(),
+      ResetVector -> ResetVector(),
 
-    // Regfile
-    IsRegfileUseBypass -> IsRegfileUseBypass(),
-    NumPhyRegs         -> NumPhyRegs(),
+      // Regfile
+      IsRegfileUseBypass -> IsRegfileUseBypass(),
+      NumPhyRegs         -> NumPhyRegs(),
 
-    // Scheduler
-    ScheduleType    -> ScheduleType(),
-    IssueWidth      -> IssueWidth(),
-    FunctionalUnits -> FunctionalUnits(),
-    FuTypeWidth     -> FuTypeWidth(),
-    FuIdWidth       -> FuIdWidth(),
-    NumLDs          -> NumLDs(),
+      // Scheduler
+      ScheduleType    -> ScheduleType(),
+      IssueWidth      -> IssueWidth(),
+      FunctionalUnits -> FunctionalUnits(),
+      FuTypeWidth     -> FuTypeWidth(),
+      FuIdWidth       -> FuIdWidth(),
+      NumLDs          -> NumLDs(),
 
-    // Mult
-    MultPipelineStages -> MultPipelineStages(),
+      // Mult
+      MultPipelineStages -> MultPipelineStages(),
 
-    // ROB
-    RobSize     -> RobSize(),
-    RobTagWidth -> RobTagWidth(),
+      // ROB
+      RobSize     -> RobSize(),
+      RobTagWidth -> RobTagWidth(),
 
-    // Branch Prediction
-    BTBWays        -> BTBWays(),
-    BTBSets        -> BTBSets(),
-    BTBReplPolicy  -> BTBReplPolicy(),
-    GShareGhrWidth -> GShareGhrWidth(),
+      // Branch Prediction
+      BTBWays        -> BTBWays(),
+      BTBSets        -> BTBSets(),
+      BTBReplPolicy  -> BTBReplPolicy(),
+      GShareGhrWidth -> GShareGhrWidth(),
 
-    // Cache
-    L1ICacheWays       -> L1ICacheWays(),
-    L1ICacheSets       -> L1ICacheSets(),
-    L1ICacheLineSize   -> L1ICacheLineSize(),
-    L1ICacheReplPolicy -> L1ICacheReplPolicy(),
-    L1ICacheParams     -> L1ICacheParams(),
-    L1DCacheWays       -> L1DCacheWays(),
-    L1DCacheSets       -> L1DCacheSets(),
-    L1DCacheLineSize   -> L1DCacheLineSize(),
-    L1DCacheReplPolicy -> L1DCacheReplPolicy(),
-    L1DCacheParams     -> L1DCacheParams(),
+      // Cache
+      L1ICacheWays       -> L1ICacheWays(),
+      L1ICacheSets       -> L1ICacheSets(),
+      L1ICacheLineSize   -> L1ICacheLineSize(),
+      L1ICacheReplPolicy -> L1ICacheReplPolicy(),
+      L1ICacheParams     -> L1ICacheParams(),
+      L1DCacheWays       -> L1DCacheWays(),
+      L1DCacheSets       -> L1DCacheSets(),
+      L1DCacheLineSize   -> L1DCacheLineSize(),
+      L1DCacheReplPolicy -> L1DCacheReplPolicy(),
+      L1DCacheParams     -> L1DCacheParams(),
 
-    // Bus
-    BusType                       -> BusType(),
-    BusCrossbarFifoDepthPerClient -> BusCrossbarFifoDepthPerClient(),
-    BusAddressMap                 -> BusAddressMap(),
+      // Bus
+      BusType                       -> BusType(),
+      BusCrossbarFifoDepthPerClient -> BusCrossbarFifoDepthPerClient(),
+      BusAddressMap                 -> BusAddressMap(),
+    )
   )
 }

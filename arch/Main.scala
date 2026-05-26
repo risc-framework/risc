@@ -14,6 +14,7 @@ import core.lsu._
 import core.imm._
 import core.csr._
 import configs._
+import cpp._
 import vutils._
 
 object MainCore extends App {
