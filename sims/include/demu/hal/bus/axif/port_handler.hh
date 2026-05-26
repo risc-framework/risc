@@ -34,7 +34,6 @@
   name.rready = &dut->M_AXIF_##port_id##_RREADY;
 
 namespace demu::hal::axif {
-using namespace isa;
 
 struct AXIFullSignals {
   // AW

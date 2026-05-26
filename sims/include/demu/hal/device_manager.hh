@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../logger.hh"
-#include "./device.hh"
-#include "./port_handler.hh"
+#include "demu/hal/device.hh"
+#include "demu/hal/port_handler.hh"
+#include "demu/logger.hh"
 #include <cstdint>
 #include <map>
 #include <memory>

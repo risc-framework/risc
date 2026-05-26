@@ -83,7 +83,7 @@ public:
       return std::string(buf);
     };
 
-    for (int i = 0; i < NUM_GPRS; i++) {
+    for (int i = 0; i < isa_def::NUM_ARCH_REGS; i++) {
       ss << encode_hex_le(state_.gpr[i]);
     }
     ss << encode_hex_le(static_cast<word_t>(state_.pc));
@@ -96,10 +96,11 @@ public:
     send_packet("g");
     std::string regs_hex = recv_packet();
 
-    for (int i = 0; i < NUM_GPRS; i++) {
+    for (int i = 0; i < isa_def::NUM_ARCH_REGS; i++) {
       state_.gpr[i] = decode_hex_le(regs_hex, i * 8);
     }
-    state_.pc = static_cast<addr_t>(decode_hex_le(regs_hex, NUM_GPRS * 8));
+    state_.pc = static_cast<addr_t>(
+        decode_hex_le(regs_hex, isa_def::NUM_ARCH_REGS * 8));
   }
 
   [[nodiscard]] auto get_pc() const -> addr_t override { return state_.pc; }

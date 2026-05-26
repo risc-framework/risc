@@ -82,14 +82,18 @@ object CppCodegen {
 
     w.line("#pragma once")
     w.line()
+    w.line(s"""#include "${CppIsaSchema.verilatedHeader(p, options)}"""")
+    w.line()
     w.line("#include <array>")
     w.line("#include <cstdint>")
     w.line("#include <string_view>")
     w.line()
 
+    CppIsaSchema.emitMacroUndefs(w)
+
     w.namespace(options.isaNamespace) {
       CppIsaSchema.emitTypes(w)
-      CppIsaSchema.emitValues(w, p)
+      CppIsaSchema.emitValues(w, p, options)
     }
 
     if (options.emitMacros) {

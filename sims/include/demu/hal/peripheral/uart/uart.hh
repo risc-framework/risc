@@ -5,7 +5,6 @@
 #include <memory>
 
 namespace demu::hal::uart {
-using namespace isa;
 
 enum UartRegisters : addr_t {
   UART_RXD = 0x00,

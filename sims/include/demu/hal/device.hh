@@ -1,12 +1,11 @@
 #pragma once
 
-#include "./allocator.hh"
-#include "./hardware.hh"
 #include "demu/generated/sys_def.hh"
+#include "demu/hal/allocator.hh"
+#include "demu/hal/hardware.hh"
 #include <utility>
 
 namespace demu::hal {
-using namespace isa;
 
 class Device : public Hardware {
 public:

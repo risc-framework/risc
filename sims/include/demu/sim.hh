@@ -12,7 +12,9 @@
 #endif
 
 namespace demu {
-using namespace isa;
+using isa_def::addr_t;
+using isa_def::system_t;
+using isa_def::word_t;
 
 class DemuSimulator {
 public:
@@ -134,7 +136,7 @@ protected:
   uint64_t _backend_stalls{0};
 
   addr_t last_retire_pc_{0};
-  std::array<word_t, NUM_GPRS> _register_values{};
+  std::array<word_t, isa_def::NUM_ARCH_REGS> _register_values{};
 
   // Internal simulation methods
   void clock_tick();

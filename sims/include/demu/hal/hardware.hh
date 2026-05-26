@@ -3,7 +3,6 @@
 #include "../isa/isa.hh"
 
 namespace demu::hal {
-using namespace isa;
 
 class Hardware {
 public:

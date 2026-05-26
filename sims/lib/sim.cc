@@ -215,7 +215,7 @@ void DemuSimulator::run(uint64_t max_cycles) {
 
 void DemuSimulator::dump_registers() const {
   DEMU_INFO("Register Dump:");
-  for (int i = 0; i < NUM_GPRS; i += 4) {
+  for (int i = 0; i < isa_def::NUM_ARCH_REGS; i += 4) {
     DEMU_INFO(
         "  x{:02d}={:08x}  x{:02d}={:08x}  x{:02d}={:08x}  x{:02d}={:08x}", i,
         reg(i), i + 1, reg(i + 1), i + 2, reg(i + 2), i + 3, reg(i + 3));
@@ -277,12 +277,12 @@ void DemuSimulator::handle_retirements() {
 
     last_retire_pc_ = retire.pc;
 
-    if (retire.reg_we && retire.reg_addr < NUM_GPRS) {
+    if (retire.reg_we && retire.reg_addr < isa_def::NUM_ARCH_REGS) {
       _register_values[retire.reg_addr] = retire.reg_data;
       DEMU_REG_WRITE(retire.reg_addr, retire.reg_data);
     }
 
-    Instruction inst(retire.instr);
+    isa::Instruction inst(retire.instr);
     DEMU_DEBUG("RETIRE[{}] | Cycle {:6d} | PC=0x{:08x} | Inst=0x{:08x} ({})",
                lane, cycle_count(), retire.pc, retire.instr, inst.to_string());
   }

@@ -6,7 +6,9 @@
 #include <type_traits>
 
 namespace demu {
-using namespace isa;
+using isa_def::addr_t;
+using isa_def::instr_t;
+using isa_def::word_t;
 
 struct RetirePacket {
   bool valid{false};

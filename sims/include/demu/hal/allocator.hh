@@ -1,12 +1,15 @@
 #pragma once
 
-#include "../isa/isa.hh"
-#include "../logger.hh"
+#include "demu/generated/isa_def.hh"
+#include "demu/logger.hh"
 #include <string>
 #include <vector>
 
 namespace demu::hal {
-using namespace isa;
+using isa_def::addr_t;
+using isa_def::byte_t;
+using isa_def::half_t;
+using isa_def::word_t;
 
 class MemoryAllocator final {
 public:

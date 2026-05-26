@@ -7,7 +7,8 @@ final case class CppCodegenOptions(
   configNamespace: String = "demu::sys_def",
   isaNamespace: String = "demu::isa_def",
   isaInclude: String = "isa_def.hh",
-  emitMacros: Boolean = true
+  emitMacros: Boolean = true,
+  topModuleName: Option[String] = None
 )
 
 final case class CppOutputPaths(

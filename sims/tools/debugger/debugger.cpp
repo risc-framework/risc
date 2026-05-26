@@ -115,7 +115,7 @@ auto Debugger::parse_reg(const std::string &s) -> int {
 
   try {
     uint64_t val = std::stoul(num_str);
-    if (val < NUM_GPRS) {
+    if (val < isa_def::NUM_ARCH_REGS) {
       return static_cast<int>(val);
     }
   } catch (...) {
@@ -128,15 +128,15 @@ void Debugger::print_stop_banner() { print_auto_display(); }
 
 void Debugger::print_registers() {
   fmt::print("\n  PC = 0x{:08x}\n\n", sim_.pc());
-  for (int i = 0; i < NUM_GPRS; i += 4) {
+  for (int i = 0; i < isa_def::NUM_ARCH_REGS; i += 4) {
     fmt::print("  x{:<2d}=0x{:08x}", i, sim_.reg(i));
-    if (i + 1 < NUM_GPRS) {
+    if (i + 1 < isa_def::NUM_ARCH_REGS) {
       fmt::print("  x{:<2d}=0x{:08x}", i + 1, sim_.reg(i + 1));
     }
-    if (i + 2 < NUM_GPRS) {
+    if (i + 2 < isa_def::NUM_ARCH_REGS) {
       fmt::print("  x{:<2d}=0x{:08x}", i + 2, sim_.reg(i + 2));
     }
-    if (i + 3 < NUM_GPRS) {
+    if (i + 3 < isa_def::NUM_ARCH_REGS) {
       fmt::print("  x{:<2d}=0x{:08x}", i + 3, sim_.reg(i + 3));
     }
     fmt::print("\n");

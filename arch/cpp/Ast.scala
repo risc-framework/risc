@@ -60,6 +60,14 @@ final private[cpp] case class AliasValue(
     w.line(s"inline constexpr $tpe $name = $expr;")
 }
 
+final private[cpp] case class TypeAliasValue(
+  name: String,
+  expr: Parameters => String
+) extends CppValue {
+  override def emit(w: CppWriter, p: Parameters): Unit =
+    w.line(s"using $name = ${expr(p)};")
+}
+
 final private[cpp] case class StructValue(
   tpe: String,
   name: String,

@@ -4,7 +4,6 @@
 #include "../../device.hh"
 
 namespace demu::hal::sram {
-using namespace isa;
 
 class SRAM final : public Device {
 public:

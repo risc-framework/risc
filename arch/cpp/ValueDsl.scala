@@ -32,6 +32,12 @@ private[cpp] object CppValueDsl {
   def alias(tpe: String, name: String, expr: String): CppValue =
     AliasValue(tpe, name, expr)
 
+  def typeAlias(name: String, expr: String): CppValue =
+    TypeAliasValue(name, _ => expr)
+
+  def typeAlias(name: String, expr: Parameters => String): CppValue =
+    TypeAliasValue(name, expr)
+
   def struct(
     tpe: String,
     name: String,

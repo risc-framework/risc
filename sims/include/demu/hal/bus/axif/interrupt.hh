@@ -7,7 +7,6 @@
 #if defined(__ISA_RV32I__) || defined(__ISA_RV32IM__)
 
 namespace demu::hal::axif {
-using namespace isa;
 
 enum ClintRegisters : addr_t {
   CLINT_MSIP = 0x0000,

@@ -17,15 +17,51 @@ private[cpp] object CppIsaSchema {
     )
   )
 
-  private val scalarFields: Seq[CppValue] = Seq(
-    str("ISA_NAME", p => p(ISA).name),
-    u32("XLEN", p => p(ISA).xlen),
-    u32("ILEN", p => p(ISA).ilen),
-    u32("NUM_ARCH_REGS", p => p(ISA).numArchRegs),
-    bool("IS_BIG_ENDIAN", p => p(ISA).isBigEndian),
-    u32("MICRO_OP_WIDTH", p => p(ISA).microOpWidth),
-    u32("NUM_INSTR_ENCODINGS", p => p(ISA).instrSet.encodings.size),
-  )
+  def verilatedHeader(p: Parameters, options: CppCodegenOptions): String =
+    options.topModuleName
+      .getOrElse(defaultTopModuleName(p))
+      .prependedAll("V")
+      .appendedAll(".h")
+
+  private def defaultTopModuleName(p: Parameters): String =
+    s"${p(ISA).name}_system"
+
+  private def verilatedClassName(p: Parameters, options: CppCodegenOptions): String =
+    "V" + options.topModuleName.getOrElse(defaultTopModuleName(p))
+
+  private def intType(width: Int): String =
+    if (width <= 8) {
+      "uint8_t"
+    } else if (width <= 16) {
+      "uint16_t"
+    } else if (width <= 32) {
+      "uint32_t"
+    } else if (width <= 64) {
+      "uint64_t"
+    } else {
+      throw new IllegalArgumentException(s"Unsupported generated C++ integer width: $width")
+    }
+
+  private def scalarFields: Seq[CppValue] =
+    Seq(
+      str("ISA_NAME", p => p(ISA).name),
+      u32("XLEN", p => p(ISA).xlen),
+      u32("ILEN", p => p(ISA).ilen),
+      u32("NUM_ARCH_REGS", p => p(ISA).numArchRegs),
+      bool("IS_BIG_ENDIAN", p => p(ISA).isBigEndian),
+      u32("MICRO_OP_WIDTH", p => p(ISA).microOpWidth),
+      u32("NUM_INSTR_ENCODINGS", p => p(ISA).instrSet.encodings.size),
+    )
+
+  private def typeAliases(options: CppCodegenOptions): Seq[CppValue] =
+    Seq(
+      TypeAliasValue("system_t", p => s"::${verilatedClassName(p, options)}"),
+      TypeAliasValue("instr_t", p => intType(p(ISA).ilen)),
+      TypeAliasValue("addr_t", p => intType(p(ISA).xlen)),
+      TypeAliasValue("word_t", p => intType(p(ISA).xlen)),
+      TypeAliasValue("half_t", _ => "uint16_t"),
+      TypeAliasValue("byte_t", _ => "uint8_t"),
+    )
 
   private val aggregateFields: Seq[CppValue] = Seq(
     struct(
@@ -53,7 +89,14 @@ private[cpp] object CppIsaSchema {
       w.line()
     }
 
-  def emitValues(w: CppWriter, p: Parameters): Unit = {
+  def emitValues(
+    w: CppWriter,
+    p: Parameters,
+    options: CppCodegenOptions
+  ): Unit = {
+    typeAliases(options).foreach(_.emit(w, p))
+    w.line()
+
     scalarFields.foreach(_.emit(w, p))
     w.line()
 
@@ -79,6 +122,22 @@ private[cpp] object CppIsaSchema {
 
     emitMacroGuards(w, macros)
   }
+
+  def emitMacroUndefs(w: CppWriter): Unit =
+    CppLiteral.emitMacroUndefs(
+      w,
+      Seq(
+        "ISA_NAME",
+        "XLEN",
+        "ILEN",
+        "NUM_ARCH_REGS",
+        "IS_BIG_ENDIAN",
+        "MICRO_OP_WIDTH",
+        "NUM_INSTR_ENCODINGS",
+        "ISA_NOP",
+        "INSTRUCTION_ENCODINGS",
+      )
+    )
 
   private def renderInstruction(e: InstructionEncoding): String =
     braced(renderInstructionFields(e))

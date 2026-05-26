@@ -1,10 +1,12 @@
 #pragma once
 
-#include "./typedefs.hh"
+#include "demu/generated/isa_def.hh"
 #include <cstdint>
 #include <string>
 
 namespace demu::isa {
+using demu::isa_def::instr_t;
+
 enum InstrType {
   R_TYPE,
   I_TYPE,

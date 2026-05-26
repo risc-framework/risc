@@ -6,10 +6,12 @@
 #include <string>
 
 namespace demu::difftest {
-using namespace isa;
+using isa_def::addr_t;
+using isa_def::byte_t;
+using isa_def::word_t;
 
 struct CPU_state {
-  word_t gpr[NUM_GPRS];
+  word_t gpr[isa_def::NUM_ARCH_REGS];
   addr_t pc;
 };
 

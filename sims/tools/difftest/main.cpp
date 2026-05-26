@@ -13,7 +13,9 @@
 #include <thread>
 #include <vector>
 
-using namespace demu::isa;
+using demu::isa_def::addr_t;
+using demu::isa_def::instr_t;
+using demu::isa_def::word_t;
 
 struct CommitState {
   addr_t pc;
@@ -65,7 +67,7 @@ public:
 
   void sync_ref_state() {
     ref_model_->set_pc(entry_point_);
-    for (int i = 0; i < NUM_GPRS; i++) {
+    for (int i = 0; i < demu::isa_def::NUM_ARCH_REGS; i++) {
       ref_model_->set_reg(i, 0);
     }
     ref_model_->push_state();
@@ -259,7 +261,8 @@ private:
 
         expected_qemu_pc = ref_model_->get_pc();
 
-        if (dut_state.reg_we && dut_state.reg_addr < NUM_GPRS) {
+        if (dut_state.reg_we &&
+            dut_state.reg_addr < demu::isa_def::NUM_ARCH_REGS) {
           word_t ref_val = ref_model_->get_reg(dut_state.reg_addr);
           word_t dut_val = dut_state.reg_data;
 

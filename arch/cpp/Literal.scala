@@ -31,6 +31,15 @@ private[cpp] object CppLiteral {
       }
       .mkString
 
+  def emitMacroUndefs(w: CppWriter, names: Seq[String]): Unit = {
+    names.distinct.foreach { name =>
+      w.line(s"#ifdef $name")
+      w.line(s"#undef $name")
+      w.line("#endif")
+      w.line()
+    }
+  }
+
   def emitMacroGuards(w: CppWriter, macros: Seq[(String, String)]): Unit = {
     val seen = scala.collection.mutable.LinkedHashSet.empty[String]
 

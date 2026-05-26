@@ -25,7 +25,7 @@ void AXILiteUART::process_writes() {
   const WriteData wdata = _write_data_queue.front();
   _write_data_queue.pop();
 
-  const bool valid = owns_address(addr) && (addr % INSTR_ALIGNMENT == 0);
+  const bool valid = owns_address(addr);
 
   if (valid) {
     addr_t offset = to_offset(addr);
@@ -53,7 +53,7 @@ void AXILiteUART::process_reads() {
   }
 
   ReadTransaction &rt = _read_queue.front();
-  const bool valid = owns_address(rt.addr) && (rt.addr % INSTR_ALIGNMENT == 0);
+  const bool valid = owns_address(rt.addr);
 
   rt.data = valid ? allocator()->read_word(rt.addr) : 0u;
   rt.processed = true;

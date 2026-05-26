@@ -4,7 +4,6 @@
 #include <queue>
 
 namespace demu::hal::axif {
-using namespace isa;
 
 class AXIFullSlave : public Device {
 public:

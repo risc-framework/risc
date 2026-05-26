@@ -5,8 +5,6 @@
 
 namespace demu::hal::axil {
 
-using namespace isa;
-
 class AXILiteSlave : public Device {
 public:
   explicit AXILiteSlave(const sys_def::DeviceDescriptor &desc) : Device(desc) {}
