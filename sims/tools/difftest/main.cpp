@@ -30,13 +30,13 @@ public:
   explicit DemuSimulatorDiff(
       std::unique_ptr<demu::difftest::IRefModel> ref_model,
       bool enabled_trace = false, int threads = NUM_THREADS,
-      size_t batch_size = 1024, size_t max_queue_batches = 10,
-      bool safe_loop_terminate = false, int argc = 0, char **argv = nullptr)
+      size_t batch_size = 1024, size_t max_queue_batches = 10, int argc = 0,
+      char **argv = nullptr)
       : DemuSimulator(enabled_trace, threads, argc, argv),
         ref_model_(std::move(ref_model)),
         batch_size_(batch_size > 0 ? batch_size : 1),
         max_queue_batches_(max_queue_batches > 0 ? max_queue_batches : 1),
-        safe_loop_terminate_(safe_loop_terminate), safe_loop_counter_(0) {}
+        safe_loop_counter_(0) {}
 
   auto load_bin(const std::string &filename, addr_t base_addr = 0) -> bool {
     entry_point_ = base_addr;
@@ -194,17 +194,6 @@ protected:
         lock.unlock();
         cv_consume_.notify_one();
       }
-
-      if (__builtin_expect(
-              static_cast<bool>(retire.instr == demu::isa::SAFE_LOOP), 0)) {
-        safe_loop_counter_++;
-
-        if (safe_loop_counter_ > 1 && safe_loop_terminate_) {
-          DEMU_INFO("Simulation SAFE LOOP TERMINATE")
-          _terminate = true;
-          return;
-        }
-      }
     }
   }
 
@@ -220,7 +209,6 @@ private:
   std::vector<CommitState> local_batch_;
   size_t batch_size_;
   size_t max_queue_batches_;
-  bool safe_loop_terminate_;
   size_t safe_loop_counter_;
 
   std::atomic<bool> sim_running_{false};
@@ -334,7 +322,6 @@ auto main(int argc, char **argv) -> int {
   uint32_t dump_mem_size = 0;
   size_t batch_size = 1024;
   size_t max_batches = 10;
-  bool safe_loop_terminate = false;
   spdlog::level::level_enum spdlog_level = spdlog::level::info;
 
   for (int i = 1; i < argc; i++) {
@@ -361,8 +348,6 @@ auto main(int argc, char **argv) -> int {
       if (i + 1 < argc) {
         threads = std::stoi(argv[++i]);
       }
-    } else if (arg == "-SLT" || arg == "--safe-loop-terminate") {
-      safe_loop_terminate = true;
     } else if (arg == "-d" || arg == "--dump-regs") {
       dump_regs = true;
     } else if (arg == "-c" || arg == "--cycles") {
@@ -433,7 +418,7 @@ auto main(int argc, char **argv) -> int {
   }
 
   DemuSimulatorDiff sim(std::move(ref), enable_trace, threads, batch_size,
-                        max_batches, safe_loop_terminate, argc, argv);
+                        max_batches, argc, argv);
 
   sim.init();
   sim.reset();

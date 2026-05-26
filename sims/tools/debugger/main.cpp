@@ -5,8 +5,6 @@
 #include <iostream>
 #include <string>
 
-using namespace demu::isa;
-
 class DemuDebuggerTop final : public demu::DemuSimulator {
 public:
   explicit DemuDebuggerTop(bool enabled_trace = false,

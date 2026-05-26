@@ -1,5 +1,6 @@
 #include "demu/sim.hh"
 #include "demu/elf_loader.hh"
+#include "demu/instruction.hh"
 #include "demu/logger.hh"
 
 namespace demu {
@@ -282,9 +283,9 @@ void DemuSimulator::handle_retirements() {
       DEMU_REG_WRITE(retire.reg_addr, retire.reg_data);
     }
 
-    isa::Instruction inst(retire.instr);
-    DEMU_DEBUG("RETIRE[{}] | Cycle {:6d} | PC=0x{:08x} | Inst=0x{:08x} ({})",
-               lane, cycle_count(), retire.pc, retire.instr, inst.to_string());
+    Instruction inst(retire.instr);
+    DEMU_DEBUG("RETIRE[{}] | Cycle {:6d} | PC=0x{:08x} | Inst={}", lane,
+               cycle_count(), retire.pc, inst.to_string());
   }
 }
 

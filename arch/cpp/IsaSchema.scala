@@ -18,16 +18,15 @@ private[cpp] object CppIsaSchema {
   )
 
   def verilatedHeader(p: Parameters, options: CppCodegenOptions): String =
-    options.topModuleName
-      .getOrElse(defaultTopModuleName(p))
+    topModuleName(p)
       .prependedAll("V")
       .appendedAll(".h")
 
-  private def defaultTopModuleName(p: Parameters): String =
+  private def topModuleName(p: Parameters): String =
     s"${p(ISA).name}_system"
 
-  private def verilatedClassName(p: Parameters, options: CppCodegenOptions): String =
-    "V" + options.topModuleName.getOrElse(defaultTopModuleName(p))
+  private def verilatedClassName(p: Parameters): String =
+    "V" + topModuleName(p)
 
   private def intType(width: Int): String =
     if (width <= 8) {
@@ -55,7 +54,7 @@ private[cpp] object CppIsaSchema {
 
   private def typeAliases(options: CppCodegenOptions): Seq[CppValue] =
     Seq(
-      TypeAliasValue("system_t", p => s"::${verilatedClassName(p, options)}"),
+      TypeAliasValue("system_t", p => s"::${verilatedClassName(p)}"),
       TypeAliasValue("instr_t", p => intType(p(ISA).ilen)),
       TypeAliasValue("addr_t", p => intType(p(ISA).xlen)),
       TypeAliasValue("word_t", p => intType(p(ISA).xlen)),

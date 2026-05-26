@@ -1,6 +1,6 @@
 #pragma once
 
-#include "demu/isa/isa.hh"
+#include "demu/generated/isa_def.hh"
 #include <cstdint>
 #include <memory>
 #include <string>

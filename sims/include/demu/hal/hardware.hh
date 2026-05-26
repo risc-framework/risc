@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../isa/isa.hh"
+#include <memory>
 
 namespace demu::hal {
 
