@@ -1,7 +1,7 @@
 package arch.system.bridge
 
 import arch.configs._
-import vcache._
+import vcache.CachePortIO
 import chisel3._
 
 trait BusBridgeUtils extends Utils {

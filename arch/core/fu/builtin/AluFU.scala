@@ -1,9 +1,9 @@
 package arch.core.fu.builtin
 
 import arch.core.fu._
-import arch.core.imm._
-import arch.core.uop._
-import arch.core.alu._
+import arch.core.imm.ImmUtilsFactory
+import arch.core.uop.MicroOp
+import arch.core.alu.{ Alu, AluUtilsFactory, AluConsts }
 import arch.configs._
 import chisel3._
 import chisel3.util.MuxLookup

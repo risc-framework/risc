@@ -1,6 +1,6 @@
 package arch.core.fu
 
-import arch.core.uop._
+import arch.core.uop.MicroOp
 import arch.configs._
 import chisel3._
 import chisel3.util.{ Decoupled, log2Ceil, switch, is }

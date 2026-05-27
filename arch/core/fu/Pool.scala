@@ -1,11 +1,11 @@
 package arch.core.fu
 
-import arch.core.lsu._
-import arch.core.csr._
-import arch.core.uop._
+import arch.core.lsu.{ StoreForwardPort, StoreWriteBundle }
+import arch.core.csr.CoreInterruptIO
+import arch.core.uop.MicroOp
 import arch.core.fu.builtin.{ CsrFU, LoadFU, StoreFU }
 import arch.configs._
-import vcache._
+import vcache.CachePortIO
 import chisel3._
 import chisel3.util.{ Decoupled, Valid }
 import scala.reflect.ClassTag

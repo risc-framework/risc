@@ -1,9 +1,9 @@
 package arch.core.scheduler.scoreboard
 
-import arch.configs._
-import arch.core.regfile._
 import arch.core.scheduler._
-import arch.core.uop._
+import arch.core.regfile.RegfileUtilsFactory
+import arch.core.uop.MicroOp
+import arch.configs._
 import chisel3._
 import chisel3.util.{ Mux1H, PriorityEncoder }
 

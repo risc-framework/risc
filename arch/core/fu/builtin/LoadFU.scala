@@ -1,12 +1,12 @@
 package arch.core.fu.builtin
 
 import arch.core.fu._
-import arch.core.imm._
-import arch.core.pma._
-import arch.core.uop._
-import arch.core.lsu._
+import arch.core.imm.ImmUtilsFactory
+import arch.core.pma.PmaChecker
+import arch.core.uop.MicroOp
+import arch.core.lsu.{ LoadUtilsFactory, StoreForwardPort, LoadCtrl }
 import arch.configs._
-import vcache._
+import vcache.{ CachePortIO, CacheCommand }
 import chisel3._
 import chisel3.util.{ is, switch }
 

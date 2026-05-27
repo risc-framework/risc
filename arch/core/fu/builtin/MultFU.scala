@@ -1,8 +1,8 @@
 package arch.core.fu.builtin
 
 import arch.core.fu._
-import arch.core.uop._
-import arch.core.mult._
+import arch.core.uop.MicroOp
+import arch.core.mult.{ MultUtilsFactory, Mult }
 import arch.configs._
 import chisel3._
 

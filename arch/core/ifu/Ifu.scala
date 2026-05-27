@@ -1,7 +1,7 @@
 package arch.core.ifu
 
 import arch.configs._
-import vcache._
+import vcache.CacheReadOnlyPortIO
 import chisel3._
 import chisel3.util.{ log2Ceil, Queue, PriorityEncoder }
 

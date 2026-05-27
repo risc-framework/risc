@@ -1,8 +1,8 @@
 package arch.core.decoder.riscv
 
-import arch.core.mult.riscv._
-import arch.core.div.riscv._
 import arch.core.decoder._
+import arch.core.mult.riscv.RV32IMMultUOpConsts
+import arch.core.div.riscv.RV32IMDivUOpConsts
 import arch.configs._
 import arch.isa._
 import chisel3._

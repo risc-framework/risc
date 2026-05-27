@@ -1,9 +1,9 @@
 package arch.core.fu.builtin
 
-import arch.configs._
 import arch.core.fu._
-import arch.core.uop._
-import arch.core.csr._
+import arch.core.uop.MicroOp
+import arch.core.csr.{ CoreInterruptIO, CsrFile, CsrUtilsFactory }
+import arch.configs._
 import chisel3._
 
 class CsrFU(implicit p: Parameters) extends FunctionalUnit {

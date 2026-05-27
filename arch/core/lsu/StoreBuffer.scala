@@ -1,7 +1,7 @@
 package arch.core.lsu
 
 import arch.configs._
-import vcache._
+import vcache.{ CachePortIO, CacheCommand }
 import chisel3._
 import chisel3.util.{ log2Ceil, Decoupled, Valid, Cat, Mux1H, PopCount }
 

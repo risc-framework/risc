@@ -1,10 +1,10 @@
 package arch.system
 
-import bridge._
-import crossbar._
+import arch.system.bridge.{ BusBridge, BusBridgeUtilsFactory }
+import arch.system.crossbar.{ BusCrossbar, BusCrossbarUtilsFactory }
+import arch.core.{ DebugIO, RiscCore }
+import arch.core.csr.CoreInterruptIO
 import arch.configs._
-import arch.core._
-import arch.core.csr._
 import chisel3._
 
 class RiscSystem(implicit p: Parameters) extends Module {

@@ -1,10 +1,10 @@
 package arch.core.scheduler
 
+import arch.core.fu.{ FunctionalUnitPool, FunctionalUnitResp, FunctionalUnitType }
+import arch.core.scheduler.inorder.Inorder
+import arch.core.scheduler.scoreboard.Scoreboard
+import arch.core.uop.MicroOp
 import arch.configs._
-import arch.core.fu._
-import arch.core.scheduler.inorder._
-import arch.core.scheduler.scoreboard._
-import arch.core.uop._
 import chisel3._
 import chisel3.util.{ Decoupled, Valid, PriorityEncoder, log2Ceil }
 

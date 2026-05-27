@@ -1,7 +1,7 @@
 package arch.core.uop
 
-import arch.core.fu._
-import arch.core.imm._
+import arch.core.fu.FunctionalUnitType
+import arch.core.imm.ImmUtilsFactory
 import arch.configs._
 import chisel3._
 import chisel3.util.log2Ceil

@@ -1,11 +1,11 @@
 package arch.core.decoder
 
-import arch.core.imm._
+import arch.core.imm.ImmUtilsFactory
 import arch.configs._
 import chisel3._
 
 class DecodedOutput(implicit p: Parameters) extends Bundle {
-  val imm_utils = ImmUtilsFactory.getOrThrow(p(ISA).name)
+  private val imm_utils = ImmUtilsFactory.getOrThrow(p(ISA).name)
 
   val legal    = Bool()
   val regwrite = Bool()

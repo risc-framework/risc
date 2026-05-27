@@ -1,10 +1,10 @@
 package arch.system.bridge
 
 import arch.configs._
+import vamba.axi4.lite.{ Axi4LiteMasterPort, Axi4LiteParams }
+import vcache.{ CachePortIO, CacheCommand }
 import chisel3._
 import chisel3.util.{ Cat, log2Ceil, is, switch }
-import vamba.axi4.lite._
-import vcache._
 
 object AXIBridgeState extends ChiselEnum { val Idle, AR, R, AW, W, B = Value }
 

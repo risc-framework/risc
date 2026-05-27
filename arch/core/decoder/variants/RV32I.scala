@@ -1,11 +1,11 @@
 package arch.core.decoder.riscv
 
-import arch.core.imm.riscv._
-import arch.core.alu.riscv._
-import arch.core.lsu.riscv._
-import arch.core.bru.riscv._
-import arch.core.csr.riscv._
 import arch.core.decoder._
+import arch.core.imm.riscv.RV32IImmConsts
+import arch.core.alu.riscv.RV32IAluUopConsts
+import arch.core.lsu.riscv.RV32IMemUOpConsts
+import arch.core.bru.riscv.RV32IBruUOpConsts
+import arch.core.csr.riscv.RV32ICsrUOpConsts
 import arch.configs._
 import arch.isa._
 import chisel3._

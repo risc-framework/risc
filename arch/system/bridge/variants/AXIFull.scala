@@ -1,10 +1,10 @@
 package arch.system.bridge
 
 import arch.configs._
+import vamba.axi4.full.{ Axi4FullMasterPort, Axi4FullBurst, Axi4FullParams }
+import vcache.{ CachePortIO, CacheCommand }
 import chisel3._
 import chisel3.util.{ Cat, log2Ceil, is, switch }
-import vamba.axi4.full._
-import vcache._
 
 object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
   override def utils: BusBridgeUtils = new BusBridgeUtils {

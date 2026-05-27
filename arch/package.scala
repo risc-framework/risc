@@ -4,8 +4,8 @@ package object configs {
   import core.fu.{ FunctionalUnitDescriptor, FunctionalUnitType }
   import system.{ DeviceDescriptor, DeviceType }
   import isa._
-  import vcache._
-  import vcache.repl._
+  import vcache.{ CacheParams, CacheAccess, CacheMissMode }
+  import vcache.repl.ReplPolicy
   import chisel3.util.{ BitPat, log2Ceil }
 
   // NOTE: User Options: You should only modify these parameters

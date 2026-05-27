@@ -1,8 +1,8 @@
 package arch.system.crossbar
 
 import arch.configs._
-import chisel3._
 import vamba.axi4.lite._
+import chisel3._
 
 object AXILiteCrossbarUtils extends RegisteredUtils[BusCrossbarUtils] {
   override def utils: BusCrossbarUtils = new BusCrossbarUtils {

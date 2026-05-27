@@ -1,17 +1,17 @@
 package arch.core
 
-import arch.core.bpu._
-import arch.core.csr._
-import arch.core.decoder._
-import arch.core.fu._
-import arch.core.ifu._
-import arch.core.lsu._
-import arch.core.rob._
-import arch.core.regfile._
-import arch.core.scheduler._
+import arch.core.bpu.Bpu
+import arch.core.csr.CoreInterruptIO
+import arch.core.decoder.Decoder
+import arch.core.fu.{ FunctionalUnitPool, FunctionalUnitType }
+import arch.core.ifu.Ifu
+import arch.core.lsu.{ MemoryArbiter, StoreBuffer }
+import arch.core.regfile.{ Regfile, RegfileUtilsFactory }
+import arch.core.rob.ReorderBuffer
+import arch.core.scheduler.Scheduler
 import arch.configs._
-import vcache._
-import vcache.nonblocking._
+import vcache.CachePortIO
+import vcache.nonblocking.{ NonBlockingCache, ReadOnlyNonBlockingCache }
 import chisel3._
 import chisel3.util.{ log2Ceil, Mux1H, MuxCase, PopCount }
 
