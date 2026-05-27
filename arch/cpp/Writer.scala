@@ -1,7 +1,7 @@
 package arch.cpp
 
-private[cpp] final class CppWriter {
-  private val sb = new StringBuilder
+final private[cpp] class CppWriter {
+  private val sb    = new StringBuilder
   private var level = 0
 
   def line(s: String = ""): Unit = {
