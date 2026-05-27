@@ -140,7 +140,7 @@ void DeviceManager::dump_device_map() const {
     const addr_t range = slot.device->address_range();
     const addr_t end = base + range - 1;
 
-    HAL_INFO("Port {:>2}: {:<20} [0x{:08X} - 0x{:08X}] ({:>8} bytes)", port,
+    HAL_INFO("Port {:>2}: {:<10} [0x{:08X} - 0x{:08X}] ({:>8} bytes)", port,
              slot.desc.name, static_cast<uint32_t>(base),
              static_cast<uint32_t>(end), static_cast<uint32_t>(range));
   }
