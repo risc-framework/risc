@@ -2,7 +2,6 @@
 
 #include "demu/hal/device_manager.hh"
 #include "demu/hal/interrupt.hh"
-#include "demu/retire_lane.hh"
 #include "verilated.h"
 #include <cstdint>
 #include <memory>
@@ -151,15 +150,5 @@ protected:
   virtual void on_init() {};
   virtual void on_exit() {};
   virtual void on_reset() {};
-
-  // retire lane helper
-  [[nodiscard]] auto active_retire_lanes() const noexcept -> uint32_t {
-    return demu::NUM_RETIRE_LANES;
-  }
-
-  [[nodiscard]] auto read_retire_lane(uint32_t lane) const noexcept
-      -> demu::RetirePacket {
-    return demu::read_retire_lane(dut_.get(), lane);
-  }
 };
 } // namespace demu

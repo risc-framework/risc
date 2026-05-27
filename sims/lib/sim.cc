@@ -1,5 +1,6 @@
 #include "demu/sim.hh"
 #include "demu/elf_loader.hh"
+#include "demu/generated/retire_bindings.hh"
 #include "demu/hal/device_registry.hh"
 #include "demu/instruction.hh"
 #include "demu/logger.hh"
@@ -273,10 +274,8 @@ void DemuSimulator::clock_tick() {
 }
 
 void DemuSimulator::handle_retirements() {
-  const uint32_t lanes = active_retire_lanes();
-
-  for (uint32_t lane = 0; lane < lanes; ++lane) {
-    const RetirePacket retire = read_retire_lane(lane);
+  for (uint32_t lane = 0; lane < retire_def::NUM_RETIRE_LANES; ++lane) {
+    const retire_def::RetirePacket retire = retire_def::read(dut_.get(), lane);
 
     if (!retire.valid) {
       continue;

@@ -1,4 +1,5 @@
 #include "demu/elf_loader.hh"
+#include "demu/generated/retire_bindings.hh"
 #include "gdb_ref_model.hh"
 #include "ref_model.hh"
 #include <atomic>
@@ -139,10 +140,9 @@ protected:
       return;
     }
 
-    const uint32_t lanes = active_retire_lanes();
-
-    for (uint32_t lane = 0; lane < lanes; ++lane) {
-      const demu::RetirePacket retire = read_retire_lane(lane);
+    for (uint32_t lane = 0; lane < demu::retire_def::NUM_RETIRE_LANES; ++lane) {
+      const demu::retire_def::RetirePacket retire =
+          demu::retire_def::read(dut_.get(), lane);
 
       if (!retire.valid) {
         continue;
