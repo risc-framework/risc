@@ -73,16 +73,9 @@ object CppCodegen {
     w.line("#include <string_view>")
     w.line()
 
-    CppIsaSchema.emitMacroUndefs(w)
-
     w.namespace(options.isaNamespace) {
       CppIsaSchema.emitTypes(w)
       CppIsaSchema.emitValues(w, p, options)
-    }
-
-    if (options.emitMacros) {
-      w.line()
-      CppIsaSchema.emitMacros(w, p)
     }
 
     w.result
@@ -104,11 +97,6 @@ object CppCodegen {
       CppSysSchema.emitValues(w, p, options)
     }
 
-    if (options.emitMacros) {
-      w.line()
-      CppSysSchema.emitMacros(w, p)
-    }
-
     w.result
   }
 
@@ -122,8 +110,8 @@ object CppCodegen {
     w.line()
     w.line(s"""#include "${options.isaInclude}"""")
     w.line(s"""#include "${options.configInclude}"""")
-    CppBusBindingsSchema.emitIncludes(w, p)
     w.line("#include <cstddef>")
+    w.line("#include <cstdint>")
     w.line()
 
     w.namespace(options.configNamespace) {

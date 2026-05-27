@@ -3,19 +3,9 @@ package arch.cpp
 import arch.configs._
 
 private[cpp] object CppBusBindingsSchema {
-  def emitIncludes(w: CppWriter, p: Parameters): Unit =
-    p(BusType) match {
-      case "axif" =>
-        w.line("#include \"demu/hal/bus/axif/port_handler.hh\"")
-      case "axil" =>
-        w.line("#include \"demu/hal/bus/axil/port_handler.hh\"")
-      case other  =>
-        throw new IllegalArgumentException(
-          s"CppBusBindingsSchema: unsupported bus type '$other'"
-        )
-    }
-
   def emit(w: CppWriter, p: Parameters): Unit = {
+    emitSignalTypes(w)
+    w.line()
     emitForwardDecls(w)
     w.line()
 
@@ -27,6 +17,96 @@ private[cpp] object CppBusBindingsSchema {
           s"CppBusBindingsSchema: unsupported bus type '$other'"
         )
     }
+  }
+
+  private def emitSignalTypes(w: CppWriter): Unit = {
+    w.line("struct AXIFullSignals {")
+    w.indent {
+      w.line("uint8_t *awid{};")
+      w.line("::demu::isa_def::addr_t *awaddr{};")
+      w.line("uint8_t *awlen{};")
+      w.line("uint8_t *awsize{};")
+      w.line("uint8_t *awburst{};")
+      w.line("uint8_t *awvalid{};")
+      w.line("uint8_t *awready{};")
+      w.line()
+      w.line("::demu::isa_def::word_t *wdata{};")
+      w.line("uint8_t *wstrb{};")
+      w.line("uint8_t *wlast{};")
+      w.line("uint8_t *wvalid{};")
+      w.line("uint8_t *wready{};")
+      w.line()
+      w.line("uint8_t *bid{};")
+      w.line("uint8_t *bresp{};")
+      w.line("uint8_t *bvalid{};")
+      w.line("uint8_t *bready{};")
+      w.line()
+      w.line("uint8_t *arid{};")
+      w.line("::demu::isa_def::addr_t *araddr{};")
+      w.line("uint8_t *arlen{};")
+      w.line("uint8_t *arsize{};")
+      w.line("uint8_t *arburst{};")
+      w.line("uint8_t *arvalid{};")
+      w.line("uint8_t *arready{};")
+      w.line()
+      w.line("uint8_t *rid{};")
+      w.line("::demu::isa_def::word_t *rdata{};")
+      w.line("uint8_t *rresp{};")
+      w.line("uint8_t *rlast{};")
+      w.line("uint8_t *rvalid{};")
+      w.line("uint8_t *rready{};")
+      w.line()
+      w.line("[[nodiscard]] auto valid() const noexcept -> bool {")
+      w.indent {
+        w.line("return awid && awaddr && awlen && awsize && awburst &&")
+        w.line("       awvalid && awready && wdata && wstrb && wlast &&")
+        w.line("       wvalid && wready && bid && bresp && bvalid && bready &&")
+        w.line("       arid && araddr && arlen && arsize && arburst &&")
+        w.line("       arvalid && arready && rid && rdata && rresp &&")
+        w.line("       rlast && rvalid && rready;")
+      }
+      w.line("}")
+    }
+    w.line("};")
+    w.line()
+
+    w.line("struct AXILiteSignals {")
+    w.indent {
+      w.line("::demu::isa_def::addr_t *awaddr{};")
+      w.line("uint8_t *awprot{};")
+      w.line("uint8_t *awvalid{};")
+      w.line("uint8_t *awready{};")
+      w.line()
+      w.line("::demu::isa_def::word_t *wdata{};")
+      w.line("uint8_t *wstrb{};")
+      w.line("uint8_t *wvalid{};")
+      w.line("uint8_t *wready{};")
+      w.line()
+      w.line("uint8_t *bresp{};")
+      w.line("uint8_t *bvalid{};")
+      w.line("uint8_t *bready{};")
+      w.line()
+      w.line("::demu::isa_def::addr_t *araddr{};")
+      w.line("uint8_t *arprot{};")
+      w.line("uint8_t *arvalid{};")
+      w.line("uint8_t *arready{};")
+      w.line()
+      w.line("::demu::isa_def::word_t *rdata{};")
+      w.line("uint8_t *rresp{};")
+      w.line("uint8_t *rvalid{};")
+      w.line("uint8_t *rready{};")
+      w.line()
+      w.line("[[nodiscard]] auto valid() const noexcept -> bool {")
+      w.indent {
+        w.line("return awaddr && awprot && awvalid && awready &&")
+        w.line("       wdata && wstrb && wvalid && wready &&")
+        w.line("       bresp && bvalid && bready && araddr && arprot &&")
+        w.line("       arvalid && arready && rdata && rresp && rvalid &&")
+        w.line("       rready;")
+      }
+      w.line("}")
+    }
+    w.line("};")
   }
 
   private def emitForwardDecls(w: CppWriter): Unit = {
@@ -49,10 +129,9 @@ private[cpp] object CppBusBindingsSchema {
     w.line(s"template <>")
     w.line(s"struct AXIFPortBinding<$pid> {")
     w.indent {
-      w.line("static auto bind(::demu::isa_def::system_t *dut)")
-      w.line("    -> ::demu::hal::axif::AXIFullSignals {")
+      w.line("static auto bind(::demu::isa_def::system_t *dut) -> AXIFullSignals {")
       w.indent {
-        w.line("::demu::hal::axif::AXIFullSignals s{};")
+        w.line("AXIFullSignals s{};")
 
         bind(w, "awid", s"M_AXIF_${pid}_AWID")
         bind(w, "awaddr", s"M_AXIF_${pid}_AWADDR")
@@ -107,10 +186,9 @@ private[cpp] object CppBusBindingsSchema {
     w.line(s"template <>")
     w.line(s"struct AXILPortBinding<$pid> {")
     w.indent {
-      w.line("static auto bind(::demu::isa_def::system_t *dut)")
-      w.line("    -> ::demu::hal::axil::AXILiteSignals {")
+      w.line("static auto bind(::demu::isa_def::system_t *dut) -> AXILiteSignals {")
       w.indent {
-        w.line("::demu::hal::axil::AXILiteSignals s{};")
+        w.line("AXILiteSignals s{};")
 
         bind(w, "awaddr", s"M_AXIL_${pid}_AWADDR")
         bind(w, "awprot", s"M_AXIL_${pid}_AWPROT")

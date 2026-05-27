@@ -105,39 +105,6 @@ private[cpp] object CppIsaSchema {
     }
   }
 
-  def emitMacros(w: CppWriter, p: Parameters): Unit = {
-    val isaMacro = "__ISA_" + macroIdent(p(ISA).name) + "__"
-
-    val macros = Seq(
-      isaMacro                      -> "1",
-      "RTL_ISA_NAME"                -> cstrLit(p(ISA).name),
-      "RTL_ISA_XLEN"                -> p(ISA).xlen.toString,
-      "RTL_ISA_ILEN"                -> p(ISA).ilen.toString,
-      "RTL_ISA_NUM_ARCH_REGS"       -> p(ISA).numArchRegs.toString,
-      "RTL_ISA_IS_BIG_ENDIAN"       -> (if (p(ISA).isBigEndian) "1" else "0"),
-      "RTL_ISA_MICRO_OP_WIDTH"      -> p(ISA).microOpWidth.toString,
-      "RTL_ISA_NUM_INSTR_ENCODINGS" -> p(ISA).instrSet.encodings.size.toString,
-    )
-
-    emitMacroGuards(w, macros)
-  }
-
-  def emitMacroUndefs(w: CppWriter): Unit =
-    CppLiteral.emitMacroUndefs(
-      w,
-      Seq(
-        "ISA_NAME",
-        "XLEN",
-        "ILEN",
-        "NUM_ARCH_REGS",
-        "IS_BIG_ENDIAN",
-        "MICRO_OP_WIDTH",
-        "NUM_INSTR_ENCODINGS",
-        "ISA_NOP",
-        "INSTRUCTION_ENCODINGS",
-      )
-    )
-
   private def renderInstruction(e: InstructionEncoding): String =
     braced(renderInstructionFields(e))
 

@@ -170,38 +170,6 @@ private[cpp] object CppSysSchema {
     }
   }
 
-  def emitMacros(w: CppWriter, p: Parameters): Unit = {
-    val macros = Seq(
-      "RTL_CONFIG_FREQ"                               -> s"${p(Frequency)}ull",
-      "RTL_CONFIG_ENABLE_DEBUG"                       -> (if (p(EnableDebug)) "1" else "0"),
-      "RTL_CONFIG_RESET_VECTOR"                       -> hex64(p(ResetVector)),
-      "RTL_CONFIG_IBUFFER_SIZE"                       -> p(IBufferSize).toString,
-      "RTL_CONFIG_ISSUE_WIDTH"                        -> p(IssueWidth).toString,
-      "RTL_CONFIG_REGFILE_USE_BYPASS"                 -> (if (p(IsRegfileUseBypass)) "1" else "0"),
-      "RTL_CONFIG_NUM_PHY_REGS"                       -> p(NumPhyRegs).toString,
-      "RTL_CONFIG_NUM_FUS"                            -> p(NumFUs).toString,
-      "RTL_CONFIG_NUM_LDS"                            -> p(NumLDs).toString,
-      "RTL_CONFIG_MULT_PIPELINE_STAGES"               -> p(MultPipelineStages).toString,
-      "RTL_CONFIG_ROB_SIZE"                           -> p(RobSize).toString,
-      "RTL_CONFIG_ROB_TAG_WIDTH"                      -> p(RobTagWidth).toString,
-      "RTL_CONFIG_STORE_BUFFER_SIZE"                  -> p(StoreBufferSize).toString,
-      "RTL_CONFIG_BTB_SETS"                           -> p(BTBSets).toString,
-      "RTL_CONFIG_BTB_WAYS"                           -> p(BTBWays).toString,
-      "RTL_CONFIG_GSHARE_GHR_WIDTH"                   -> p(GShareGhrWidth).toString,
-      "RTL_CONFIG_L1I_SETS"                           -> p(L1ICacheSets).toString,
-      "RTL_CONFIG_L1I_WAYS"                           -> p(L1ICacheWays).toString,
-      "RTL_CONFIG_L1I_LINE_SIZE"                      -> p(L1ICacheLineSize).toString,
-      "RTL_CONFIG_L1D_SETS"                           -> p(L1DCacheSets).toString,
-      "RTL_CONFIG_L1D_WAYS"                           -> p(L1DCacheWays).toString,
-      "RTL_CONFIG_L1D_LINE_SIZE"                      -> p(L1DCacheLineSize).toString,
-      "RTL_CONFIG_BUS_CROSSBAR_FIFO_DEPTH_PER_CLIENT" ->
-        p(BusCrossbarFifoDepthPerClient).toString,
-      "RTL_CONFIG_NUM_BUS_DEVICES"                    -> p(BusAddressMap).size.toString,
-    )
-
-    emitMacroGuards(w, macros)
-  }
-
   private def renderFu(fu: FunctionalUnitDescriptor): String =
     braced(
       Seq(

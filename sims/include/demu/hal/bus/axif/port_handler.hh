@@ -2,53 +2,11 @@
 
 #include "../../port_handler.hh"
 #include "./slave.hh"
-#include <cstdint>
+#include "demu/generated/bus_bindings.hh"
 
 namespace demu::hal::axif {
 
-struct AXIFullSignals {
-  uint8_t *awid{};
-  addr_t *awaddr{};
-  uint8_t *awlen{};
-  uint8_t *awsize{};
-  uint8_t *awburst{};
-  uint8_t *awvalid{};
-  uint8_t *awready{};
-
-  word_t *wdata{};
-  uint8_t *wstrb{};
-  uint8_t *wlast{};
-  uint8_t *wvalid{};
-  uint8_t *wready{};
-
-  uint8_t *bid{};
-  uint8_t *bresp{};
-  uint8_t *bvalid{};
-  uint8_t *bready{};
-
-  uint8_t *arid{};
-  addr_t *araddr{};
-  uint8_t *arlen{};
-  uint8_t *arsize{};
-  uint8_t *arburst{};
-  uint8_t *arvalid{};
-  uint8_t *arready{};
-
-  uint8_t *rid{};
-  word_t *rdata{};
-  uint8_t *rresp{};
-  uint8_t *rlast{};
-  uint8_t *rvalid{};
-  uint8_t *rready{};
-
-  [[nodiscard]] auto valid() const noexcept -> bool {
-    return awid && awaddr && awlen && awsize && awburst && awvalid && awready &&
-           wdata && wstrb && wlast && wvalid && wready && bid && bresp &&
-           bvalid && bready && arid && araddr && arlen && arsize && arburst &&
-           arvalid && arready && rid && rdata && rresp && rlast && rvalid &&
-           rready;
-  }
-};
+using sys_def::AXIFullSignals;
 
 class AXIFullPortHandler final : public hal::PortHandler {
 public:

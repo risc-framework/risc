@@ -2,41 +2,11 @@
 
 #include "../../port_handler.hh"
 #include "./slave.hh"
-#include <cstdint>
+#include "demu/generated/bus_bindings.hh"
 
 namespace demu::hal::axil {
 
-struct AXILiteSignals {
-  addr_t *awaddr{};
-  uint8_t *awprot{};
-  uint8_t *awvalid{};
-  uint8_t *awready{};
-
-  word_t *wdata{};
-  uint8_t *wstrb{};
-  uint8_t *wvalid{};
-  uint8_t *wready{};
-
-  uint8_t *bresp{};
-  uint8_t *bvalid{};
-  uint8_t *bready{};
-
-  addr_t *araddr{};
-  uint8_t *arprot{};
-  uint8_t *arvalid{};
-  uint8_t *arready{};
-
-  word_t *rdata{};
-  uint8_t *rresp{};
-  uint8_t *rvalid{};
-  uint8_t *rready{};
-
-  [[nodiscard]] auto valid() const noexcept -> bool {
-    return awaddr && awprot && awvalid && awready && wdata && wstrb && wvalid &&
-           wready && bresp && bvalid && bready && araddr && arprot && arvalid &&
-           arready && rdata && rresp && rvalid && rready;
-  }
-};
+using sys_def::AXILiteSignals;
 
 class AXILitePortHandler final : public hal::PortHandler {
 public:

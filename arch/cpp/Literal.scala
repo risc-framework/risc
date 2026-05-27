@@ -24,37 +24,6 @@ private[cpp] object CppLiteral {
   def hex64(x: Long): String =
     "0x%016xull".format(x)
 
-  def macroIdent(s: String): String =
-    s.map {
-        case c if c.isLetterOrDigit => c.toUpper
-        case _                      => '_'
-      }
-      .mkString
-
-  def emitMacroUndefs(w: CppWriter, names: Seq[String]): Unit = {
-    names.distinct.foreach { name =>
-      w.line(s"#ifdef $name")
-      w.line(s"#undef $name")
-      w.line("#endif")
-      w.line()
-    }
-  }
-
-  def emitMacroGuards(w: CppWriter, macros: Seq[(String, String)]): Unit = {
-    val seen = scala.collection.mutable.LinkedHashSet.empty[String]
-
-    macros.foreach { case (name, value) =>
-      if (!seen.contains(name)) {
-        seen += name
-
-        w.line(s"#ifndef $name")
-        w.line(s"#define $name $value")
-        w.line("#endif")
-        w.line()
-      }
-    }
-  }
-
   private def escape(s: String): String =
     s.flatMap {
       case '\\' => "\\\\"

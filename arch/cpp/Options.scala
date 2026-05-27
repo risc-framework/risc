@@ -8,8 +8,7 @@ final case class CppCodegenOptions(
   isaNamespace: String = "demu::isa_def",
   configInclude: String = "sys_def.hh",
   isaInclude: String = "isa_def.hh",
-  busBindingsInclude: String = "bus_bindings.hh",
-  emitMacros: Boolean = true
+  busBindingsInclude: String = "bus_bindings.hh"
 )
 
 final case class CppOutputPaths(
