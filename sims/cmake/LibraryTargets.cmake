@@ -3,6 +3,7 @@
 add_library(demu
   ${DEMU_SOURCES}
   ${DEMU_HEADERS}
+  ${GEN_HEADERS}
 )
 
 add_dependencies(demu)
@@ -32,7 +33,7 @@ verilate(demu
 target_include_directories(demu PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
-  "${RTL_DIR}/include"
+  "${GEN_DIR}/include"
 )
 
 set_target_properties(demu PROPERTIES
@@ -42,7 +43,3 @@ set_target_properties(demu PROPERTIES
 
 # spdlog
 target_link_libraries(demu PUBLIC spdlog::spdlog)
-
-target_compile_definitions(demu PRIVATE
-  RTL_DIR="${RTL_DIR}"
-)

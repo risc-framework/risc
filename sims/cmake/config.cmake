@@ -6,6 +6,7 @@ option(USE_CCACHE "Use ccache to speed up recompilation" ON)
 # settings
 set(TARGET_ARCH "rv32im")
 set(RTL_DIR "${CMAKE_SOURCE_DIR}/../build")
+set(GEN_DIR "${CMAKE_SOURCE_DIR}/../build")
 
 option(ENABLE_SIM "Enable simulator" ON)
 option(ENABLE_DBG "Enable debugger" ON)

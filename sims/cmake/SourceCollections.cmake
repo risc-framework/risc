@@ -12,6 +12,12 @@ file(GLOB_RECURSE DEMU_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
 )
 
+file(GLOB_RECURSE GEN_HEADERS
+  ${GEN_DIR}/include/*.h 
+  ${GEN_DIR}/include/*.hh 
+  ${GEN_DIR}/include/*.hpp
+)
+
 # Use ISA-specific top RTL only to avoid duplicate module definitions
 # from multiple generated system variants in ../build.
 set(RTL_SOURCE "${RTL_DIR}/${TARGET_ARCH}_system.sv")
