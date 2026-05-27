@@ -1,9 +1,9 @@
 package arch.cpp
 
-import arch.configs.DeviceType
-import arch.configs.DeviceType._
-import arch.configs.FunctionalUnitType
-import arch.configs.FunctionalUnitType._
+import arch.system.DeviceType
+import arch.system.DeviceType._
+import arch.core.ooo.FunctionalUnitType
+import arch.core.ooo.FunctionalUnitType._
 import vcache.repl.ReplPolicy
 
 private[cpp] object CppEnumMapping {

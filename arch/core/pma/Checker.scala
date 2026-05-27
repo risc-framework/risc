@@ -1,5 +1,6 @@
 package arch.core.pma
 
+import arch.system.DeviceType
 import arch.configs._
 import chisel3._
 
