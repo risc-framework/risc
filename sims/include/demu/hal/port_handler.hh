@@ -1,6 +1,6 @@
 #pragma once
 
-#include "./hardware.hh"
+#include "demu/hal/hardware.hh"
 
 namespace demu::hal {
 

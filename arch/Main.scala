@@ -38,9 +38,9 @@ object MainCore extends App {
 
   CppCodegen.emit(
     p,
-    "include/demu/generated/sys_def.hh",
-    "include/demu/generated/isa_def.hh",
-    "include/demu/generated/bus_bindings.hh"
+    "build/include/demu/generated/sys_def.hh",
+    "build/include/demu/generated/isa_def.hh",
+    "build/include/demu/generated/bus_bindings.hh"
   )
 }
 
@@ -68,8 +68,8 @@ object MainSystem extends App {
 
   CppCodegen.emit(
     p,
-    "include/demu/generated/sys_def.hh",
-    "include/demu/generated/isa_def.hh",
-    "include/demu/generated/bus_bindings.hh"
+    "build/include/demu/generated/sys_def.hh",
+    "build/include/demu/generated/isa_def.hh",
+    "build/include/demu/generated/bus_bindings.hh"
   )
 }

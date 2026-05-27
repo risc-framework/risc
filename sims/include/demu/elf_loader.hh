@@ -1,6 +1,6 @@
 #pragma once
 
-#include "./hal/hal.hh"
+#include "demu/hal/allocator.hh"
 #include <cstdint>
 #include <string>
 #include <vector>

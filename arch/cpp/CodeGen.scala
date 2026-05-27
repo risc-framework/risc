@@ -49,9 +49,9 @@ object CppCodegen {
     paths: OutputPaths,
     options: Options = Options()
   ): Unit = {
-    val configPath   = resolveOutputPath(options, paths.configHeader)
-    val isaPath      = resolveOutputPath(options, paths.isaHeader)
-    val bindingsPath = resolveOutputPath(options, paths.busBindingsHeader)
+    val configPath   = resolveOutputPath(paths.configHeader)
+    val isaPath      = resolveOutputPath(paths.isaHeader)
+    val bindingsPath = resolveOutputPath(paths.busBindingsHeader)
 
     write(isaPath, renderIsaHeader(p, options))
     write(configPath, renderConfigHeader(p, options))
@@ -114,19 +114,15 @@ object CppCodegen {
     w.line("#include <cstdint>")
     w.line()
 
-    w.namespace(options.configNamespace) {
+    w.namespace(options.busBindingsNamespace) {
       CppBusBindingsSchema.emit(w, p)
     }
 
     w.result
   }
 
-  private def resolveOutputPath(options: Options, path: Path): Path =
-    if (path.isAbsolute) {
-      path.normalize()
-    } else {
-      options.baseDir.resolve(path).normalize()
-    }
+  private def resolveOutputPath(path: Path): Path =
+    path.normalize()
 
   private def write(path: Path, text: String): Unit = {
     val parent = path.getParent

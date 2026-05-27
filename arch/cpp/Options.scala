@@ -1,11 +1,11 @@
 package arch.cpp
 
-import java.nio.file.{ Path, Paths }
+import java.nio.file.Path
 
 final case class CppCodegenOptions(
-  baseDir: Path = Paths.get("build"),
   configNamespace: String = "demu::sys_def",
   isaNamespace: String = "demu::isa_def",
+  busBindingsNamespace: String = "demu::bus_def",
   configInclude: String = "sys_def.hh",
   isaInclude: String = "isa_def.hh",
   busBindingsInclude: String = "bus_bindings.hh"

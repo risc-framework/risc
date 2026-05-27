@@ -1,5 +1,6 @@
 #include "demu/sim.hh"
 #include "demu/elf_loader.hh"
+#include "demu/hal/device_registry.hh"
 #include "demu/instruction.hh"
 #include "demu/logger.hh"
 

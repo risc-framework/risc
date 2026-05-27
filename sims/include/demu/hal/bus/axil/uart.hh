@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../allocator.hh"
-#include "../../peripheral/uart/uart.hh"
-#include "./slave.hh"
+#include "demu/hal/allocator.hh"
+#include "demu/hal/bus/axil/slave.hh"
+#include "demu/hal/peripheral/uart/uart.hh"
 
 namespace demu::hal::axil {
 

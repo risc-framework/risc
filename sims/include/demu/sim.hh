@@ -1,7 +1,8 @@
 #pragma once
 
-#include "./hal/hal.hh"
-#include "./retire_lane.hh"
+#include "demu/hal/device_manager.hh"
+#include "demu/hal/interrupt.hh"
+#include "demu/retire_lane.hh"
 #include "verilated.h"
 #include <cstdint>
 #include <memory>

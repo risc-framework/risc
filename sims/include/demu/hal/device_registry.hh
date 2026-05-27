@@ -44,7 +44,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIF,
   template <size_t PortID>
   static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
-        sys_def::AXIFPortBinding<PortID>::bind(dut));
+        bus_def::AXIFPortBinding<PortID>::bind(dut));
   }
 
   static auto create(DeviceManager &manager, port_id_t port,
@@ -65,7 +65,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIF,
   template <size_t PortID>
   static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
-        sys_def::AXIFPortBinding<PortID>::bind(dut));
+        bus_def::AXIFPortBinding<PortID>::bind(dut));
   }
 
   static auto create(DeviceManager &manager, port_id_t port,
@@ -86,7 +86,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIF,
   template <size_t PortID>
   static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
-        sys_def::AXIFPortBinding<PortID>::bind(dut));
+        bus_def::AXIFPortBinding<PortID>::bind(dut));
   }
 
   static auto create(DeviceManager &manager, port_id_t port,
@@ -109,7 +109,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIL,
   template <size_t PortID>
   static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
-        sys_def::AXILPortBinding<PortID>::bind(dut));
+        bus_def::AXILPortBinding<PortID>::bind(dut));
   }
 
   static auto create(DeviceManager &manager, port_id_t port,
@@ -130,7 +130,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIL,
   template <size_t PortID>
   static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
-        sys_def::AXILPortBinding<PortID>::bind(dut));
+        bus_def::AXILPortBinding<PortID>::bind(dut));
   }
 
   static auto create(DeviceManager &manager, port_id_t port,
@@ -151,7 +151,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIL,
   template <size_t PortID>
   static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
-        sys_def::AXILPortBinding<PortID>::bind(dut));
+        bus_def::AXILPortBinding<PortID>::bind(dut));
   }
 
   static auto create(DeviceManager &manager, port_id_t port,

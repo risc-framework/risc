@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../allocator.hh"
-#include "../../device.hh"
+#include "demu/hal/allocator.hh"
+#include "demu/hal/device.hh"
 
 namespace demu::hal::interrupt {} // namespace demu::hal::interrupt

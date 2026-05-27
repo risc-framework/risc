@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../../peripheral/uart/uart.hh"
-#include "./slave.hh"
+#include "demu/hal/bus/axif/slave.hh"
+#include "demu/hal/peripheral/uart/uart.hh"
 
 namespace demu::hal::axif {
 

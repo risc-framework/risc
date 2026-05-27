@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../../port_handler.hh"
-#include "./slave.hh"
 #include "demu/generated/bus_bindings.hh"
+#include "demu/hal/bus/axil/slave.hh"
+#include "demu/hal/port_handler.hh"
 
 namespace demu::hal::axil {
 
-using sys_def::AXILiteSignals;
+using bus_def::AXILiteSignals;
 
 class AXILitePortHandler final : public hal::PortHandler {
 public:

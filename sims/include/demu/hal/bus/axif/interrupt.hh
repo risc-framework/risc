@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../allocator.hh"
-#include "../../interrupt.hh"
-#include "./slave.hh"
+#include "demu/hal/allocator.hh"
+#include "demu/hal/bus/axif/slave.hh"
+#include "demu/hal/interrupt.hh"
 
 #if defined(__ISA_RV32I__) || defined(__ISA_RV32IM__)
 
