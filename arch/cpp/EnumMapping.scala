@@ -1,30 +1,28 @@
 package arch.cpp
 
 import arch.system.DeviceType
-import arch.system.DeviceType._
 import arch.core.ooo.FunctionalUnitType
-import arch.core.ooo.FunctionalUnitType._
 import vcache.repl.ReplPolicy
 
 private[cpp] object CppEnumMapping {
   def fuType(t: FunctionalUnitType): String =
     t match {
-      case FUNCTIONAL_UNIT_TYPE_ALU     => "FUNCTIONAL_UNIT_TYPE_ALU"
-      case FUNCTIONAL_UNIT_TYPE_MULT    => "FUNCTIONAL_UNIT_TYPE_MULT"
-      case FUNCTIONAL_UNIT_TYPE_DIV     => "FUNCTIONAL_UNIT_TYPE_DIV"
-      case FUNCTIONAL_UNIT_TYPE_LD      => "FUNCTIONAL_UNIT_TYPE_LD"
-      case FUNCTIONAL_UNIT_TYPE_ST      => "FUNCTIONAL_UNIT_TYPE_ST"
-      case FUNCTIONAL_UNIT_TYPE_BRU     => "FUNCTIONAL_UNIT_TYPE_BRU"
-      case FUNCTIONAL_UNIT_TYPE_CSR     => "FUNCTIONAL_UNIT_TYPE_CSR"
-      case FUNCTIONAL_UNIT_TYPE_UNKNOWN => "FUNCTIONAL_UNIT_TYPE_UNKNOWN"
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ALU     => "FUNCTIONAL_UNIT_TYPE_ALU"
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_MULT    => "FUNCTIONAL_UNIT_TYPE_MULT"
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV     => "FUNCTIONAL_UNIT_TYPE_DIV"
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD      => "FUNCTIONAL_UNIT_TYPE_LD"
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST      => "FUNCTIONAL_UNIT_TYPE_ST"
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU     => "FUNCTIONAL_UNIT_TYPE_BRU"
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR     => "FUNCTIONAL_UNIT_TYPE_CSR"
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_UNKNOWN => "FUNCTIONAL_UNIT_TYPE_UNKNOWN"
     }
 
   def deviceType(t: DeviceType): String =
     t match {
-      case DEVICE_TYPE_SRAM    => "DEVICE_TYPE_SRAM"
-      case DEVICE_TYPE_UART    => "DEVICE_TYPE_UART"
-      case DEVICE_TYPE_IRH     => "DEVICE_TYPE_IRH"
-      case DEVICE_TYPE_UNKNOWN => "DEVICE_TYPE_UNKNOWN"
+      case DeviceType.DEVICE_TYPE_SRAM    => "DEVICE_TYPE_SRAM"
+      case DeviceType.DEVICE_TYPE_UART    => "DEVICE_TYPE_UART"
+      case DeviceType.DEVICE_TYPE_IRH     => "DEVICE_TYPE_IRH"
+      case DeviceType.DEVICE_TYPE_UNKNOWN => "DEVICE_TYPE_UNKNOWN"
     }
 
   def repl(p: ReplPolicy): String =
