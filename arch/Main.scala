@@ -13,6 +13,7 @@ import core.div._
 import core.lsu._
 import core.imm._
 import core.csr._
+import core.fu._
 import configs._
 import cpp._
 import vutils._
@@ -27,6 +28,7 @@ object MainCore extends App {
   LoadStoreInit
   ImmInit
   CsrInit
+  FunctionalUnitInit
 
   DesignEmitter.emit(
     gen = new RiscCore,
@@ -55,6 +57,7 @@ object MainSystem extends App {
   LoadStoreInit
   ImmInit
   CsrInit
+  FunctionalUnitInit
 
   BusBridgeInit
   BusCrossbarInit

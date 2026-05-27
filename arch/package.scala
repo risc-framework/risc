@@ -1,7 +1,7 @@
 package arch
 
 package object configs {
-  import core.ooo.{ FunctionalUnitDescriptor, FunctionalUnitType }
+  import core.fu.{ FunctionalUnitDescriptor, FunctionalUnitType }
   import system.{ DeviceDescriptor, DeviceType }
   import isa._
   import vcache._

@@ -4,6 +4,23 @@ import arch.configs._
 import chisel3._
 import chisel3.util.{ Cat, Fill, MuxCase }
 
+class LoadCtrl(implicit p: Parameters) extends Bundle {
+  val is_byte     = Bool()
+  val is_half     = Bool()
+  val is_word     = Bool()
+  val is_dword    = Bool()
+  val is_unsigned = Bool()
+  val strb        = UInt(p(BytesPerWord).W)
+}
+
+class StoreCtrl(implicit p: Parameters) extends Bundle {
+  val is_byte  = Bool()
+  val is_half  = Bool()
+  val is_word  = Bool()
+  val is_dword = Bool()
+  val strb     = UInt(p(BytesPerWord).W)
+}
+
 trait MemoryDataHelpers extends Utils {
   def alignedAddr(addr: UInt)(implicit p: Parameters): UInt =
     Cat(addr(p(XLen) - 1, p(BytesOffsetWidth)), 0.U(p(BytesOffsetWidth).W))

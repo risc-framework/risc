@@ -1,4 +1,4 @@
-package arch.core.ooo
+package arch.core.rob
 
 import arch.configs._
 import chisel3._

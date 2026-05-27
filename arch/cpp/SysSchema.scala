@@ -1,6 +1,6 @@
 package arch.cpp
 
-import arch.core.ooo.FunctionalUnitDescriptor
+import arch.core.fu.FunctionalUnitDescriptor
 import arch.system.DeviceDescriptor
 import arch.configs._
 import CppEnumMapping._

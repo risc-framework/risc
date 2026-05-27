@@ -1,39 +1,44 @@
-package arch.core.ooo
+package arch.core.scheduler.inorder
 
-import arch.core.regfile._
 import arch.configs._
+import arch.core.regfile._
+import arch.core.scheduler._
+import arch.core.uop._
 import chisel3._
-import chisel3.util.{ PriorityEncoder, Mux1H }
+import chisel3.util.Mux1H
 
 class Inorder(implicit p: Parameters) extends Scheduler {
   override def desiredName: String = s"${p(ISA).name}_in_order_scheduler"
 
-  val regfile_utils = RegfileUtilsFactory.getOrThrow(p(ISA).name)
+  private val regfile_utils = RegfileUtilsFactory.getOrThrow(p(ISA).name)
 
-  val reg_pending         = RegInit(VecInit(Seq.fill(numRegs)(false.B)))
-  val reg_completed_valid = RegInit(VecInit(Seq.fill(numRegs)(false.B)))
-  val reg_completed_data  = RegInit(VecInit(Seq.fill(numRegs)(0.U(p(XLen).W))))
+  private val reg_pending         = RegInit(VecInit(Seq.fill(numRegs)(false.B)))
+  private val reg_completed_valid = RegInit(VecInit(Seq.fill(numRegs)(false.B)))
+  private val reg_completed_data  = RegInit(VecInit(Seq.fill(numRegs)(0.U(p(XLen).W))))
 
   defaultFuReqs()
   defaultDispatchReady()
 
-  val cdb_hit   = Wire(Vec(numRegs, Vec(p(NumFUs), Bool())))
-  val cdb_valid = Wire(Vec(numRegs, Bool()))
-  val cdb_data  = Wire(Vec(numRegs, UInt(p(XLen).W)))
+  private val cdb_hit   = Wire(Vec(numRegs, Vec(p(NumFUs), Bool())))
+  private val cdb_valid = Wire(Vec(numRegs, Bool()))
+  private val cdb_data  = Wire(Vec(numRegs, UInt(p(XLen).W)))
 
   for (r <- 0 until numRegs) {
     for (f <- 0 until p(NumFUs))
-      cdb_hit(r)(f) := fu_done(f).valid && fu_done(f).bits.rd === r.U && regfile_utils.writable(r.U)
+      cdb_hit(r)(f) :=
+        fu_done(f).valid &&
+          fu_done(f).bits.rd === r.U &&
+          regfile_utils.writable(r.U)
 
     cdb_valid(r) := cdb_hit(r).asUInt.orR
     cdb_data(r)  := Mux1H(cdb_hit(r), fu_done.map(_.bits.result))
   }
 
-  val temp_pending         = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, Bool())))
-  val temp_completed_valid = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, Bool())))
-  val temp_completed_data  = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, UInt(p(XLen).W))))
-  val temp_fu_used         = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumFUs), Bool())))
-  val accepted             = Wire(Vec(p(IssueWidth), Bool()))
+  private val temp_pending         = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, Bool())))
+  private val temp_completed_valid = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, Bool())))
+  private val temp_completed_data  = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, UInt(p(XLen).W))))
+  private val temp_fu_used         = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumFUs), Bool())))
+  private val accepted             = Wire(Vec(p(IssueWidth), Bool()))
 
   for (r <- 0 until numRegs) {
     temp_pending(0)(r)         := reg_pending(r) && !cdb_valid(r)
@@ -62,15 +67,9 @@ class Inorder(implicit p: Parameters) extends Scheduler {
     val rs1_value = Mux(rs1_from_completed, temp_completed_data(w)(op.rs1), op.rs1_data)
     val rs2_value = Mux(rs2_from_completed, temp_completed_data(w)(op.rs2), op.rs2_data)
 
-    val fu_match = Wire(Vec(p(NumFUs), Bool()))
-
-    for (f <- 0 until p(NumFUs))
-      fu_match(f) := !temp_fu_used(w)(f) && fu_reqs(f).ready && fuTypes(f) === op.fu_type
-
-    val target    = PriorityEncoder(fu_match)
-    val fu_ok     = fu_match.asUInt.orR
-    val prev_ok   = if (w == 0) true.B else !dis_reqs(w - 1).valid || accepted(w - 1)
-    val can_issue = prev_ok && fu_ok && !rs1_haz && !rs2_haz && !waw_haz
+    val (target, fu_ok) = selectFu(op, temp_fu_used(w))
+    val prev_ok         = olderLaneAccepted(w, accepted)
+    val can_issue       = prev_ok && fu_ok && !rs1_haz && !rs2_haz && !waw_haz
 
     dis.ready   := can_issue
     accepted(w) := dis.valid && can_issue

@@ -1,12 +1,13 @@
-package arch.core.ooo
+package arch.core.uop
 
+import arch.core.fu._
 import arch.core.imm._
 import arch.configs._
 import chisel3._
 import chisel3.util.log2Ceil
 
 class MicroOp(implicit p: Parameters) extends Bundle {
-  val imm_utils = ImmUtilsFactory.getOrThrow(p(ISA).name)
+  private val imm_utils = ImmUtilsFactory.getOrThrow(p(ISA).name)
 
   val pc    = UInt(p(XLen).W)
   val instr = UInt(p(ILen).W)
