@@ -40,7 +40,8 @@ object MainCore extends App {
     p,
     "build/include/demu/generated/sys_def.hh",
     "build/include/demu/generated/isa_def.hh",
-    "build/include/demu/generated/bus_bindings.hh"
+    "build/include/demu/generated/bus_bindings.hh",
+    "build/include/demu/generated/retire_bindings.hh"
   )
 }
 
@@ -70,6 +71,7 @@ object MainSystem extends App {
     p,
     "build/include/demu/generated/sys_def.hh",
     "build/include/demu/generated/isa_def.hh",
-    "build/include/demu/generated/bus_bindings.hh"
+    "build/include/demu/generated/bus_bindings.hh",
+    "build/include/demu/generated/retire_bindings.hh"
   )
 }

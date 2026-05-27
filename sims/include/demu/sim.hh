@@ -154,21 +154,12 @@ protected:
 
   // retire lane helper
   [[nodiscard]] auto active_retire_lanes() const noexcept -> uint32_t {
-    const uint32_t config_lanes = sys_def::ISSUE_WIDTH;
-
-    constexpr uint32_t detected_lanes =
-        demu::RetireSignalInfo<system_t>::detected_lanes;
-
-    if (config_lanes == 0 || config_lanes > detected_lanes) {
-      return detected_lanes;
-    }
-
-    return config_lanes;
+    return demu::NUM_RETIRE_LANES;
   }
 
   [[nodiscard]] auto read_retire_lane(uint32_t lane) const noexcept
       -> demu::RetirePacket {
-    return demu::RetireSignalInfo<system_t>::read(dut_.get(), lane);
+    return demu::read_retire_lane(dut_.get(), lane);
   }
 };
 } // namespace demu
