@@ -13,7 +13,7 @@ import arch.core.div.DivInit
 import arch.core.lsu.LoadStoreInit
 import arch.core.imm.ImmInit
 import arch.core.csr.CsrInit
-import arch.core.fu.FunctionalUnitInit
+import arch.core.fu.FUInit
 import arch.configs._
 import arch.cpp.CppCodegen
 import vutils.{ DesignEmitter, SystemVerilog }
@@ -28,7 +28,7 @@ object MainCore extends App {
   LoadStoreInit
   ImmInit
   CsrInit
-  FunctionalUnitInit
+  FUInit
 
   DesignEmitter.emit(
     gen = new RiscCore,
@@ -57,7 +57,7 @@ object MainSystem extends App {
   LoadStoreInit
   ImmInit
   CsrInit
-  FunctionalUnitInit
+  FUInit
 
   BusBridgeInit
   BusCrossbarInit

@@ -75,8 +75,8 @@ class CsrFU(implicit p: Parameters) extends FunctionalUnit {
   io.resp.bits  := resp
 }
 
-object CsrFUBuilder extends RegisteredFunctionalUnitBuilder {
-  override lazy val utils: FunctionalUnitBuilder = new FunctionalUnitBuilder {
+object CsrFUBuilder extends RegisteredFUBuilder {
+  override lazy val utils: FUBuilder = new FUBuilder {
     override def name: String                                  = "csr"
     override def fuType: FunctionalUnitType                    = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR
     override def build(implicit p: Parameters): FunctionalUnit = new CsrFU

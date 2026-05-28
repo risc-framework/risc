@@ -3,12 +3,12 @@ package arch.core.fu
 import arch.configs._
 import chisel3._
 
-trait FunctionalUnitBuilder extends Utils {
+trait FUBuilder extends Utils {
   def fuType: FunctionalUnitType
   def build(implicit p: Parameters): FunctionalUnit
 }
 
-object FunctionalUnitFactory extends UtilsFactory[FunctionalUnitBuilder]("FunctionalUnit") {
+object FUFactory extends UtilsFactory[FUBuilder]("FU") {
   private def normalize(s: String): String = s.trim.toLowerCase
 
   private def defaultImplName(tpe: FunctionalUnitType): String = tpe.cppName.toLowerCase
@@ -16,7 +16,7 @@ object FunctionalUnitFactory extends UtilsFactory[FunctionalUnitBuilder]("Functi
   private def implName(desc: FunctionalUnitDescriptor): String =
     if (desc.impl.nonEmpty) normalize(desc.impl) else defaultImplName(desc.`type`)
 
-  def get(desc: FunctionalUnitDescriptor): FunctionalUnitBuilder = {
+  def get(desc: FunctionalUnitDescriptor): FUBuilder = {
     val key     = implName(desc)
     val builder = get(key).getOrElse {
       throw new NoSuchElementException(s"FunctionalUnit implementation '$key' for FU '${desc.name}' is not registered. Available: ${listAvailable().mkString(", ")}")
@@ -35,11 +35,11 @@ object FunctionalUnitFactory extends UtilsFactory[FunctionalUnitBuilder]("Functi
   def instantiateAll()(implicit p: Parameters): Seq[FunctionalUnit] = p(FunctionalUnits).map(instantiate)
 }
 
-trait RegisteredFunctionalUnitBuilder extends RegisteredUtils[FunctionalUnitBuilder] {
-  override def factory: UtilsFactory[FunctionalUnitBuilder] = FunctionalUnitFactory
+trait RegisteredFUBuilder extends RegisteredUtils[FUBuilder] {
+  override def factory: UtilsFactory[FUBuilder] = FUFactory
 }
 
-object FunctionalUnitInit {
+object FUInit {
   val alu   = builtin.AluFUBuilder
   val mult  = builtin.MultFUBuilder
   val div   = builtin.DivFUBuilder

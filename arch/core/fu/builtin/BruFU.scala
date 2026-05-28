@@ -44,8 +44,8 @@ class BruFU(implicit p: Parameters) extends OneCycleFunctionalUnit {
   driveOneCycle()
 }
 
-object BruFUBuilder extends RegisteredFunctionalUnitBuilder {
-  override lazy val utils: FunctionalUnitBuilder = new FunctionalUnitBuilder {
+object BruFUBuilder extends RegisteredFUBuilder {
+  override lazy val utils: FUBuilder = new FUBuilder {
     override def name: String                                  = "bru"
     override def fuType: FunctionalUnitType                    = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU
     override def build(implicit p: Parameters): FunctionalUnit = new BruFU

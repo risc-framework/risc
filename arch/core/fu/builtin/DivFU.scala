@@ -40,8 +40,8 @@ class DivFU(implicit p: Parameters) extends BlockingFunctionalUnit {
   driveBlocking()
 }
 
-object DivFUBuilder extends RegisteredFunctionalUnitBuilder {
-  override lazy val utils: FunctionalUnitBuilder = new FunctionalUnitBuilder {
+object DivFUBuilder extends RegisteredFUBuilder {
+  override lazy val utils: FUBuilder = new FUBuilder {
     override def name: String                                  = "div"
     override def fuType: FunctionalUnitType                    = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV
     override def build(implicit p: Parameters): FunctionalUnit = new DivFU

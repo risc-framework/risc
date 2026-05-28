@@ -49,8 +49,8 @@ class AluFU(implicit p: Parameters) extends OneCycleFunctionalUnit with AluConst
   driveOneCycle()
 }
 
-object AluFUBuilder extends RegisteredFunctionalUnitBuilder {
-  override lazy val utils: FunctionalUnitBuilder = new FunctionalUnitBuilder {
+object AluFUBuilder extends RegisteredFUBuilder {
+  override lazy val utils: FUBuilder = new FUBuilder {
     override def name: String                                  = "alu"
     override def fuType: FunctionalUnitType                    = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ALU
     override def build(implicit p: Parameters): FunctionalUnit = new AluFU

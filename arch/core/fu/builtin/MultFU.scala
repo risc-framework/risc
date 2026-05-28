@@ -40,8 +40,8 @@ class MultFU(implicit p: Parameters) extends BlockingFunctionalUnit {
   driveBlocking()
 }
 
-object MultFUBuilder extends RegisteredFunctionalUnitBuilder {
-  override lazy val utils: FunctionalUnitBuilder = new FunctionalUnitBuilder {
+object MultFUBuilder extends RegisteredFUBuilder {
+  override lazy val utils: FUBuilder = new FUBuilder {
     override def name: String                                  = "mult"
     override def fuType: FunctionalUnitType                    = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_MULT
     override def build(implicit p: Parameters): FunctionalUnit = new MultFU

@@ -222,8 +222,8 @@ class LoadFU(implicit p: Parameters) extends FunctionalUnit {
   }
 }
 
-object LoadFUBuilder extends RegisteredFunctionalUnitBuilder {
-  override lazy val utils: FunctionalUnitBuilder = new FunctionalUnitBuilder {
+object LoadFUBuilder extends RegisteredFUBuilder {
+  override lazy val utils: FUBuilder = new FUBuilder {
     override def name: String                                  = "ld"
     override def fuType: FunctionalUnitType                    = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD
     override def build(implicit p: Parameters): FunctionalUnit = new LoadFU

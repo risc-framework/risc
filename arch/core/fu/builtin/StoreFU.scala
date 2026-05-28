@@ -40,10 +40,8 @@ class StoreFU(implicit p: Parameters) extends FunctionalUnit {
 
   busy := state =/= StoreFUState.IDLE
 
-  io.req.ready :=
-    !io.flush &&
-      (state === StoreFUState.IDLE ||
-        (state === StoreFUState.DONE && io.resp.ready))
+  io.req.ready := !io.flush &&
+    (state === StoreFUState.IDLE || (state === StoreFUState.DONE && io.resp.ready))
 
   private val acceptFire = io.req.fire && !io.flush
 
@@ -82,8 +80,8 @@ class StoreFU(implicit p: Parameters) extends FunctionalUnit {
   }
 }
 
-object StoreFUBuilder extends RegisteredFunctionalUnitBuilder {
-  override lazy val utils: FunctionalUnitBuilder = new FunctionalUnitBuilder {
+object StoreFUBuilder extends RegisteredFUBuilder {
+  override lazy val utils: FUBuilder = new FUBuilder {
     override def name: String                                  = "st"
     override def fuType: FunctionalUnitType                    = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST
     override def build(implicit p: Parameters): FunctionalUnit = new StoreFU

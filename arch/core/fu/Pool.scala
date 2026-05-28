@@ -45,7 +45,7 @@ class FunctionalUnitPool(implicit p: Parameters) extends Module {
 
   val io = IO(new FunctionalUnitPoolIO)
 
-  val units: Seq[FunctionalUnit] = FunctionalUnitFactory.instantiateAll()
+  val units: Seq[FunctionalUnit] = FUFactory.instantiateAll()
 
   require(units.size == p(NumFUs), s"FunctionalUnitPool: instantiated ${units.size} FUs, expected ${p(NumFUs)}")
 
