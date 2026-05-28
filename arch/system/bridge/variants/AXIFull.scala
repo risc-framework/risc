@@ -21,7 +21,11 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
     override def busType: Bundle =
       new Axi4FullMasterPort(axiP)
 
-    override def createBridge[T <: Data](gen: T, memory: CachePortIO[T], isMmio: Boolean = false): Bundle = {
+    override def createBridge[T <: Data](
+      gen: T,
+      memory: CachePortIO[T],
+      isMmio: Boolean = false
+    ): Bundle = {
       val axi = Wire(new Axi4FullMasterPort(axiP))
 
       val bytesPerGen    = memory.req.bits.data.getWidth / 8
@@ -221,7 +225,11 @@ object AXIFullBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       axi
     }
 
-    override def createBridgeReadOnly[T <: Data](gen: T, memory: CachePortIO[T], isMmio: Boolean = false): Bundle = {
+    override def createBridgeReadOnly[T <: Data](
+      gen: T,
+      memory: CachePortIO[T],
+      isMmio: Boolean = false
+    ): Bundle = {
       val axi = Wire(new Axi4FullMasterPort(axiP))
 
       val bytesPerGen    = memory.resp.bits.data.getWidth / 8

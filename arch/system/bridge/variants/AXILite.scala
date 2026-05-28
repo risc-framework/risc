@@ -18,7 +18,11 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
     override def busType: Bundle =
       new Axi4LiteMasterPort(axiP)
 
-    override def createBridge[T <: Data](gen: T, memory: CachePortIO[T], isMmio: Boolean = false): Bundle = {
+    override def createBridge[T <: Data](
+      gen: T,
+      memory: CachePortIO[T],
+      isMmio: Boolean = false
+    ): Bundle = {
       val axi = Wire(new Axi4LiteMasterPort(axiP))
 
       val beats = (gen.getWidth / p(XLen)).max(1)
@@ -58,7 +62,11 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
             w_data   := memory.req.bits.data.asUInt
             w_strb   := memory.req.bits.strb
             beat     := 0.U
-            state    := Mux(memory.req.bits.cmd === CacheCommand.Read, AXIBridgeState.AR, AXIBridgeState.AW)
+            state    := Mux(
+              memory.req.bits.cmd === CacheCommand.Read,
+              AXIBridgeState.AR,
+              AXIBridgeState.AW
+            )
           }
         }
 
@@ -127,7 +135,11 @@ object AXILiteBridgeUtils extends RegisteredUtils[BusBridgeUtils] {
       axi
     }
 
-    override def createBridgeReadOnly[T <: Data](gen: T, memory: CachePortIO[T], isMmio: Boolean = false): Bundle = {
+    override def createBridgeReadOnly[T <: Data](
+      gen: T,
+      memory: CachePortIO[T],
+      isMmio: Boolean = false
+    ): Bundle = {
       val axi = Wire(new Axi4LiteMasterPort(axiP))
 
       val bytesPerGen    = memory.resp.bits.data.getWidth / 8

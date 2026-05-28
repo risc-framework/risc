@@ -103,10 +103,22 @@ object RV32ICsrUtils extends RegisteredUtils[CsrUtils] with RV32ICsrUOpConsts wi
 
     override def table: Seq[(Register, CsrUpdateBehavior)] = Seq(
       // U-mode
-      (Register("cycle", CSR_CYCLE.value, 0x0L, writable = false), AlwaysUpdate(params => params("cycle")(31, 0))),
-      (Register("instret", CSR_INSTRET.value, 0x0L, writable = false), AlwaysUpdate(params => params("instret")(31, 0))),
-      (Register("cycleh", CSR_CYCLEH.value, 0x0L, writable = false), AlwaysUpdate(params => params("cycle")(63, 32))),
-      (Register("instreth", CSR_INSTRETH.value, 0x0L, writable = false), AlwaysUpdate(params => params("instret")(63, 32))),
+      (
+        Register("cycle", CSR_CYCLE.value, 0x0L, writable = false),
+        AlwaysUpdate(params => params("cycle")(31, 0))
+      ),
+      (
+        Register("instret", CSR_INSTRET.value, 0x0L, writable = false),
+        AlwaysUpdate(params => params("instret")(31, 0))
+      ),
+      (
+        Register("cycleh", CSR_CYCLEH.value, 0x0L, writable = false),
+        AlwaysUpdate(params => params("cycle")(63, 32))
+      ),
+      (
+        Register("instreth", CSR_INSTRETH.value, 0x0L, writable = false),
+        AlwaysUpdate(params => params("instret")(63, 32))
+      ),
 
       // M-mode
       (Register("mstatus", CSR_MSTATUS.value, 0x0L), NormalUpdate),
@@ -125,17 +137,32 @@ object RV32ICsrUtils extends RegisteredUtils[CsrUtils] with RV32ICsrUOpConsts wi
           (meip << 11) | (mtip << 7) | (msip << 3)
         }
       ),
-      (Register("mcycle", CSR_MCYCLE.value, 0x0L, writable = false), AlwaysUpdate(params => params("cycle")(31, 0))),
-      (Register("minstret", CSR_MINSTRET.value, 0x0L, writable = false), AlwaysUpdate(params => params("instret")(31, 0))),
+      (
+        Register("mcycle", CSR_MCYCLE.value, 0x0L, writable = false),
+        AlwaysUpdate(params => params("cycle")(31, 0))
+      ),
+      (
+        Register("minstret", CSR_MINSTRET.value, 0x0L, writable = false),
+        AlwaysUpdate(params => params("instret")(31, 0))
+      ),
       (Register("mvendorid", CSR_MVENDERID.value, 0x0L, writable = false), NormalUpdate),
       (Register("marchid", CSR_MARCHID.value, 0x0L, writable = false), NormalUpdate),
       (Register("mimpid", CSR_MIMPID.value, 0x0L, writable = false), NormalUpdate),
       (Register("mhartid", CSR_MHARTID.value, 0x0L, writable = false), NormalUpdate),
-      (Register("mcycleh", CSR_MCYCLEH.value, 0x0L, writable = false), AlwaysUpdate(params => params("cycle")(63, 32))),
-      (Register("minstreth", CSR_MINSTRETH.value, 0x0L, writable = false), AlwaysUpdate(params => params("instret")(63, 32))),
+      (
+        Register("mcycleh", CSR_MCYCLEH.value, 0x0L, writable = false),
+        AlwaysUpdate(params => params("cycle")(63, 32))
+      ),
+      (
+        Register("minstreth", CSR_MINSTRETH.value, 0x0L, writable = false),
+        AlwaysUpdate(params => params("instret")(63, 32))
+      ),
     )
 
-    override def checkInterrupts(regs: Map[String, UInt], extra: Map[String, UInt]): (Bool, UInt, UInt) = {
+    override def checkInterrupts(
+      regs: Map[String, UInt],
+      extra: Map[String, UInt]
+    ): (Bool, UInt, UInt) = {
       val mstatus = regs.getOrElse("mstatus", 0.U)
       val mie     = regs.getOrElse("mie", 0.U)
       val mip     = regs.getOrElse("mip", 0.U)
@@ -151,14 +178,22 @@ object RV32ICsrUtils extends RegisteredUtils[CsrUtils] with RV32ICsrUOpConsts wi
       val take_irq = mstatus_mie && (ext_irq || sft_irq || tim_irq)
 
       val async_bit = 1.U(1.W) << 31
-      val cause     = Mux(ext_irq, async_bit | 11.U, Mux(sft_irq, async_bit | 3.U, Mux(tim_irq, async_bit | 7.U, 0.U)))
+      val cause     = Mux(
+        ext_irq,
+        async_bit | 11.U,
+        Mux(sft_irq, async_bit | 3.U, Mux(tim_irq, async_bit | 7.U, 0.U))
+      )
 
       val target = mtvec
 
       (take_irq, target, cause)
     }
 
-    override def getTrapUpdates(regs: Map[String, UInt], pc: UInt, cause: UInt): Map[String, UInt] = {
+    override def getTrapUpdates(
+      regs: Map[String, UInt],
+      pc: UInt,
+      cause: UInt
+    ): Map[String, UInt] = {
       val mstatus = regs.getOrElse("mstatus", 0.U)
 
       val mie_bit     = mstatus(3)

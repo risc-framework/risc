@@ -82,8 +82,11 @@ class Ifu(implicit p: Parameters) extends Module {
   val align_mask           = ~(align_bytes - 1).U(p(XLen).W)
   val aligned_pc           = pc & align_mask
   val next_block_pc        = aligned_pc + align_bytes.U
-  val req_idx              = if (p(IssueWidth) > 1) pc(log2Ceil(align_bytes) - 1, log2Ceil(p(BytesPerInstr))) else 0.U
-  val req_taken_candidates = VecInit((0 until p(IssueWidth)).map(w => w.U >= req_idx && bpu_taken_in(w)))
+  val req_idx              =
+    if (p(IssueWidth) > 1) pc(log2Ceil(align_bytes) - 1, log2Ceil(p(BytesPerInstr))) else 0.U
+  val req_taken_candidates = VecInit(
+    (0 until p(IssueWidth)).map(w => w.U >= req_idx && bpu_taken_in(w))
+  )
   val req_has_taken        = req_taken_candidates.asUInt.orR
   val req_taken_slot       = PriorityEncoder(req_taken_candidates.asUInt)
   val req_taken_tgt        = Mux(req_has_taken, bpu_target_in(req_taken_slot), next_block_pc)
@@ -117,15 +120,20 @@ class Ifu(implicit p: Parameters) extends Module {
   meta_q.io.deq.ready := resp_fire && is_valid_resp
 
   val resp_pc               = meta_q.io.deq.bits.pc
-  val resp_idx              = if (p(IssueWidth) > 1) resp_pc(log2Ceil(align_bytes) - 1, log2Ceil(p(BytesPerInstr))) else 0.U
-  val resp_taken_candidates = VecInit((0 until p(IssueWidth)).map(w => w.U >= resp_idx && meta_q.io.deq.bits.bpu_pred_taken(w)))
+  val resp_idx              =
+    if (p(IssueWidth) > 1) resp_pc(log2Ceil(align_bytes) - 1, log2Ceil(p(BytesPerInstr))) else 0.U
+  val resp_taken_candidates = VecInit(
+    (0 until p(IssueWidth)).map(w => w.U >= resp_idx && meta_q.io.deq.bits.bpu_pred_taken(w))
+  )
   val resp_has_taken        = resp_taken_candidates.asUInt.orR
   val resp_taken_slot       = PriorityEncoder(resp_taken_candidates.asUInt)
 
   for (w <- 0 until p(IssueWidth)) {
     val is_valid_pos = w.U >= resp_idx
     val before_taken = !resp_has_taken || w.U <= resp_taken_slot
-    ibuffer.enq_valid(w)                 := resp_fire && is_valid_resp && meta_q.io.deq.valid && is_valid_pos && before_taken
+    ibuffer.enq_valid(
+      w
+    )                                    := resp_fire && is_valid_resp && meta_q.io.deq.valid && is_valid_pos && before_taken
     ibuffer.enq_bits(w).pc               := (resp_pc & align_mask) + (w * p(PCStep)).U
     ibuffer.enq_bits(w).instr            := mem.resp.bits.data(w)
     ibuffer.enq_bits(w).bpu_pred_taken   := meta_q.io.deq.bits.bpu_pred_taken(w)

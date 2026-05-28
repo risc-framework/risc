@@ -14,11 +14,12 @@ object RV32IMCsrUtils extends RegisteredUtils[CsrUtils] {
     override def genImm(imm: UInt): UInt    = RV32ICsrUtils.utils.genImm(imm)
 
     override def decode(uop: UInt): CsrCtrl                          = RV32ICsrUtils.utils.decode(uop)
-    override def fn(cmd: UInt, csr_data: UInt, src_data: UInt): UInt = RV32ICsrUtils.utils.fn(cmd, csr_data, src_data)
+    override def fn(cmd: UInt, csr_data: UInt, src_data: UInt): UInt =
+      RV32ICsrUtils.utils.fn(cmd, csr_data, src_data)
 
     override def extraInputs: Seq[(String, Int)] = RV32ICsrUtils.utils.extraInputs
 
-    override def table: Seq[(Register, CsrUpdateBehavior)] = RV32ICsrUtils.utils.table.map {
+    override def table: Seq[(Register, CsrUpdateBehavior)]                                         = RV32ICsrUtils.utils.table.map {
       case (reg, behavior) if reg.name == "misa" =>
         val newMisaReg = Register(
           name = reg.name,
@@ -31,13 +32,16 @@ object RV32IMCsrUtils extends RegisteredUtils[CsrUtils] {
       case other => other
     }
 
-    override def checkInterrupts(regs: Map[String, UInt], extra: Map[String, UInt]): (Bool, UInt, UInt) =
+    override def checkInterrupts(
+      regs: Map[String, UInt],
+      extra: Map[String, UInt]
+    ): (Bool, UInt, UInt) =
       RV32ICsrUtils.utils.checkInterrupts(regs, extra)
-    override def getTrapUpdates(regs: Map[String, UInt], pc: UInt, cause: UInt): Map[String, UInt]      =
+    override def getTrapUpdates(regs: Map[String, UInt], pc: UInt, cause: UInt): Map[String, UInt] =
       RV32ICsrUtils.utils.getTrapUpdates(regs, pc, cause)
-    override def getTrapReturnTarget(regs: Map[String, UInt]): UInt                                     =
+    override def getTrapReturnTarget(regs: Map[String, UInt]): UInt                                =
       RV32ICsrUtils.utils.getTrapReturnTarget(regs)
-    override def getTrapReturnUpdates(regs: Map[String, UInt]): Map[String, UInt]                       =
+    override def getTrapReturnUpdates(regs: Map[String, UInt]): Map[String, UInt]                  =
       RV32ICsrUtils.utils.getTrapReturnUpdates(regs)
   }
 

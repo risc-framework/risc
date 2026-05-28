@@ -11,7 +11,12 @@ import arch.isa._
 import chisel3._
 import chisel3.util.BitPat
 
-trait RV32IUOp extends RV32IImmConsts with RV32IAluUopConsts with RV32IMemUOpConsts with RV32ICsrUOpConsts with RV32IBruUOpConsts {
+trait RV32IUOp
+    extends RV32IImmConsts
+    with RV32IAluUopConsts
+    with RV32IMemUOpConsts
+    with RV32ICsrUOpConsts
+    with RV32IBruUOpConsts {
   def UOP_X = BitPat("b????????")
 
   def X = BitPat("b?")

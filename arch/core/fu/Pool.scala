@@ -11,9 +11,12 @@ import chisel3.util.{ Decoupled, Valid }
 import scala.reflect.ClassTag
 
 class FunctionalUnitPoolIO(implicit p: Parameters) extends Bundle {
-  private val numLoadFUs  = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
-  private val numStoreFUs = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
-  private val numCsrFUs   = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
+  private val numLoadFUs  =
+    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
+  private val numStoreFUs =
+    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
+  private val numCsrFUs   =
+    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
 
   val req   = Vec(p(NumFUs), Flipped(Decoupled(new MicroOp)))
   val done  = Output(Vec(p(NumFUs), Valid(new FunctionalUnitResp)))
@@ -47,7 +50,10 @@ class FunctionalUnitPool(implicit p: Parameters) extends Module {
 
   val units: Seq[FunctionalUnit] = FUFactory.instantiateAll()
 
-  require(units.size == p(NumFUs), s"FunctionalUnitPool: instantiated ${units.size} FUs, expected ${p(NumFUs)}")
+  require(
+    units.size == p(NumFUs),
+    s"FunctionalUnitPool: instantiated ${units.size} FUs, expected ${p(NumFUs)}"
+  )
 
   for ((fu, i) <- units.zipWithIndex) {
     fu.io.flush      := io.flush
@@ -94,7 +100,9 @@ class FunctionalUnitPool(implicit p: Parameters) extends Module {
       case _ =>
     }
 
-  def collectUnits[T <: FunctionalUnit](implicit ct: ClassTag[T]): Seq[T] = units.collect { case fu: T => fu }
+  def collectUnits[T <: FunctionalUnit](implicit ct: ClassTag[T]): Seq[T] = units.collect {
+    case fu: T => fu
+  }
 
   def count(tpe: FunctionalUnitType): Int = units.count(_.fuType == tpe)
 }

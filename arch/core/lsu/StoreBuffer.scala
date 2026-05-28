@@ -206,10 +206,14 @@ class StoreBuffer(numLoadPorts: Int, numStorePorts: Int)(implicit p: Parameters)
     val allocHit    = Wire(Vec(p(IssueWidth), Bool()))
 
     for (s <- 0 until numStorePorts)
-      writeHit(s) := io.write(s).valid && io.write(s).bits.sq_idx === i.U && entries(i).valid && entries(i).rob_tag === io.write(s).bits.rob_tag && !drainedThis
+      writeHit(s) := io.write(s).valid && io.write(s).bits.sq_idx === i.U && entries(
+        i
+      ).valid && entries(i).rob_tag === io.write(s).bits.rob_tag && !drainedThis
 
     for (c <- 0 until p(IssueWidth))
-      commitHit(c) := io.commit(c).valid && io.commit(c).bits === i.U && entries(i).valid && !drainedThis
+      commitHit(c) := io.commit(c).valid && io.commit(c).bits === i.U && entries(
+        i
+      ).valid && !drainedThis
 
     for (a <- 0 until p(IssueWidth))
       allocHit(a) := allocValid(a) && io.alloc(a).bits.sq_idx === i.U
@@ -220,9 +224,13 @@ class StoreBuffer(numLoadPorts: Int, numStorePorts: Int)(implicit p: Parameters)
     val writeAddr      = Mux1H((0 until numStorePorts).map(s => writeHit(s) -> io.write(s).bits.addr))
     val writeData      = Mux1H((0 until numStorePorts).map(s => writeHit(s) -> io.write(s).bits.data))
     val writeMask      = Mux1H((0 until numStorePorts).map(s => writeHit(s) -> io.write(s).bits.mask))
-    val writeCacheable = Mux1H((0 until numStorePorts).map(s => writeHit(s) -> io.write(s).bits.cacheable))
+    val writeCacheable = Mux1H(
+      (0 until numStorePorts).map(s => writeHit(s) -> io.write(s).bits.cacheable)
+    )
     val allocSeq       = Mux1H((0 until p(IssueWidth)).map(a => allocHit(a) -> io.alloc(a).bits.sq_seq))
-    val allocRobTag    = Mux1H((0 until p(IssueWidth)).map(a => allocHit(a) -> io.alloc(a).bits.rob_tag))
+    val allocRobTag    = Mux1H(
+      (0 until p(IssueWidth)).map(a => allocHit(a) -> io.alloc(a).bits.rob_tag)
+    )
 
     val e = Wire(new StoreBufferEntry)
     e := entries(i)

@@ -19,7 +19,9 @@ object FUFactory extends UtilsFactory[FUBuilder]("FU") {
   def get(desc: FunctionalUnitDescriptor): FUBuilder = {
     val key     = implName(desc)
     val builder = get(key).getOrElse {
-      throw new NoSuchElementException(s"FunctionalUnit implementation '$key' for FU '${desc.name}' is not registered. Available: ${listAvailable().mkString(", ")}")
+      throw new NoSuchElementException(
+        s"FunctionalUnit implementation '$key' for FU '${desc.name}' is not registered. Available: ${listAvailable().mkString(", ")}"
+      )
     }
 
     require(
@@ -30,9 +32,12 @@ object FUFactory extends UtilsFactory[FUBuilder]("FU") {
     builder
   }
 
-  def instantiate(desc: FunctionalUnitDescriptor)(implicit p: Parameters): FunctionalUnit = Module(get(desc).build)
+  def instantiate(desc: FunctionalUnitDescriptor)(implicit p: Parameters): FunctionalUnit = Module(
+    get(desc).build
+  )
 
-  def instantiateAll()(implicit p: Parameters): Seq[FunctionalUnit] = p(FunctionalUnits).map(instantiate)
+  def instantiateAll()(implicit p: Parameters): Seq[FunctionalUnit] =
+    p(FunctionalUnits).map(instantiate)
 }
 
 trait RegisteredFUBuilder extends RegisteredUtils[FUBuilder] {

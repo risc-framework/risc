@@ -51,11 +51,27 @@ class MemoryArbiter(implicit p: Parameters) extends Module {
 
   val memChosenBits = Wire(new MemoryArbiterRoutedReq(TargetW))
   memChosenBits.target     := Mux(memLdSelected, memLdArb.io.out.bits.target, p(NumLDs).U(TargetW.W))
-  memChosenBits.req.addr   := Mux(memLdSelected, memLdArb.io.out.bits.req.addr, store_mem.req.bits.addr)
-  memChosenBits.req.data   := Mux(memLdSelected, memLdArb.io.out.bits.req.data, store_mem.req.bits.data)
+  memChosenBits.req.addr   := Mux(
+    memLdSelected,
+    memLdArb.io.out.bits.req.addr,
+    store_mem.req.bits.addr
+  )
+  memChosenBits.req.data   := Mux(
+    memLdSelected,
+    memLdArb.io.out.bits.req.data,
+    store_mem.req.bits.data
+  )
   memChosenBits.req.cmd    := Mux(memLdSelected, memLdArb.io.out.bits.req.cmd, store_mem.req.bits.cmd)
-  memChosenBits.req.strb   := Mux(memLdSelected, memLdArb.io.out.bits.req.strb, store_mem.req.bits.strb)
-  memChosenBits.req.source := Mux(memLdSelected, memLdArb.io.out.bits.req.source, store_mem.req.bits.source)
+  memChosenBits.req.strb   := Mux(
+    memLdSelected,
+    memLdArb.io.out.bits.req.strb,
+    store_mem.req.bits.strb
+  )
+  memChosenBits.req.source := Mux(
+    memLdSelected,
+    memLdArb.io.out.bits.req.source,
+    store_mem.req.bits.source
+  )
 
   mem.req.valid := memReqValid && memRespQ.io.enq.ready
   mem.req.bits  := memReqBits.req
@@ -110,11 +126,31 @@ class MemoryArbiter(implicit p: Parameters) extends Module {
 
   val mmioChosenBits = Wire(new MemoryArbiterRoutedReq(TargetW))
   mmioChosenBits.target     := Mux(mmioLdSelected, mmioLdArb.io.out.bits.target, p(NumLDs).U(TargetW.W))
-  mmioChosenBits.req.addr   := Mux(mmioLdSelected, mmioLdArb.io.out.bits.req.addr, store_mmio.req.bits.addr)
-  mmioChosenBits.req.data   := Mux(mmioLdSelected, mmioLdArb.io.out.bits.req.data, store_mmio.req.bits.data)
-  mmioChosenBits.req.cmd    := Mux(mmioLdSelected, mmioLdArb.io.out.bits.req.cmd, store_mmio.req.bits.cmd)
-  mmioChosenBits.req.strb   := Mux(mmioLdSelected, mmioLdArb.io.out.bits.req.strb, store_mmio.req.bits.strb)
-  mmioChosenBits.req.source := Mux(mmioLdSelected, mmioLdArb.io.out.bits.req.source, store_mmio.req.bits.source)
+  mmioChosenBits.req.addr   := Mux(
+    mmioLdSelected,
+    mmioLdArb.io.out.bits.req.addr,
+    store_mmio.req.bits.addr
+  )
+  mmioChosenBits.req.data   := Mux(
+    mmioLdSelected,
+    mmioLdArb.io.out.bits.req.data,
+    store_mmio.req.bits.data
+  )
+  mmioChosenBits.req.cmd    := Mux(
+    mmioLdSelected,
+    mmioLdArb.io.out.bits.req.cmd,
+    store_mmio.req.bits.cmd
+  )
+  mmioChosenBits.req.strb   := Mux(
+    mmioLdSelected,
+    mmioLdArb.io.out.bits.req.strb,
+    store_mmio.req.bits.strb
+  )
+  mmioChosenBits.req.source := Mux(
+    mmioLdSelected,
+    mmioLdArb.io.out.bits.req.source,
+    store_mmio.req.bits.source
+  )
 
   mmio.req.valid := mmioReqValid && mmioRespQ.io.enq.ready
   mmio.req.bits  := mmioReqBits.req

@@ -181,7 +181,8 @@ class ReorderBuffer(implicit p: Parameters) extends Module {
 
     val entry       = buffer(commitIdx(w))
     val hasEntry    = count > w.U
-    val committable = hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
+    val committable =
+      hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
 
     io.commit(w).valid             := committable
     io.commit(w).pc                := entry.pc

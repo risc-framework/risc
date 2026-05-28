@@ -13,7 +13,8 @@ class RiscSystem(implicit p: Parameters) extends Module {
   val bridge_utils   = BusBridgeUtilsFactory.getOrThrow(p(BusType))
   val crossbar_utils = BusCrossbarUtilsFactory.getOrThrow(p(BusType))
 
-  val devices = IO(Vec(p(BusAddressMap).length, crossbar_utils.slaveType)).suggestName(s"M_${p(BusType)}".toUpperCase)
+  val devices = IO(Vec(p(BusAddressMap).length, crossbar_utils.slaveType))
+    .suggestName(s"M_${p(BusType)}".toUpperCase)
   val irq     = IO(new CoreInterruptIO)
 
   val debug = if (p(EnableDebug)) Some(IO(new DebugIO)) else None

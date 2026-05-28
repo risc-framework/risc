@@ -11,15 +11,25 @@ object DecodeLogic {
     else {
       require(!hasDontCare(bp), s"Cannot pad '$bp' to '$width' bits because it has don't cares")
       val diff = width - bp.width
-      require(diff > 0, s"Cannot pad '$bp' to '$width' because it is already '${bp.width}' bits wide!")
+      require(
+        diff > 0,
+        s"Cannot pad '$bp' to '$width' because it is already '${bp.width}' bits wide!"
+      )
       BitPat(0.U(diff.W)) ## bp
     }
 
-  def apply(addr: UInt, default: BitPat, mapping: Iterable[(BitPat, BitPat)]): UInt                  =
+  def apply(addr: UInt, default: BitPat, mapping: Iterable[(BitPat, BitPat)]): UInt            =
     chisel3.util.experimental.decode.decoder(QMCMinimizer, addr, TruthTable(mapping, default))
-  def apply(addr: UInt, default: Seq[BitPat], mappingIn: Iterable[(BitPat, Seq[BitPat])]): Seq[UInt] = {
+  def apply(
+    addr: UInt,
+    default: Seq[BitPat],
+    mappingIn: Iterable[(BitPat, Seq[BitPat])]
+  ): Seq[UInt] = {
     val nElts = default.size
-    require(mappingIn.forall(_._2.size == nElts), s"All Seq[BitPat] must be of the same length, got $nElts vs. ${mappingIn.find(_._2.size != nElts).get}")
+    require(
+      mappingIn.forall(_._2.size == nElts),
+      s"All Seq[BitPat] must be of the same length, got $nElts vs. ${mappingIn.find(_._2.size != nElts).get}"
+    )
 
     val elementsGrouped = mappingIn.map(_._2).transpose
     val elementWidths   = elementsGrouped.zip(default).map { case (elts, default) =>
@@ -33,12 +43,24 @@ object DecodeLogic {
     val mappingInPadded = mappingIn.map { case (in, elts) =>
       in -> elts.zip(elementWidths).map { case (bp, w) => padBP(bp, w) }
     }
-    val decoded         = apply(addr, defaultsPadded.reduce(_ ## _), mappingInPadded.map { case (in, out) => (in, out.reduce(_ ## _)) })
+    val decoded         = apply(
+      addr,
+      defaultsPadded.reduce(_ ## _),
+      mappingInPadded.map { case (in, out) => (in, out.reduce(_ ## _)) }
+    )
 
     elementIndices.zip(elementIndices.tail).map { case (msb, lsb) => decoded(msb, lsb + 1) }.toList
   }
-  def apply(addr: UInt, default: Seq[BitPat], mappingIn: List[(UInt, Seq[BitPat])]): Seq[UInt]       =
-    apply(addr, default, mappingIn.map(m => (BitPat(m._1), m._2)).asInstanceOf[Iterable[(BitPat, Seq[BitPat])]])
-  def apply(addr: UInt, trues: Iterable[UInt], falses: Iterable[UInt]): Bool                         =
-    apply(addr, BitPat.dontCare(1), trues.map(BitPat(_) -> BitPat("b1")) ++ falses.map(BitPat(_) -> BitPat("b0"))).asBool
+  def apply(addr: UInt, default: Seq[BitPat], mappingIn: List[(UInt, Seq[BitPat])]): Seq[UInt] =
+    apply(
+      addr,
+      default,
+      mappingIn.map(m => (BitPat(m._1), m._2)).asInstanceOf[Iterable[(BitPat, Seq[BitPat])]]
+    )
+  def apply(addr: UInt, trues: Iterable[UInt], falses: Iterable[UInt]): Bool                   =
+    apply(
+      addr,
+      BitPat.dontCare(1),
+      trues.map(BitPat(_) -> BitPat("b1")) ++ falses.map(BitPat(_) -> BitPat("b0"))
+    ).asBool
 }
