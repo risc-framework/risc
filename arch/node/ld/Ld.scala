@@ -3,6 +3,7 @@ package arch.node.ld
 import arch.node.fupool.FuIO
 import arch.node.sb.StoreForwardIO
 import arch.configs._
+import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import vcache.CachePortIO
 import chisel3._
 
@@ -19,4 +20,15 @@ class LdIO(implicit p: Parameters) extends Bundle {
   val fu  = new FuIO
   val mem = new LdMemIO
   val sb  = new LdSbIO
+}
+
+class Ld(implicit p: Parameters) extends Node(new LdIO) {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      LdDims.ISA -> p(ISA).name
+    )
+  )
+
+  override def nodeType: NodeType  = LdMeta.Type
+  override def desiredName: String = s"ld_${cfg.selector.canonicalName}"
 }

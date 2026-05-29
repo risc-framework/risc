@@ -18,8 +18,7 @@ class Alu(implicit p: Parameters) extends Node(new AluIO) {
   )
 
   override def nodeType: NodeType  = AluMeta.Type
-  override def implName: String    = s"alu_${cfg.selector.canonicalName}"
-  override def desiredName: String = implName
+  override def desiredName: String = s"alu_${cfg.selector.canonicalName}"
 
   private val isaImpl  = AluIsaFactory.select(cfg)
   private val validReg = RegInit(false.B)
