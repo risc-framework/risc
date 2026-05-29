@@ -7,7 +7,7 @@ object LdMeta {
   val Type = NodeType("ld")
   val FU   = NodePort[LdIO, FuIO]("fu", _.fu)
   val MEM  = NodePort[LdIO, LdMemIO]("mem", _.mem)
-  val SB   = NodePort[LdIO, LdSbIO]("sb", _.sb)
+  val SB   = NodePort[LdIO, LdSbFwdIO]("sb", _.sb)
 }
 
 object LdDims {

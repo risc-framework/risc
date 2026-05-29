@@ -12,14 +12,14 @@ class LdMemIO(implicit p: Parameters) extends Bundle {
   val mmio = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
 }
 
-class LdSbIO(implicit p: Parameters) extends Bundle {
+class LdSbFwdIO(implicit p: Parameters) extends Bundle {
   val sb_fwd = Flipped(new StoreForwardIO)
 }
 
 class LdIO(implicit p: Parameters) extends Bundle {
   val fu  = new FuIO
   val mem = new LdMemIO
-  val sb  = new LdSbIO
+  val sb  = new LdSbFwdIO
 }
 
 class Ld(implicit p: Parameters) extends Node(new LdIO) {
