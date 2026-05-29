@@ -156,6 +156,14 @@ package object configs {
       extends Field[Int](
         FunctionalUnits().count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
       )
+  object NumSTs
+      extends Field[Int](
+        FunctionalUnits().count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
+      )
+  object NumCSRs
+      extends Field[Int](
+        FunctionalUnits().count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
+      )
   object RobTagWidth extends Field[Int](log2Ceil(RobSize()))
 
   object L1ICacheParams
@@ -222,6 +230,8 @@ package object configs {
       FuTypeWidth     -> FuTypeWidth(),
       FuIdWidth       -> FuIdWidth(),
       NumLDs          -> NumLDs(),
+      NumSTs          -> NumSTs(),
+      NumCSRs         -> NumCSRs(),
 
       // Mult
       MultPipelineStages -> MultPipelineStages(),

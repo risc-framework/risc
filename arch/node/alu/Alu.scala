@@ -6,7 +6,7 @@ import arch.node.uop.MicroOp
 import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import chisel3._
 
-class AluIO extends Bundle {
+class AluIO(implicit p: Parameters) extends Bundle {
   val fu = new FuIO
 }
 
