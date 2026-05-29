@@ -1,12 +1,14 @@
 package arch.node.alu
 
 import arch.node.uop.MicroOp
+import arch.node.fupool.FuIO
 import arch.configs._
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
+import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort }
 import chisel3._
 
 object AluMeta {
   val Type = NodeType("alu")
+  val FU   = NodePort[AluIO, FuIO]("fu", _.fu)
 }
 
 object AluDims {

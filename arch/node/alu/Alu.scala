@@ -6,7 +6,11 @@ import arch.node.uop.MicroOp
 import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import chisel3._
 
-class Alu(implicit p: Parameters) extends Node(new FuIO) {
+class AluIO extends Bundle {
+  val fu = new FuIO
+}
+
+class Alu(implicit p: Parameters) extends Node(new AluIO) {
   private val cfg = NodeConfig(
     selector = NodeSelector(
       AluDims.ISA -> p(ISA).name
@@ -21,15 +25,15 @@ class Alu(implicit p: Parameters) extends Node(new FuIO) {
   private val validReg = RegInit(false.B)
   private val uopReg   = Reg(new MicroOp)
 
-  io.req.ready  := !io.flush && (!validReg || io.resp.fire)
-  io.resp.valid := validReg && !io.flush
+  io.fu.req.ready  := !io.fu.flush && (!validReg || io.fu.resp.fire)
+  io.fu.resp.valid := validReg && !io.fu.flush
 
-  when(io.flush) {
+  when(io.fu.flush) {
     validReg := false.B
-  }.elsewhen(io.req.fire) {
+  }.elsewhen(io.fu.req.fire) {
     validReg := true.B
-    uopReg   := io.req.bits
-  }.elsewhen(io.resp.fire) {
+    uopReg   := io.fu.req.bits
+  }.elsewhen(io.fu.resp.fire) {
     validReg := false.B
   }
 
@@ -42,7 +46,7 @@ class Alu(implicit p: Parameters) extends Node(new FuIO) {
   resp.instr   := uopReg.instr
   resp.rob_tag := uopReg.rob_tag
 
-  io.resp.bits := resp
+  io.fu.resp.bits := resp
 }
 
 import vutils._
