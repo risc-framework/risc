@@ -1,6 +1,6 @@
 package arch.node.alu.impls.isa.rv32i
 
-import arch.core.imm.ImmUtilsFactory
+import arch.node.imm.ImmIsaFactory
 import arch.node.uop.MicroOp
 import arch.node.alu._
 import arch.configs._
@@ -53,7 +53,7 @@ trait Rv32iAluUopConsts extends AluConsts {
 }
 
 object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConsts {
-  override def utils: AluIsaImpl = new AluIsaImpl with Rv32iAluUopConsts {
+  override def utils: AluIsaImpl = new AluIsaImpl {
     override def value: String    = "rv32i"
     override def fnTypeWidth: Int = SZ_AFN
 
@@ -67,8 +67,8 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
     }
 
     override def execute(uop: MicroOp)(implicit p: Parameters): UInt = {
-      val immUtils = ImmUtilsFactory.getOrThrow(p(ISA).name)
-      val ctrl     = decode(uop.uop)
+      val imm  = ImmIsaFactory.select(p(ISA).name)
+      val ctrl = decode(uop.uop)
 
       val src1 = MuxLookup(ctrl.sel1, 0.U(p(XLen).W))(
         Seq(
@@ -82,7 +82,7 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
         Seq(
           A2_ZERO.value.U(SZ_A2.W)   -> 0.U(p(XLen).W),
           A2_RS2.value.U(SZ_A2.W)    -> uop.rs2_data,
-          A2_IMM.value.U(SZ_A2.W)    -> immUtils.genImm(uop.instr, uop.imm_type),
+          A2_IMM.value.U(SZ_A2.W)    -> imm.gen(uop.instr, uop.imm_type),
           A2_PCSTEP.value.U(SZ_A2.W) -> p(PCStep).U(p(XLen).W)
         )
       )
