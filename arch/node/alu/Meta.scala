@@ -1,7 +1,7 @@
 package arch.node.alu
 
 import arch.configs._
-import arch.core.uop.MicroOp
+import arch.node.uop.MicroOp
 import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
 import chisel3._
 

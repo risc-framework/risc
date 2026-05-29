@@ -1,7 +1,7 @@
 package arch.node.alu.impls.isa.rv32i
 
 import arch.core.imm.ImmUtilsFactory
-import arch.core.uop.MicroOp
+import arch.node.uop.MicroOp
 import arch.node.alu._
 import arch.configs._
 import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }

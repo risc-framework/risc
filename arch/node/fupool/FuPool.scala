@@ -1,10 +1,9 @@
 package arch.node.fupool
 
-import arch.core.uop.MicroOp
+import arch.node.uop.MicroOp
 import arch.configs._
-import vutils.graph.{ Node, NodeType, NodeInterface }
 import chisel3._
-import chisel3.util.{ Decoupled, Valid, log2Ceil }
+import chisel3.util.{ Decoupled, log2Ceil }
 
 class FuResp(implicit p: Parameters) extends Bundle {
   val result  = UInt(p(XLen).W)
