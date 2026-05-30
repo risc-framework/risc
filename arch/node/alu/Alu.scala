@@ -47,19 +47,3 @@ class Alu(implicit p: Parameters) extends Node(new AluIO) {
 
   io.fu.resp.bits := resp
 }
-
-import vutils._
-import arch.node.imm.ImmInit
-
-object AluNode extends App {
-  ImmInit
-  AluInit
-
-  DesignEmitter.emit(
-    gen = new Alu,
-    filename = "alu",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
-}

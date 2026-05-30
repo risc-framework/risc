@@ -240,19 +240,3 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
     }
   }
 }
-
-import arch.node.imm._
-import vutils._
-
-object LdNode extends App {
-  ImmInit
-  LdInit
-
-  DesignEmitter.emit(
-    gen = new Ld,
-    filename = "ld",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
-}

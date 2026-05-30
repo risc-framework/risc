@@ -82,19 +82,3 @@ class Mult(implicit p: Parameters) extends Node(new MultIO) {
   io.fu.resp.valid := state === MultState.DONE && !io.fu.flush
   io.fu.resp.bits  := resp
 }
-
-import arch.node.imm._
-import vutils._
-
-object MultNode extends App {
-  ImmInit
-  MultInit
-
-  DesignEmitter.emit(
-    gen = new Mult,
-    filename = "mult",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
-}

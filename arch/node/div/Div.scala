@@ -81,19 +81,3 @@ class Div(implicit p: Parameters) extends Node(new DivIO) {
   io.fu.resp.valid := state === DivState.DONE && !io.fu.flush
   io.fu.resp.bits  := resp
 }
-
-import arch.node.imm._
-import vutils._
-
-object DivNode extends App {
-  ImmInit
-  DivInit
-
-  DesignEmitter.emit(
-    gen = new Div,
-    filename = "div",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
-}
