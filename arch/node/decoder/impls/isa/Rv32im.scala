@@ -4,7 +4,7 @@ import arch.node.decoder._
 import arch.node.decoder.impls.isa.rv32i.{ Rv32iDecoderUopConsts, DecoderRv32iIsa }
 import arch.node.div.impls.isa.rv32im.Rv32imDivUopConsts
 import arch.node.mult.impls.isa.rv32im.Rv32imMultUopConsts
-import arch.node.fupool.FunctionalUnitType
+import arch.core.fu.FunctionalUnitType
 import arch.isa._
 import arch.configs._
 import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }

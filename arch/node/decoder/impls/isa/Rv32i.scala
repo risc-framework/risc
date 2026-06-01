@@ -5,7 +5,7 @@ import arch.isa._
 import arch.node.alu.impls.isa.rv32i.Rv32iAluUopConsts
 import arch.node.bru.impls.isa.rv32i.Rv32iBruUopConsts
 import arch.node.decoder._
-import arch.node.fupool.FunctionalUnitType
+import arch.core.fu.FunctionalUnitType
 import arch.node.ld.impls.isa.rv32i.Rv32iMemUopConsts
 import arch.core.csr.riscv.RV32ICsrUOpConsts
 import arch.core.imm.riscv.RV32IImmConsts

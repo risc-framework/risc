@@ -34,8 +34,10 @@ trait DecoderKindImpl extends NodeDimensionImpl {
   def decode(isa: DecoderIsaImpl, instr: UInt)(implicit p: Parameters): DecodedOutput
 }
 
-object DecoderIsaFactory  extends NodeDimensionRegistry[DecoderIsaImpl](DecoderMeta.Type, DecoderDims.ISA)
-object DecoderKindFactory extends NodeDimensionRegistry[DecoderKindImpl](DecoderMeta.Type, DecoderDims.KIND)
+object DecoderIsaFactory
+    extends NodeDimensionRegistry[DecoderIsaImpl](DecoderMeta.Type, DecoderDims.ISA)
+object DecoderKindFactory
+    extends NodeDimensionRegistry[DecoderKindImpl](DecoderMeta.Type, DecoderDims.KIND)
 
 object DecoderInit {
   val full   = impls.kind.FullDecoderKind

@@ -1,32 +1,13 @@
 package arch.node.st
 
-import arch.configs._
 import arch.core.pma.PmaChecker
-import arch.node.fupool.{ FuIO, FuResp }
+import arch.node.fupool.FuResp
 import arch.node.imm.ImmIsaFactory
 import arch.node.uop.MicroOp
-import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
+import arch.configs._
+import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
-import chisel3.util.{ Valid, is, log2Ceil, switch }
-
-class StoreWriteBundle(implicit p: Parameters) extends Bundle {
-  val sq_idx    = UInt(log2Ceil(p(StoreBufferSize)).W)
-  val rob_tag   = UInt(p(RobTagWidth).W)
-  val addr      = UInt(p(XLen).W)
-  val data      = UInt(p(XLen).W)
-  val mask      = UInt(p(BytesPerWord).W)
-  val cacheable = Bool()
-}
-
-class StSbWriteIO(implicit p: Parameters) extends Bundle {
-  val sq_idx = Input(UInt(log2Ceil(p(StoreBufferSize)).W))
-  val write  = Output(Valid(new StoreWriteBundle))
-}
-
-class StIO(implicit p: Parameters) extends Bundle {
-  val fu = new FuIO
-  val sb = new StSbWriteIO
-}
+import chisel3.util.{ is, switch }
 
 object StState extends ChiselEnum {
   val IDLE, WRITE_SB, DONE = Value
@@ -42,11 +23,10 @@ class St(implicit p: Parameters) extends Node(new StIO) {
   override def nodeType: NodeType  = StMeta.Type
   override def desiredName: String = s"st_${cfg.selector.canonicalName}"
 
-  private val isaImpl  = StIsaFactory.select(cfg)
-  private val imm      = ImmIsaFactory.select(p(ISA).name)
-  private val state    = RegInit(StState.IDLE)
-  private val uopReg   = Reg(new MicroOp)
-  private val sqIdxReg = RegInit(0.U(log2Ceil(p(StoreBufferSize)).W))
+  private val isaImpl = StIsaFactory.select(cfg)
+  private val imm     = ImmIsaFactory.select(p(ISA).name)
+  private val state   = RegInit(StState.IDLE)
+  private val uopReg  = Reg(new MicroOp)
 
   private val ctrl                    = isaImpl.decodeStore(uopReg.uop)
   private val addr                    = uopReg.rs1_data + imm.gen(uopReg.instr, uopReg.imm_type)
@@ -59,8 +39,8 @@ class St(implicit p: Parameters) extends Node(new StIO) {
 
   private val acceptFire = io.fu.req.fire && !io.fu.flush
 
-  io.sb.write.valid          := state === StState.WRITE_SB
-  io.sb.write.bits.sq_idx    := sqIdxReg
+  io.sb.write.valid          := state === StState.WRITE_SB && !io.fu.flush
+  io.sb.write.bits.sq_idx    := uopReg.sq_idx
   io.sb.write.bits.rob_tag   := uopReg.rob_tag
   io.sb.write.bits.addr      := alignedAddr
   io.sb.write.bits.data      := storeData
@@ -96,9 +76,8 @@ class St(implicit p: Parameters) extends Node(new StIO) {
     }
 
     when(acceptFire) {
-      uopReg   := io.fu.req.bits
-      sqIdxReg := io.sb.sq_idx
-      state    := StState.WRITE_SB
+      uopReg := io.fu.req.bits
+      state  := StState.WRITE_SB
     }
   }
 }

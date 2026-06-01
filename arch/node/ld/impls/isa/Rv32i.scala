@@ -38,10 +38,10 @@ object LdRv32iIsa extends RegisteredNodeUtils[LdIsaImpl] with Rv32iMemUopConsts 
       val ctrl = Wire(new LoadCtrl)
       val size = uop(1, 0)
 
-      ctrl.is_byte := size === MEM_B.value.U(SZ_MEM.W)
-      ctrl.is_half := size === MEM_H.value.U(SZ_MEM.W)
-      ctrl.is_word := size === MEM_W.value.U(SZ_MEM.W)
-      ctrl.is_dword := false.B
+      ctrl.is_byte     := size === MEM_B.value.U(SZ_MEM.W)
+      ctrl.is_half     := size === MEM_H.value.U(SZ_MEM.W)
+      ctrl.is_word     := size === MEM_W.value.U(SZ_MEM.W)
+      ctrl.is_dword    := false.B
       ctrl.is_unsigned := uop(2)
 
       ctrl.strb := MuxLookup(size, 0.U(p(BytesPerWord).W))(

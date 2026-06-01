@@ -1,8 +1,10 @@
 package arch.node.st
 
+import arch.node.fupool.FuIO
+import arch.node.sb.StoreWriteBundle
 import arch.configs._
 import chisel3._
-import chisel3.util.{ Cat, Fill, MuxCase }
+import chisel3.util.{ Cat, Fill, MuxCase, Valid }
 
 class StoreCtrl(implicit p: Parameters) extends Bundle {
   val is_byte  = Bool()
@@ -10,6 +12,15 @@ class StoreCtrl(implicit p: Parameters) extends Bundle {
   val is_word  = Bool()
   val is_dword = Bool()
   val strb     = UInt(p(BytesPerWord).W)
+}
+
+class StSbWriteIO(implicit p: Parameters) extends Bundle {
+  val write = Valid(new StoreWriteBundle)
+}
+
+class StIO(implicit p: Parameters) extends Bundle {
+  val fu = new FuIO
+  val sb = new StSbWriteIO
 }
 
 trait StoreDataHelpers {
@@ -40,9 +51,9 @@ trait StoreDataHelpers {
     MuxCase(
       data,
       Seq(
-        ctrl.is_byte -> Cat(Fill(p(XLen) - 8, 0.U), data(7, 0)),
-        ctrl.is_half -> Cat(Fill(p(XLen) - 16, 0.U), data(15, 0)),
-        ctrl.is_word -> {
+        ctrl.is_byte  -> Cat(Fill(p(XLen) - 8, 0.U), data(7, 0)),
+        ctrl.is_half  -> Cat(Fill(p(XLen) - 16, 0.U), data(15, 0)),
+        ctrl.is_word  -> {
           if (p(XLen) == 64) Cat(Fill(p(XLen) - 32, 0.U), data(31, 0))
           else data
         },

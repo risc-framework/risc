@@ -20,19 +20,3 @@ class Decoder(implicit p: Parameters) extends Node(new DecoderIO) {
   for (w <- 0 until p(IssueWidth))
     io.decode.out(w) := kindImpl.decode(isaImpl, io.decode.instr(w))
 }
-
-import arch.node.imm.ImmInit
-import vutils._
-
-object DecoderNode extends App {
-  ImmInit
-  DecoderInit
-
-  DesignEmitter.emit(
-    gen = new Decoder,
-    filename = "decoder",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
-}

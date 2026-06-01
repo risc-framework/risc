@@ -1,8 +1,8 @@
 package arch.node.st
 
-import arch.configs._
 import arch.node.fupool.FuIO
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort }
+import arch.configs._
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
 import chisel3._
 
 object StMeta {

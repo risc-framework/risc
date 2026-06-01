@@ -1,6 +1,9 @@
 package arch.node.ld
 
+import arch.node.fupool.FuIO
+import arch.node.sb.StoreForwardIO
 import arch.configs._
+import vcache.CachePortIO
 import chisel3._
 import chisel3.util.{ Cat, Fill, MuxCase }
 
@@ -13,12 +16,30 @@ class LoadCtrl(implicit p: Parameters) extends Bundle {
   val strb        = UInt(p(BytesPerWord).W)
 }
 
+class LdMemIO(implicit p: Parameters) extends Bundle {
+  val mem  = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
+  val mmio = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
+}
+
+class LdSbFwdIO(implicit p: Parameters) extends Bundle {
+  val sb_fwd = Flipped(new StoreForwardIO)
+}
+
+class LdIO(implicit p: Parameters) extends Bundle {
+  val fu  = new FuIO
+  val mem = new LdMemIO
+  val sb  = new LdSbFwdIO
+}
+
 trait LoadDataHelpers {
   def alignedAddr(addr: UInt)(implicit p: Parameters): UInt =
     Cat(addr(p(XLen) - 1, p(BytesOffsetWidth)), 0.U(p(BytesOffsetWidth).W))
 
   def byteOffset(addr: UInt)(implicit p: Parameters): UInt =
     addr(p(BytesOffsetWidth) - 1, 0)
+
+  private def lowByteMask(bytes: Int)(implicit p: Parameters): UInt =
+    ((BigInt(1) << bytes) - 1).U(p(BytesPerWord).W)
 
   def expandByteMask(mask: UInt)(implicit p: Parameters): UInt =
     Cat((p(BytesPerWord) - 1 to 0 by -1).map(i => Fill(8, mask(i))))
@@ -27,9 +48,9 @@ trait LoadDataHelpers {
     MuxCase(
       Fill(p(BytesPerWord), 1.U(1.W)).asUInt,
       Seq(
-        ctrl.is_byte  -> "b0001".U(p(BytesPerWord).W),
-        ctrl.is_half  -> "b0011".U(p(BytesPerWord).W),
-        ctrl.is_word  -> "b1111".U(p(BytesPerWord).W),
+        ctrl.is_byte  -> lowByteMask(1),
+        ctrl.is_half  -> lowByteMask(2),
+        ctrl.is_word  -> lowByteMask(4),
         ctrl.is_dword -> Fill(p(BytesPerWord), 1.U(1.W)).asUInt
       )
     )

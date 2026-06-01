@@ -6,6 +6,7 @@ import arch.node.div.Div
 import arch.node.ld.{ Ld, LdMemIO, LdSbFwdIO }
 import arch.node.mult.Mult
 import arch.node.st.{ St, StSbWriteIO }
+import arch.core.fu.FunctionalUnitType
 import arch.configs._
 import vutils.graph.{ Node, NodeType }
 import chisel3._
@@ -127,32 +128,5 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
   require(
     bruIdx == io.bru.ports.length,
     s"FuPool: connected $bruIdx BRU nodes, expected ${io.bru.ports.length}"
-  )
-}
-
-import arch.node.imm.ImmInit
-import arch.node.div.DivInit
-import arch.node.alu.AluInit
-import arch.node.mult.MultInit
-import arch.node.ld.LdInit
-import arch.node.st.StInit
-import arch.node.bru.BruInit
-import vutils._
-
-object FuPoolNode extends App {
-  ImmInit
-  AluInit
-  MultInit
-  DivInit
-  LdInit
-  StInit
-  BruInit
-
-  DesignEmitter.emit(
-    gen = new FuPool,
-    filename = "fu_pool",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
   )
 }

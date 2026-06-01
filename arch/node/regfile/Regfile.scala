@@ -92,17 +92,3 @@ class Regfile(implicit p: Parameters) extends Node(new RegfileIO) {
     io.debug.reg_data(w) := io.write.data(w)
   }
 }
-
-import vutils._
-
-object RegfileNode extends App {
-  RegfileInit
-
-  DesignEmitter.emit(
-    gen = new Regfile,
-    filename = "regfile",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
-}

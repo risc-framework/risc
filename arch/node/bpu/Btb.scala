@@ -22,7 +22,8 @@ class Btb(implicit p: Parameters) extends Node(new BtbIO) with BHTConsts {
 
   private val validBits   = RegInit(VecInit(Seq.fill(p(BTBSets))(0.U(p(BTBWays).W))))
   private val tagArray    = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(tagWidth.W))))
-  private val targetArray = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(p(XLen).W))))
+  private val targetArray =
+    Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(p(XLen).W))))
   private val ctrlArray   = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(SZ_BHT.W))))
   private val replStates  = Seq.fill(p(BTBSets))(p(BTBReplPolicy).build(p(BTBWays)))
 

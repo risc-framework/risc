@@ -21,13 +21,13 @@ class Bpu(implicit p: Parameters) extends Node(new BpuIO) {
   private val predictors = predictorKinds.map(kind => Module(new Predictor(kind)))
   private val selected   = predictors.last
 
-  btb.io.query.pc       := io.fetch.query_pc
-  btb.io.update.update  := io.update.update
+  btb.io.query.pc      := io.fetch.query_pc
+  btb.io.update.update := io.update.update
 
   for (pred <- predictors) {
-    pred.io.query.pc     := io.fetch.query_pc
-    pred.io.query.accept := io.fetch.advance_valid && !io.fetch.flush
-    pred.io.query.flush  := io.fetch.flush
+    pred.io.query.pc      := io.fetch.query_pc
+    pred.io.query.accept  := io.fetch.advance_valid && !io.fetch.flush
+    pred.io.query.flush   := io.fetch.flush
     pred.io.update.update := io.update.update
   }
 
@@ -46,7 +46,11 @@ class Bpu(implicit p: Parameters) extends Node(new BpuIO) {
 
   for (w <- 0 until p(IssueWidth)) {
     io.fetch.taken(w)        := rawTaken(w) && !killedByOlderTaken(w)
-    io.fetch.target(w)       := Mux(io.fetch.taken(w), btb.io.query.entry_out(w).target, io.fetch.query_pc(w) + p(PCStep).U)
+    io.fetch.target(w)       := Mux(
+      io.fetch.taken(w),
+      btb.io.query.entry_out(w).target,
+      io.fetch.query_pc(w) + p(PCStep).U
+    )
     branchMask(w)            := btb.io.query.hit(w) && !killedByOlderTaken(w)
     io.fetch.pht_index(w)    := selected.io.query.pht_index(w)
     io.fetch.ghr_snapshot(w) := selected.io.query.ghr_snapshot(w)
@@ -54,18 +58,5 @@ class Bpu(implicit p: Parameters) extends Node(new BpuIO) {
 
   for (pred <- predictors)
     pred.io.query.is_branch := branchMask
-}
 
-import vutils._
-
-object BpuNode extends App {
-  BpuInit
-
-  DesignEmitter.emit(
-    gen = new Bpu,
-    filename = "bpu",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
 }

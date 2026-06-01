@@ -240,15 +240,3 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
     io.bypass.rs2_bypass(w).pending := rs2Pending
   }
 }
-
-import vutils._
-
-object RobNode extends App {
-  DesignEmitter.emit(
-    gen = new Rob,
-    filename = "rob",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
-}

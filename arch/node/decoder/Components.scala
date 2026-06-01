@@ -1,7 +1,7 @@
 package arch.node.decoder
 
 import arch.configs._
-import arch.node.fupool.FunctionalUnitType
+import arch.core.fu.FunctionalUnitType
 import arch.node.imm.ImmIsaFactory
 import chisel3._
 

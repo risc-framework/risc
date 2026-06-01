@@ -1,6 +1,7 @@
 package arch.node.scheduler
 
-import arch.node.fupool.{ FuResp, FunctionalUnitType }
+import arch.node.fupool.FuResp
+import arch.core.fu.FunctionalUnitType
 import arch.node.uop.MicroOp
 import arch.configs._
 import chisel3._

@@ -27,33 +27,3 @@ class Scheduler(implicit p: Parameters) extends Node(new SchedulerIO) {
     }
   }
 }
-
-import arch.node.alu.AluInit
-import arch.node.bru.BruInit
-import arch.node.div.DivInit
-import arch.node.imm.ImmInit
-import arch.node.ld.LdInit
-import arch.node.mult.MultInit
-import arch.node.regfile.RegfileInit
-import arch.node.st.StInit
-import vutils._
-
-object SchedulerNode extends App {
-  ImmInit
-  RegfileInit
-  AluInit
-  MultInit
-  DivInit
-  LdInit
-  StInit
-  BruInit
-  SchedulerInit
-
-  DesignEmitter.emit(
-    gen = new Scheduler,
-    filename = "scheduler",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
-}

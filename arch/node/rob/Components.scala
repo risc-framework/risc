@@ -1,6 +1,7 @@
 package arch.node.rob
 
 import arch.node.bru.BruResolveIO
+import arch.core.fu.FunctionalUnitType
 import arch.configs._
 import chisel3._
 import chisel3.util.log2Ceil
@@ -82,7 +83,7 @@ class RobWbPortIO(implicit p: Parameters) extends Bundle {
 
 class RobBruPortIO(implicit p: Parameters) extends Bundle {
   private val numBruFUs = p(FunctionalUnits).count(
-    _.`type` == arch.node.fupool.FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU
+    _.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU
   )
   val ports             = Flipped(Vec(numBruFUs, new BruResolveIO))
 }
