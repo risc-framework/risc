@@ -410,38 +410,3 @@ class Core(implicit p: Parameters) extends Node(new CoreIO) {
   io.debug.frontend_stall   := laneBaseReqOk(0) && !laneValid(0)
   io.debug.backend_stall    := !rob.io.ctrl.empty && commitPopCount === 0.U
 }
-
-import arch.node.alu.AluInit
-import arch.node.bpu.BpuInit
-import arch.node.bru.BruInit
-import arch.node.decoder.DecoderInit
-import arch.node.div.DivInit
-import arch.node.imm.ImmInit
-import arch.node.ld.LdInit
-import arch.node.mult.MultInit
-import arch.node.regfile.RegfileInit
-import arch.node.scheduler.SchedulerInit
-import arch.node.st.StInit
-import vutils._
-
-object CoreNode extends App {
-  ImmInit
-  RegfileInit
-  DecoderInit
-  SchedulerInit
-  AluInit
-  MultInit
-  DivInit
-  LdInit
-  StInit
-  BruInit
-  BpuInit
-
-  DesignEmitter.emit(
-    gen = new Core,
-    filename = s"${p(ISA).name}_cpu",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
-}

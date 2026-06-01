@@ -1,5 +1,5 @@
 // RUN: %bare_asm
-// RUN: %difftest -c 50 -SLT
+// RUN: %difftest -c 50
 
 .section .text.entry, "ax"
 .globl _start

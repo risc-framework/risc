@@ -1,5 +1,5 @@
 // RUN: %bare_c
-// RUN: %difftest -c 3000 -SLT | FileCheck %s
+// RUN: %difftest -c 3000 | FileCheck %s
 
 void print_str(const char *s) {
   char volatile *uart_txd = (char volatile *)(0x10000004);

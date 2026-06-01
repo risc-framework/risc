@@ -1,5 +1,5 @@
 // RUN: %bare_c
-// RUN: %difftest -c 5000 -SLT
+// RUN: %difftest -c 5000
 
 int main() {
   int sum = 0;

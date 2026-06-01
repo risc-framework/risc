@@ -1,63 +1,35 @@
 package arch
 
+import arch.node.alu.AluInit
+import arch.node.bpu.BpuInit
+import arch.node.bru.BruInit
+import arch.node.decoder.DecoderInit
+import arch.node.div.DivInit
+import arch.node.imm.ImmInit
+import arch.node.ld.LdInit
+import arch.node.mult.MultInit
+import arch.node.regfile.RegfileInit
+import arch.node.scheduler.SchedulerInit
+import arch.node.st.StInit
 import arch.system.RiscSystem
 import arch.system.bridge.BusBridgeInit
 import arch.system.crossbar.BusCrossbarInit
-import arch.core.RiscCore
-import arch.core.decoder.DecoderInit
-import arch.core.bru.BruInit
-import arch.core.regfile.RegfileInit
-import arch.core.alu.AluInit
-import arch.core.mult.MultInit
-import arch.core.div.DivInit
-import arch.core.lsu.LoadStoreInit
-import arch.core.imm.ImmInit
-import arch.core.csr.CsrInit
-import arch.core.fu.FUInit
 import arch.configs._
-import arch.cpp.CppCodegen
-import vutils.{ DesignEmitter, SystemVerilog }
-
-object MainCore extends App {
-  DecoderInit
-  BruInit
-  RegfileInit
-  AluInit
-  MultInit
-  DivInit
-  LoadStoreInit
-  ImmInit
-  CsrInit
-  FUInit
-
-  DesignEmitter.emit(
-    gen = new RiscCore,
-    filename = s"${p(ISA).name}_cpu",
-    target = SystemVerilog,
-    info = true,
-    lowering = true,
-  )
-
-  CppCodegen.emit(
-    p,
-    "build/include/demu/generated/sys_def.hh",
-    "build/include/demu/generated/isa_def.hh",
-    "build/include/demu/generated/bus_bindings.hh",
-    "build/include/demu/generated/retire_bindings.hh"
-  )
-}
+import cpp.CppCodegen
+import vutils._
 
 object MainSystem extends App {
+  ImmInit
   DecoderInit
   BruInit
+  BpuInit
   RegfileInit
   AluInit
   MultInit
   DivInit
-  LoadStoreInit
-  ImmInit
-  CsrInit
-  FUInit
+  LdInit
+  StInit
+  SchedulerInit
 
   BusBridgeInit
   BusCrossbarInit
