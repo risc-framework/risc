@@ -387,9 +387,9 @@ class Core(implicit p: Parameters) extends Node(new CoreIO) {
   io.debug.branch_taken     := bpuUpdateValid && bpuUpdateTaken
   io.debug.branch_source    := bpuUpdatePc
   io.debug.branch_target    := bpuUpdateTarget
-  io.debug.l1_icache_access := RegNext(l1ICache.upper.req.fire)
+  io.debug.l1_icache_access := l1ICache.upper.resp.fire
   io.debug.l1_icache_miss   := !l1ICache.upper.resp.bits.hit
-  io.debug.l1_dcache_access := RegNext(l1DCache.upper.req.fire)
+  io.debug.l1_dcache_access := l1DCache.upper.resp.fire
   io.debug.l1_dcache_miss   := !l1DCache.upper.resp.bits.hit
   io.debug.bpu_mispredict   := (0 until p(IssueWidth))
     .map(w =>
