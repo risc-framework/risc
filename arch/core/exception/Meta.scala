@@ -7,11 +7,11 @@ import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePor
 import chisel3._
 
 object ExceptionMeta {
-  val Type           = NodeType("exception")
-  val INTERRUPT      = NodePort[ExceptionIO, TrapCandidate]("interrupt", _.interrupt)
-  val COMMITREDIRECT = NodePort[ExceptionIO, RedirectBundle]("commit_redirect", _.commitRedirect)
-  val REDIRECT       = NodePort[ExceptionIO, RedirectBundle]("redirect", _.redirect)
-  val CSRTRAPUPDATE  = NodePort[ExceptionIO, CsrTrapUpdate]("csr_trap_update", _.csrTrapUpdate)
+  val Type            = NodeType("exception")
+  val INTERRUPT       = NodePort[ExceptionIO, TrapCandidate]("interrupt", _.interrupt)
+  val COMMIT_REDIRECT = NodePort[ExceptionIO, RedirectBundle]("commit_redirect", _.commitRedirect)
+  val REDIRECT        = NodePort[ExceptionIO, RedirectBundle]("redirect", _.redirect)
+  val CSR_TRAP_UPDATE = NodePort[ExceptionIO, CsrTrapUpdate]("csr_trap_update", _.csrTrapUpdate)
 }
 
 object ExceptionDims {

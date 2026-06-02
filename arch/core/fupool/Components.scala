@@ -1,6 +1,5 @@
 package arch.core.fupool
 
-import arch.core.fu.FunctionalUnitType
 import arch.core.uop.MicroOp
 import arch.core.bru.BruResolveIO
 import arch.core.st.StSbWriteIO
@@ -36,29 +35,21 @@ class FuPoolFuIO(implicit p: Parameters) extends Bundle {
 }
 
 class VecLdMemIO(implicit p: Parameters) extends Bundle {
-  private val n = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
-  val ports     = Vec(n, new LdMemIO)
+  val ports = Vec(p(NumLDs), new LdMemIO)
 }
 
 class VecLdSbFwdIO(implicit p: Parameters) extends Bundle {
-  private val n = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
-  val ports     = Vec(n, new LdSbFwdIO)
+  val ports = Vec(p(NumLDs), new LdSbFwdIO)
 }
 
 class VecStSbWriteIO(implicit p: Parameters) extends Bundle {
-  private val n = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
-  val ports     = Vec(n, new StSbWriteIO)
+  val ports = Vec(p(NumSTs), new StSbWriteIO)
 }
 
 class VecBruResolveIO(implicit p: Parameters) extends Bundle {
-  private val n = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
-  val ports     = Vec(n, new BruResolveIO)
+  val ports = Vec(p(NumBRUs), new BruResolveIO)
 }
 
 class VecCsrCtrlIO(implicit p: Parameters) extends Bundle {
-  private val numCsrFUs = p(FunctionalUnits).count(
-    _.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR
-  )
-
-  val ports = Vec(numCsrFUs, new CsrCtrlIO)
+  val ports = Vec(p(NumCSRs), new CsrCtrlIO)
 }

@@ -1,6 +1,5 @@
 package arch.core.memarb
 
-import arch.core.fu.FunctionalUnitType
 import arch.configs._
 import vcache.CacheReq
 import vutils.graph.{ Node, NodeType }
@@ -22,11 +21,11 @@ class MemoryArbiter(implicit p: Parameters) extends Node(new MemoryArbiterIO) {
   override def nodeType: NodeType  = MemoryArbiterMeta.Type
   override def desiredName: String = s"memory_arbiter"
 
-  private val numLoadPorts =
-    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
-  private val numReqs      = numLoadPorts + 1
-  private val TargetW      = log2Ceil(numReqs).max(1)
-  private val storeTarget  = numLoadPorts
+  private val numLoadPorts = p(NumLDs)
+
+  private val numReqs     = numLoadPorts + 1
+  private val TargetW     = log2Ceil(numReqs).max(1)
+  private val storeTarget = numLoadPorts
 
   private val memLdArb  = Module(new RRArbiter(new MemoryArbiterRoutedReq(TargetW), numLoadPorts))
   private val mmioLdArb = Module(new RRArbiter(new MemoryArbiterRoutedReq(TargetW), numLoadPorts))

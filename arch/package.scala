@@ -160,6 +160,10 @@ package object configs {
       extends Field[Int](
         FunctionalUnits().count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
       )
+  object NumBRUs
+      extends Field[Int](
+        FunctionalUnits().count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
+      )
   object NumCSRs
       extends Field[Int](
         FunctionalUnits().count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
@@ -231,6 +235,7 @@ package object configs {
       FuIdWidth       -> FuIdWidth(),
       NumLDs          -> NumLDs(),
       NumSTs          -> NumSTs(),
+      NumBRUs         -> NumBRUs(),
       NumCSRs         -> NumCSRs(),
 
       // Mult

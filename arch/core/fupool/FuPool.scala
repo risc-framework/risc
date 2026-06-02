@@ -103,24 +103,4 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
 
       case _ =>
     }
-
-  require(
-    ldIdx == io.ld_mem.ports.length,
-    s"FuPool: connected $ldIdx LD nodes, expected ${io.ld_mem.ports.length}"
-  )
-
-  require(
-    stIdx == io.st_sb.ports.length,
-    s"FuPool: connected $stIdx ST nodes, expected ${io.st_sb.ports.length}"
-  )
-
-  require(
-    bruIdx == io.bru.ports.length,
-    s"FuPool: connected $bruIdx BRU nodes, expected ${io.bru.ports.length}"
-  )
-
-  require(
-    csrIdx == io.csr.ports.length,
-    s"FuPool: connected $csrIdx CSR nodes, expected ${io.csr.ports.length}"
-  )
 }

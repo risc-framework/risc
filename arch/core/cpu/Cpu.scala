@@ -1,6 +1,5 @@
 package arch.core.cpu
 
-import arch.core.fu.FunctionalUnitType
 import arch.core.bpu.Bpu
 import arch.core.csr.{ CsrTrapView, InterruptLines }
 import arch.core.decoder.Decoder
@@ -32,19 +31,10 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   override def nodeType: NodeType  = CpuMeta.Type
   override def desiredName: String = "cpu"
 
-  private val numLoadFUs  =
-    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
-  private val numStoreFUs =
-    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
-  private val numBruFUs   =
-    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
-  private val numCsrFUs   =
-    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
-
-  require(numLoadFUs > 0, "Cpu: at least one LD node is required")
-  require(numStoreFUs > 0, "Cpu: at least one ST node is required")
-  require(numBruFUs > 0, "Cpu: at least one BRU node is required")
-  require(numCsrFUs <= 1, "Cpu: at most one CSR node is supported")
+  require(p(NumLDs) > 0, "Cpu: at least one LD node is required")
+  require(p(NumSTs) > 0, "Cpu: at least one ST node is required")
+  require(p(NumBRUs) > 0, "Cpu: at least one BRU node is required")
+  require(p(NumCSRs) <= 1, "Cpu: at most one CSR node is supported")
 
   private val bpu           = Module(new Bpu)
   private val ifu           = Module(new Ifu)
@@ -87,7 +77,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   ifu.io.bpu <> bpu.io.fetch
 
-  for (i <- 0 until numLoadFUs) {
+  for (i <- 0 until p(NumLDs)) {
     memoryArbiter.io.load.mem(i) <> fuPool.io.ld_mem.ports(i).mem
     memoryArbiter.io.load.mmio(i) <> fuPool.io.ld_mem.ports(i).mmio
 
@@ -96,13 +86,13 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     fuPool.io.ld_sb.ports(i).oldest_seq   := storeBuffer.io.state.oldestSeq
   }
 
-  for (i <- 0 until numStoreFUs)
+  for (i <- 0 until p(NumSTs))
     storeBuffer.io.write.ports(i) := fuPool.io.st_sb.ports(i).write
 
   memoryArbiter.io.store.mem <> storeBuffer.io.mem.mem
   memoryArbiter.io.store.mmio <> storeBuffer.io.mem.mmio
 
-  for (i <- 0 until numBruFUs)
+  for (i <- 0 until p(NumBRUs))
     rob.io.bru.ports(i) <> fuPool.io.bru.ports(i)
 
   for (i <- 0 until p(NumFUs)) {
@@ -140,7 +130,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   exception.io.commitRedirect := commitRedirect
   exception.io.archPc         := archPc
 
-  if (numCsrFUs > 0) {
+  if (p(NumCSRs) > 0) {
     interrupt.io.view := fuPool.io.csr.ports(0).view
     interrupt.io.irq  := irqLines
 

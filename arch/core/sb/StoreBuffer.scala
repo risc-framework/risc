@@ -1,6 +1,5 @@
 package arch.core.sb
 
-import arch.core.fu.FunctionalUnitType
 import arch.configs._
 import vcache.CacheCommand
 import vutils.graph.{ Node, NodeType }
@@ -8,11 +7,8 @@ import chisel3._
 import chisel3.util.{ Cat, Mux1H, PopCount, log2Ceil }
 
 object StoreBuffer {
-  def numLoadPorts(implicit p: Parameters): Int =
-    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
-
-  def numStorePorts(implicit p: Parameters): Int =
-    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
+  def numLoadPorts(implicit p: Parameters): Int  = p(NumLDs)
+  def numStorePorts(implicit p: Parameters): Int = p(NumSTs)
 }
 
 class StoreBufferIO(numLoadPorts: Int, numStorePorts: Int)(implicit p: Parameters) extends Bundle {
@@ -28,7 +24,7 @@ class StoreBufferIO(numLoadPorts: Int, numStorePorts: Int)(implicit p: Parameter
 class StoreBuffer(implicit p: Parameters)
     extends Node(new StoreBufferIO(StoreBuffer.numLoadPorts, StoreBuffer.numStorePorts)) {
   override def nodeType: NodeType  = StoreBufferMeta.Type
-  override def desiredName: String = s"store_buffer"
+  override def desiredName: String = "store_buffer"
 
   private val numLoadPorts  = StoreBuffer.numLoadPorts
   private val numStorePorts = StoreBuffer.numStorePorts
