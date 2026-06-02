@@ -1,6 +1,5 @@
 package arch.core.alu
 
-import arch.configs._
 import chisel3._
 import chisel3.util.BitPat
 
@@ -19,18 +18,9 @@ trait AluConsts {
   def A2_PCSTEP = BitPat("b11")
 }
 
-trait AluUtils extends Utils {
-  def sel1Width: Int
-  def sel2Width: Int
-  def fnTypeWidth: Int
-
-  def decode(uop: UInt): AluCtrl
-  def fn(src1: UInt, src2: UInt, fnType: UInt, mode: Bool): UInt
-}
-
-object AluUtilsFactory extends UtilsFactory[AluUtils]("ALU")
-
-object AluInit {
-  val rv32iUtils  = riscv.RV32IAluUtils
-  val rv32imUtils = riscv.RV32IMAluUtils
+class AluCtrl(fnWidth: Int) extends Bundle with AluConsts {
+  val sel1 = UInt(SZ_A1.W)
+  val sel2 = UInt(SZ_A2.W)
+  val mode = Bool()
+  val fn   = UInt(fnWidth.W)
 }

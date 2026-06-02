@@ -23,7 +23,7 @@ private[cpp] object CppIsaSchema {
       .appendedAll(".h")
 
   private def topModuleName(p: Parameters): String =
-    s"${p(ISA).name}_system"
+    "soc"
 
   private def verilatedClassName(p: Parameters): String =
     "V" + topModuleName(p)
@@ -54,7 +54,7 @@ private[cpp] object CppIsaSchema {
 
   private def typeAliases(options: CppCodegenOptions): Seq[CppValue] =
     Seq(
-      TypeAliasValue("system_t", p => s"::${verilatedClassName(p)}"),
+      TypeAliasValue("soc_t", p => s"::${verilatedClassName(p)}"),
       TypeAliasValue("instr_t", p => intType(p(ISA).ilen)),
       TypeAliasValue("addr_t", p => intType(p(ISA).xlen)),
       TypeAliasValue("word_t", p => intType(p(ISA).xlen)),

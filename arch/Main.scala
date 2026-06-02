@@ -1,21 +1,21 @@
 package arch
 
-import arch.node.alu.AluInit
-import arch.node.bpu.BpuInit
-import arch.node.bru.BruInit
-import arch.node.decoder.DecoderInit
-import arch.node.div.DivInit
-import arch.node.imm.ImmInit
-import arch.node.pma.PmaInit
-import arch.node.ld.LdInit
-import arch.node.mult.MultInit
-import arch.node.regfile.RegfileInit
-import arch.node.scheduler.SchedulerInit
-import arch.node.st.StInit
-import arch.node.csr.CsrInit
-import arch.node.interrupt.InterruptInit
-import arch.node.exception.ExceptionInit
-import arch.system.RiscSystem
+import arch.core.alu.AluInit
+import arch.core.bpu.BpuInit
+import arch.core.bru.BruInit
+import arch.core.decoder.DecoderInit
+import arch.core.div.DivInit
+import arch.core.imm.ImmInit
+import arch.core.pma.PmaInit
+import arch.core.ld.LdInit
+import arch.core.mult.MultInit
+import arch.core.regfile.RegfileInit
+import arch.core.scheduler.SchedulerInit
+import arch.core.st.StInit
+import arch.core.csr.CsrInit
+import arch.core.interrupt.InterruptInit
+import arch.core.exception.ExceptionInit
+import arch.system.soc.Soc
 import arch.system.bridge.BusBridgeInit
 import arch.system.crossbar.BusCrossbarInit
 import arch.configs._
@@ -43,8 +43,8 @@ object MainSystem extends App {
   BusCrossbarInit
 
   DesignEmitter.emit(
-    gen = new RiscSystem,
-    filename = s"${p(ISA).name}_system",
+    gen = new Soc,
+    filename = "soc",
     target = SystemVerilog,
     info = true,
     lowering = true,

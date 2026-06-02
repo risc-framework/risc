@@ -1,26 +1,53 @@
 package arch.core.alu
 
 import arch.configs._
+import arch.core.fupool.{ FuIO, FuResp }
+import arch.core.uop.MicroOp
+import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import chisel3._
 
-class AluCtrl(fnWidth: Int) extends Bundle with AluConsts {
-  val sel1 = UInt(SZ_A1.W)
-  val sel2 = UInt(SZ_A2.W)
-  val mode = Bool()
-  val fn   = UInt(fnWidth.W)
+class AluIO(implicit p: Parameters) extends Bundle {
+  val fu = new FuIO
 }
 
-class Alu(implicit p: Parameters) extends Module {
-  override def desiredName: String = s"${p(ISA).name}_alu"
+class Alu(implicit p: Parameters) extends Node(new AluIO) {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      AluDims.ISA -> p(ISA).name
+    )
+  )
 
-  val utils = AluUtilsFactory.getOrThrow(p(ISA).name)
+  override def nodeType: NodeType  = AluMeta.Type
+  override def desiredName: String = s"alu_${cfg.selector.canonicalName}"
 
-  val en     = IO(Input(Bool()))
-  val src1   = IO(Input(UInt(p(XLen).W)))
-  val src2   = IO(Input(UInt(p(XLen).W)))
-  val fn     = IO(Input(UInt(utils.fnTypeWidth.W)))
-  val mode   = IO(Input(Bool()))
-  val result = IO(Output(UInt(p(XLen).W)))
+  private val isaImpl  = AluIsaFactory.select(cfg)
+  private val validReg = RegInit(false.B)
+  private val uopReg   = Reg(new MicroOp)
 
-  result := Mux(en, utils.fn(src1, src2, fn, mode), 0.U(p(XLen).W))
+  io.fu.req.ready  := !io.fu.flush && (!validReg || io.fu.resp.fire)
+  io.fu.resp.valid := validReg && !io.fu.flush
+
+  when(io.fu.flush) {
+    validReg := false.B
+  }.elsewhen(io.fu.req.fire) {
+    validReg := true.B
+    uopReg   := io.fu.req.bits
+  }.elsewhen(io.fu.resp.fire) {
+    validReg := false.B
+  }
+
+  private val result = isaImpl.execute(uopReg)
+  private val resp   = Wire(new FuResp)
+
+  resp.result       := result
+  resp.rd           := uopReg.rd
+  resp.pc           := uopReg.pc
+  resp.instr        := uopReg.instr
+  resp.rob_tag      := uopReg.rob_tag
+  resp.trap_req     := false.B
+  resp.trap_target  := 0.U
+  resp.trap_ret     := false.B
+  resp.trap_ret_tgt := 0.U
+
+  io.fu.resp.bits := resp
 }

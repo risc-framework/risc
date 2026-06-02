@@ -1,39 +1,18 @@
 package arch.core.bpu
 
 import arch.configs._
+import vutils.graph.{ Node, NodeType }
 import chisel3._
 import chisel3.util.{ PriorityEncoder, UIntToOH, log2Ceil }
 
-class BtbEntry(tagWidth: Int)(implicit p: Parameters) extends Bundle with BHTConsts {
-  val valid  = Bool()
-  val tag    = UInt(tagWidth.W)
-  val target = UInt(p(XLen).W)
-  val ctrl   = UInt(SZ_BHT.W)
+class BtbIO(implicit p: Parameters) extends Bundle {
+  val query  = new BtbQueryIO
+  val update = new BpuUpdateIO
 }
 
-object BtbEntry extends BHTConsts {
-  def default(tagWidth: Int)(implicit p: Parameters): BtbEntry = {
-    val e = Wire(new BtbEntry(tagWidth))
-    e.valid  := false.B
-    e.tag    := 0.U
-    e.target := 0.U
-    e.ctrl   := BHT_WT.value.U(SZ_BHT.W)
-    e
-  }
-}
-
-class BpuUpdate(implicit p: Parameters) extends Bundle {
-  val valid        = Bool()
-  val pc           = UInt(p(XLen).W)
-  val target       = UInt(p(XLen).W)
-  val taken        = Bool()
-  val pht_index    = UInt(p(GShareGhrWidth).W)
-  val ghr_snapshot = UInt(p(GShareGhrWidth).W)
-  val mispredict   = Bool()
-}
-
-class Btb(implicit p: Parameters) extends Module with BHTConsts {
-  override def desiredName: String = s"${p(ISA).name}_btb"
+class Btb(implicit p: Parameters) extends Node(new BtbIO) with BHTConsts {
+  override def nodeType: NodeType  = BtbMeta.Type
+  override def desiredName: String = "btb"
 
   private val rawIndexWidth = log2Ceil(p(BTBSets))
   private val indexWidth    = rawIndexWidth.max(1)
@@ -41,31 +20,27 @@ class Btb(implicit p: Parameters) extends Module with BHTConsts {
   private val wayWidth      = log2Ceil(p(BTBWays)).max(1)
   private val numReadPorts  = p(IssueWidth) + 1
 
-  val query_pc  = IO(Input(Vec(p(IssueWidth), UInt(p(XLen).W))))
-  val hit       = IO(Output(Vec(p(IssueWidth), Bool())))
-  val entry_out = IO(Output(Vec(p(IssueWidth), new BtbEntry(tagWidth))))
-  val update    = IO(Input(new BpuUpdate))
+  private val validBits   = RegInit(VecInit(Seq.fill(p(BTBSets))(0.U(p(BTBWays).W))))
+  private val tagArray    = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(tagWidth.W))))
+  private val targetArray =
+    Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(p(XLen).W))))
+  private val ctrlArray   = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(SZ_BHT.W))))
+  private val replStates  = Seq.fill(p(BTBSets))(p(BTBReplPolicy).build(p(BTBWays)))
 
-  val validBits = RegInit(VecInit(Seq.fill(p(BTBSets))(0.U(p(BTBWays).W))))
-
-  val tagArray    = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(tagWidth.W))))
-  val targetArray = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(p(XLen).W))))
-  val ctrlArray   = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(SZ_BHT.W))))
-
-  val replStates = Seq.fill(p(BTBSets))(p(BTBReplPolicy).build(p(BTBWays)))
-
-  def getIndex(pc: UInt): UInt =
+  private def getIndex(pc: UInt): UInt =
     if (rawIndexWidth > 0) pc(rawIndexWidth + p(PCAlign) - 1, p(PCAlign)) else 0.U(indexWidth.W)
 
-  def getTag(pc: UInt): UInt =
+  private def getTag(pc: UInt): UInt =
     pc(p(XLen) - 1, rawIndexWidth + p(PCAlign))
 
-  val victimWayReg = RegInit(VecInit(Seq.fill(p(BTBSets))(0.U(wayWidth.W))))
-  for (s <- 0 until p(BTBSets)) victimWayReg(s) := replStates(s).getVictim()
+  private val victimWayReg = RegInit(VecInit(Seq.fill(p(BTBSets))(0.U(wayWidth.W))))
+
+  for (s <- 0 until p(BTBSets))
+    victimWayReg(s) := replStates(s).getVictim()
 
   for (q <- 0 until p(IssueWidth)) {
-    val qIndex   = getIndex(query_pc(q))
-    val qTag     = getTag(query_pc(q))
+    val qIndex   = getIndex(io.query.pc(q))
+    val qTag     = getTag(io.query.pc(q))
     val qValid   = validBits(qIndex)
     val qTags    = tagArray(q).read(qIndex)
     val qTargets = targetArray(q).read(qIndex)
@@ -78,16 +53,16 @@ class Btb(implicit p: Parameters) extends Module with BHTConsts {
     val anyHit = hitBits.asUInt.orR
     val hitWay = PriorityEncoder(hitBits)
 
-    hit(q)              := anyHit
-    entry_out(q).valid  := anyHit
-    entry_out(q).tag    := Mux(anyHit, qTags(hitWay), 0.U)
-    entry_out(q).target := Mux(anyHit, qTargets(hitWay), 0.U)
-    entry_out(q).ctrl   := Mux(anyHit, qCtrls(hitWay), BHT_WT.value.U(SZ_BHT.W))
+    io.query.hit(q)              := anyHit
+    io.query.entry_out(q).valid  := anyHit
+    io.query.entry_out(q).tag    := Mux(anyHit, qTags(hitWay), 0.U)
+    io.query.entry_out(q).target := Mux(anyHit, qTargets(hitWay), 0.U)
+    io.query.entry_out(q).ctrl   := Mux(anyHit, qCtrls(hitWay), BHT_WT.value.U(SZ_BHT.W))
   }
 
-  when(update.valid && update.taken) {
-    val uIndex   = getIndex(update.pc)
-    val uTag     = getTag(update.pc)
+  when(io.update.update.valid && io.update.update.taken) {
+    val uIndex   = getIndex(io.update.update.pc)
+    val uTag     = getTag(io.update.update.pc)
     val uValid   = validBits(uIndex)
     val uTags    = tagArray(p(IssueWidth)).read(uIndex)
     val uTargets = targetArray(p(IssueWidth)).read(uIndex)
@@ -111,7 +86,7 @@ class Btb(implicit p: Parameters) extends Module with BHTConsts {
 
     for (w <- 0 until p(BTBWays)) {
       nextTags(w)    := Mux(writeWay === w.U, uTag, uTags(w))
-      nextTargets(w) := Mux(writeWay === w.U, update.target, uTargets(w))
+      nextTargets(w) := Mux(writeWay === w.U, io.update.update.target, uTargets(w))
       nextCtrls(w)   := Mux(writeWay === w.U, nextCtrl, uCtrls(w))
     }
 

@@ -42,7 +42,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIF,
   using Device = axif::AXIFullSRAM;
 
   template <size_t PortID>
-  static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
+  static auto make_handler(isa_def::soc_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
         bus_def::AXIFPortBinding<PortID>::bind(dut));
   }
@@ -63,7 +63,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIF,
   using Device = axif::AXIFullUART;
 
   template <size_t PortID>
-  static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
+  static auto make_handler(isa_def::soc_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
         bus_def::AXIFPortBinding<PortID>::bind(dut));
   }
@@ -84,7 +84,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIF,
   using Device = axif::AXIFullCLINT;
 
   template <size_t PortID>
-  static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
+  static auto make_handler(isa_def::soc_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
         bus_def::AXIFPortBinding<PortID>::bind(dut));
   }
@@ -107,7 +107,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIL,
   using Device = axil::AXILiteSRAM;
 
   template <size_t PortID>
-  static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
+  static auto make_handler(isa_def::soc_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
         bus_def::AXILPortBinding<PortID>::bind(dut));
   }
@@ -128,7 +128,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIL,
   using Device = axil::AXILiteUART;
 
   template <size_t PortID>
-  static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
+  static auto make_handler(isa_def::soc_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
         bus_def::AXILPortBinding<PortID>::bind(dut));
   }
@@ -149,7 +149,7 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIL,
   using Device = axil::AXILiteCLINT;
 
   template <size_t PortID>
-  static auto make_handler(isa_def::system_t *dut) -> std::unique_ptr<Handler> {
+  static auto make_handler(isa_def::soc_t *dut) -> std::unique_ptr<Handler> {
     return std::make_unique<Handler>(
         bus_def::AXILPortBinding<PortID>::bind(dut));
   }
@@ -167,8 +167,8 @@ struct DeviceBinding<sys_def::BusType::BUS_TYPE_AXIL,
 template <typename DUT, size_t PortID>
 auto register_generated_port(DeviceManager &manager, DUT *dut,
                              const GeneratedDeviceContext &ctx) -> void {
-  static_assert(std::is_same_v<DUT, isa_def::system_t>,
-                "Generated bus bindings are emitted for isa_def::system_t");
+  static_assert(std::is_same_v<DUT, isa_def::soc_t>,
+                "Generated bus bindings are emitted for isa_def::soc_t");
 
   static_assert(PortID < sys_def::NUM_BUS_DEVICES,
                 "PortID exceeds generated BUS_ADDRESS_MAP size");

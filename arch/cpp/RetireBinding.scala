@@ -50,7 +50,7 @@ private[cpp] object CppRetireBindingsSchema {
     w.line("template <>")
     w.line(s"struct RetireLaneBinding<$id> {")
     w.indent {
-      w.line("static auto read(const ::demu::isa_def::system_t *dut) noexcept")
+      w.line("static auto read(const ::demu::isa_def::soc_t *dut) noexcept")
       w.line("    -> RetirePacket {")
       w.indent {
         w.line("RetirePacket packet{};")
@@ -68,7 +68,7 @@ private[cpp] object CppRetireBindingsSchema {
   }
 
   private def emitReadFunction(w: CppWriter, p: Parameters): Unit = {
-    w.line("inline auto read(const ::demu::isa_def::system_t *dut, uint32_t lane) noexcept")
+    w.line("inline auto read(const ::demu::isa_def::soc_t *dut, uint32_t lane) noexcept")
     w.line("    -> RetirePacket {")
     w.indent {
       w.line("switch (lane) {")

@@ -141,7 +141,7 @@ private[cpp] object CppBusBindingsSchema {
     w.line("template <>")
     w.line(s"struct $bindingName<$pid> {")
     w.indent {
-      w.line(s"static auto bind(::demu::isa_def::system_t *dut) -> $signalType {")
+      w.line(s"static auto bind(::demu::isa_def::soc_t *dut) -> $signalType {")
       w.indent {
         w.line(s"$signalType s{};")
 

@@ -1,40 +1,27 @@
 package arch.core.decoder
 
-import arch.core.imm.ImmUtilsFactory
 import arch.configs._
+import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
 
-class DecodedOutput(implicit p: Parameters) extends Bundle {
-  private val imm_utils = ImmUtilsFactory.getOrThrow(p(ISA).name)
-
-  val legal    = Bool()
-  val regwrite = Bool()
-  val imm_type = UInt(imm_utils.immTypeWidth.W)
-
-  val rs1_valid = Bool()
-  val rs2_valid = Bool()
-  val rd_valid  = Bool()
-
-  val commit_barrier = Bool()
-
-  val alu   = Bool()
-  val mult  = Bool()
-  val div   = Bool()
-  val load  = Bool()
-  val store = Bool()
-  val bru   = Bool()
-  val csr   = Bool()
-
-  val uop = UInt(p(MicroOpWidth).W)
+class DecoderIO(implicit p: Parameters) extends Bundle {
+  val decode = new DecoderDecodeIO
 }
 
-class Decoder(implicit p: Parameters) extends Module {
-  override def desiredName: String = s"${p(ISA).name}_decoder"
+class Decoder(implicit p: Parameters) extends Node(new DecoderIO) {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      DecoderDims.ISA  -> p(ISA).name,
+      DecoderDims.KIND -> p(DecoderKind)
+    )
+  )
 
-  val utils = DecoderUtilsFactory.getOrThrow(p(ISA).name)
+  override def nodeType: NodeType  = DecoderMeta.Type
+  override def desiredName: String = s"decoder_${cfg.selector.canonicalName}"
 
-  val instr   = IO(Input(UInt(p(ILen).W)))
-  val decoded = IO(Output(new DecodedOutput))
+  private val isaImpl  = DecoderIsaFactory.select(cfg)
+  private val kindImpl = DecoderKindFactory.select(cfg)
 
-  decoded := utils.decode(instr)
+  for (w <- 0 until p(IssueWidth))
+    io.decode.out(w) := kindImpl.decode(isaImpl, io.decode.instr(w))
 }

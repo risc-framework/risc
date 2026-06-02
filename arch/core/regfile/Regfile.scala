@@ -1,76 +1,94 @@
 package arch.core.regfile
 
 import arch.configs._
+import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import chisel3._
 import chisel3.util.log2Ceil
 
-class Regfile(implicit p: Parameters) extends Module {
-  override def desiredName: String = s"${p(ISA).name}_regfile"
+class RegfileIO(implicit p: Parameters) extends Bundle {
+  val decode = new RegfileDecodeIO
+  val read   = new RegfileReadIO
+  val write  = new RegfileWriteIO
+  val debug  = new RegfileDebugIO
+}
 
-  val utils = RegfileUtilsFactory.getOrThrow(p(ISA).name)
+class Regfile(implicit p: Parameters) extends Node(new RegfileIO) {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      RegfileDims.ISA -> p(ISA).name
+    )
+  )
 
-  // NOTE: Renaming to be impled
-  val rs1_preg   = IO(Input(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W))))
-  val rs2_preg   = IO(Input(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W))))
-  val write_preg = IO(Input(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W))))
-  val write_data = IO(Input(Vec(p(IssueWidth), UInt(p(XLen).W))))
-  val write_en   = IO(Input(Vec(p(IssueWidth), Bool())))
+  override def nodeType: NodeType  = RegfileMeta.Type
+  override def desiredName: String = s"regfile_${cfg.selector.canonicalName}"
 
-  val rs1_data = IO(Output(Vec(p(IssueWidth), UInt(p(XLen).W))))
-  val rs2_data = IO(Output(Vec(p(IssueWidth), UInt(p(XLen).W))))
+  private val isaImpl = RegfileIsaFactory.select(cfg)
+  private val regIdxW = log2Ceil(p(NumArchRegs))
 
-  val isWritable = Seq.tabulate(p(NumArchRegs)) { addr =>
-    utils.extraInfo.find(_.addr == addr).forall(_.writable)
+  private val readableVec = VecInit(
+    Seq.tabulate(p(NumArchRegs))(addr => isaImpl.readable(addr.U(regIdxW.W)))
+  )
+  private val writableVec = VecInit(
+    Seq.tabulate(p(NumArchRegs))(addr => isaImpl.writable(addr.U(regIdxW.W)))
+  )
+
+  private val regsSeq = Seq.tabulate(p(NumArchRegs)) { addr =>
+    val init = isaImpl.initValue(addr).U(p(XLen).W)
+    val reg  = RegInit(init)
+    reg.suggestName(isaImpl.regName(addr))
+    reg
   }
 
-  val readableVec = VecInit(Seq.tabulate(p(NumArchRegs)) { addr =>
-    utils.extraInfo.find(_.addr == addr).forall(_.readable).B
-  })
+  private val regsVec = VecInit(regsSeq)
 
-  val regsSeq = Seq.tabulate(p(NumArchRegs)) { addr =>
-    val regInfo = utils.extraInfo.find(_.addr == addr)
-    val initVal = regInfo
-      .map(r => (r.initValue & ((1L << p(XLen)) - 1)).U(p(XLen).W))
-      .getOrElse(0.U(p(XLen).W))
+  for (w <- 0 until p(IssueWidth)) {
+    val instr = io.decode.instr(w)
+    val rs1   = isaImpl.getRs1(instr)
+    val rs2   = isaImpl.getRs2(instr)
+    val rd    = isaImpl.getRd(instr)
 
-    val r    = RegInit(initVal)
-    val name = regInfo.map(_.name).getOrElse(s"x$addr")
-    r.suggestName(name)
-    r
+    io.decode.rs1_addr(w) := rs1
+    io.decode.rs2_addr(w) := rs2
+    io.decode.rd_addr(w)  := rd
+    io.decode.rs1_read(w) := isaImpl.readable(rs1)
+    io.decode.rs2_read(w) := isaImpl.readable(rs2)
+    io.decode.rd_write(w) := isaImpl.writable(rd)
   }
 
-  val regsVec = VecInit(regsSeq)
-
-  for (i <- 0 until p(NumArchRegs))
-    if (isWritable(i)) {
-      for (w <- 0 until p(IssueWidth))
-        when(write_en(w) && write_preg(w) === i.U) {
-          regsSeq(i) := write_data(w)
-        }
-    }
-
-  for (i <- 0 until p(IssueWidth)) {
-    val rs1_raw = regsVec(rs1_preg(i))
-    val rs2_raw = regsVec(rs2_preg(i))
-
-    if (p(IsRegfileUseBypass)) {
-      var rs1_bypassed = rs1_raw
-      var rs2_bypassed = rs2_raw
-
-      for (w <- 0 until p(IssueWidth)) {
-        val is_w      = VecInit(isWritable.map(_.B))(write_preg(w))
-        val match_rs1 = write_en(w) && is_w && (rs1_preg(i) === write_preg(w))
-        val match_rs2 = write_en(w) && is_w && (rs2_preg(i) === write_preg(w))
-
-        rs1_bypassed = Mux(match_rs1, write_data(w), rs1_bypassed)
-        rs2_bypassed = Mux(match_rs2, write_data(w), rs2_bypassed)
+  for (addr <- 0 until p(NumArchRegs))
+    for (w <- 0 until p(IssueWidth))
+      when(io.write.en(w) && writableVec(addr) && io.write.addr(w) === addr.U(regIdxW.W)) {
+        regsSeq(addr) := io.write.data(w)
       }
 
-      rs1_data(i) := Mux(readableVec(rs1_preg(i)), rs1_bypassed, 0.U)
-      rs2_data(i) := Mux(readableVec(rs2_preg(i)), rs2_bypassed, 0.U)
+  for (w <- 0 until p(IssueWidth)) {
+    val rs1Raw = regsVec(io.read.rs1_addr(w))
+    val rs2Raw = regsVec(io.read.rs2_addr(w))
+
+    if (p(IsRegfileUseBypass)) {
+      var rs1Bypassed = rs1Raw
+      var rs2Bypassed = rs2Raw
+
+      for (i <- 0 until p(IssueWidth)) {
+        val writeOk  = io.write.en(i) && writableVec(io.write.addr(i))
+        val matchRs1 = writeOk && io.read.rs1_addr(w) === io.write.addr(i)
+        val matchRs2 = writeOk && io.read.rs2_addr(w) === io.write.addr(i)
+
+        rs1Bypassed = Mux(matchRs1, io.write.data(i), rs1Bypassed)
+        rs2Bypassed = Mux(matchRs2, io.write.data(i), rs2Bypassed)
+      }
+
+      io.read.rs1_data(w) := Mux(readableVec(io.read.rs1_addr(w)), rs1Bypassed, 0.U)
+      io.read.rs2_data(w) := Mux(readableVec(io.read.rs2_addr(w)), rs2Bypassed, 0.U)
     } else {
-      rs1_data(i) := Mux(readableVec(rs1_preg(i)), rs1_raw, 0.U)
-      rs2_data(i) := Mux(readableVec(rs2_preg(i)), rs2_raw, 0.U)
+      io.read.rs1_data(w) := Mux(readableVec(io.read.rs1_addr(w)), rs1Raw, 0.U)
+      io.read.rs2_data(w) := Mux(readableVec(io.read.rs2_addr(w)), rs2Raw, 0.U)
     }
+  }
+
+  for (w <- 0 until p(IssueWidth)) {
+    io.debug.reg_we(w)   := io.write.en(w) && writableVec(io.write.addr(w))
+    io.debug.reg_addr(w) := io.write.addr(w)
+    io.debug.reg_data(w) := io.write.data(w)
   }
 }

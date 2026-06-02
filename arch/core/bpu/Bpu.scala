@@ -1,53 +1,62 @@
 package arch.core.bpu
 
 import arch.configs._
+import vutils.graph.{ Node, NodeType }
 import chisel3._
 
-class Bpu(implicit p: Parameters) extends Module with BHTConsts {
-  override def desiredName: String = s"${p(ISA).name}_bpu"
+class BpuIO(implicit p: Parameters) extends Bundle {
+  val fetch  = new BpuFetchIO
+  val update = new BpuUpdateIO
+}
 
-  val query_pc      = IO(Input(Vec(p(IssueWidth), UInt(p(XLen).W))))
-  val advance_valid = IO(Input(Bool()))
-  val flush         = IO(Input(Bool()))
-  val taken         = IO(Output(Vec(p(IssueWidth), Bool())))
-  val target        = IO(Output(Vec(p(IssueWidth), UInt(p(XLen).W))))
-  val update        = IO(Input(new BpuUpdate))
-  val pht_index     = IO(Output(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))))
-  val ghr_snapshot  = IO(Output(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))))
+class Bpu(implicit p: Parameters) extends Node(new BpuIO) {
+  override def nodeType: NodeType  = BpuMeta.Type
+  override def desiredName: String = "bpu"
 
-  val btb    = Module(new Btb)
-  val gshare = Module(new GShare)
+  private val predictorKinds = p(BpuPredictorKinds)
 
-  btb.query_pc := query_pc
-  btb.update   := update
+  require(predictorKinds.nonEmpty, "BpuPredictorKinds must contain at least one predictor kind")
 
-  gshare.query_pc     := query_pc
-  gshare.query_accept := advance_valid && !flush
-  gshare.flush        := flush
-  gshare.update       := update
+  private val btb        = Module(new Btb)
+  private val predictors = predictorKinds.map(kind => Module(new Predictor(kind)))
+  private val selected   = predictors.last
 
-  val rawTaken           = Wire(Vec(p(IssueWidth), Bool()))
-  val killedByOlderTaken = Wire(Vec(p(IssueWidth), Bool()))
-  val branchMask         = Wire(Vec(p(IssueWidth), Bool()))
+  btb.io.query.pc      := io.fetch.query_pc
+  btb.io.update.update := io.update.update
+
+  for (pred <- predictors) {
+    pred.io.query.pc      := io.fetch.query_pc
+    pred.io.query.accept  := io.fetch.advance_valid && !io.fetch.flush
+    pred.io.query.flush   := io.fetch.flush
+    pred.io.update.update := io.update.update
+  }
+
+  private val rawTaken           = Wire(Vec(p(IssueWidth), Bool()))
+  private val killedByOlderTaken = Wire(Vec(p(IssueWidth), Bool()))
+  private val branchMask         = Wire(Vec(p(IssueWidth), Bool()))
 
   killedByOlderTaken(0) := false.B
 
   for (w <- 0 until p(IssueWidth)) {
-    rawTaken(w) := btb.hit(w) && gshare.taken(w)
+    rawTaken(w) := btb.io.query.hit(w) && selected.io.query.taken(w)
 
-    if (w > 0) {
+    if (w > 0)
       killedByOlderTaken(w) := killedByOlderTaken(w - 1) || rawTaken(w - 1)
-    }
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    taken(w)      := rawTaken(w) && !killedByOlderTaken(w)
-    target(w)     := Mux(taken(w), btb.entry_out(w).target, query_pc(w) + p(PCStep).U)
-    branchMask(w) := btb.hit(w) && !killedByOlderTaken(w)
+    io.fetch.taken(w)        := rawTaken(w) && !killedByOlderTaken(w)
+    io.fetch.target(w)       := Mux(
+      io.fetch.taken(w),
+      btb.io.query.entry_out(w).target,
+      io.fetch.query_pc(w) + p(PCStep).U
+    )
+    branchMask(w)            := btb.io.query.hit(w) && !killedByOlderTaken(w)
+    io.fetch.pht_index(w)    := selected.io.query.pht_index(w)
+    io.fetch.ghr_snapshot(w) := selected.io.query.ghr_snapshot(w)
   }
 
-  gshare.query_is_branch := branchMask
+  for (pred <- predictors)
+    pred.io.query.is_branch := branchMask
 
-  pht_index    := gshare.index_out
-  ghr_snapshot := gshare.ghr_snapshot_out
 }

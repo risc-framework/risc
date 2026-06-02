@@ -1,60 +1,87 @@
 package arch.core.div
 
 import arch.configs._
+import arch.core.fupool.{ FuIO, FuResp }
+import arch.core.uop.MicroOp
+import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import vutils.math.div.RestoringDivider
 import chisel3._
-import chisel3.util.Decoupled
-
-class DivCtrl extends Bundle {
-  val is_signed = Bool()
-  val is_rem    = Bool()
-}
-
-class DivReq(implicit p: Parameters) extends Bundle {
-  val src1 = UInt(p(XLen).W)
-  val src2 = UInt(p(XLen).W)
-  val ctrl = new DivCtrl
-}
-
-class DivResp(implicit p: Parameters) extends Bundle {
-  val result      = UInt(p(XLen).W)
-  val quotient    = UInt(p(XLen).W)
-  val remainder   = UInt(p(XLen).W)
-  val div_by_zero = Bool()
-}
+import chisel3.util.{ switch, is }
 
 class DivIO(implicit p: Parameters) extends Bundle {
-  val req  = Flipped(Decoupled(new DivReq))
-  val resp = Decoupled(new DivResp)
-
-  val kill = Input(Bool())
-  val busy = Output(Bool())
+  val fu = new FuIO
 }
 
-class Div(implicit p: Parameters) extends Module {
-  override def desiredName: String = s"${p(ISA).name}_divider"
+object DivState extends ChiselEnum {
+  val IDLE, BUSY, DONE = Value
+}
 
-  val io = IO(new DivIO)
+class Div(implicit p: Parameters) extends Node(new DivIO) {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      DivDims.ISA -> p(ISA).name
+    )
+  )
 
-  private val divider = Module(new RestoringDivider(p(XLen)))
+  override def nodeType: NodeType  = DivMeta.Type
+  override def desiredName: String = s"div_${cfg.selector.canonicalName}"
 
-  divider.io.kill := io.kill
+  private val isaImpl   = DivIsaFactory.select(cfg)
+  private val divider   = Module(new RestoringDivider(p(XLen)))
+  private val state     = RegInit(DivState.IDLE)
+  private val uopReg    = Reg(new MicroOp)
+  private val resultReg = RegInit(0.U(p(XLen).W))
 
-  divider.io.in.valid                := io.req.valid && !io.kill
-  divider.io.in.bits.dividend        := io.req.bits.src1
-  divider.io.in.bits.divisor         := io.req.bits.src2
-  divider.io.in.bits.signed          := io.req.bits.ctrl.is_signed
-  divider.io.in.bits.selectRemainder := io.req.bits.ctrl.is_rem
+  private val ctrl = isaImpl.decode(io.fu.req.bits.uop)
 
-  io.req.ready := divider.io.in.ready && !io.kill
+  io.fu.req.ready := !io.fu.flush && state === DivState.IDLE && divider.io.in.ready
 
-  io.resp.valid            := divider.io.out.valid && !io.kill
-  io.resp.bits.result      := divider.io.out.bits.result
-  io.resp.bits.quotient    := divider.io.out.bits.quotient
-  io.resp.bits.remainder   := divider.io.out.bits.remainder
-  io.resp.bits.div_by_zero := divider.io.out.bits.divByZero
+  divider.io.kill                    := io.fu.flush
+  divider.io.in.valid                := io.fu.req.valid && io.fu.req.ready
+  divider.io.in.bits.dividend        := io.fu.req.bits.rs1_data
+  divider.io.in.bits.divisor         := io.fu.req.bits.rs2_data
+  divider.io.in.bits.signed          := ctrl.is_signed
+  divider.io.in.bits.selectRemainder := ctrl.is_rem
+  divider.io.out.ready               := !io.fu.flush && state === DivState.BUSY
 
-  divider.io.out.ready := io.resp.ready && !io.kill
+  when(io.fu.flush) {
+    state := DivState.IDLE
+  }.otherwise {
+    switch(state) {
+      is(DivState.IDLE) {
+        when(io.fu.req.fire) {
+          uopReg := io.fu.req.bits
+          state  := DivState.BUSY
+        }
+      }
 
-  io.busy := divider.io.busy
+      is(DivState.BUSY) {
+        when(divider.io.out.fire) {
+          resultReg := divider.io.out.bits.result
+          state     := DivState.DONE
+        }
+      }
+
+      is(DivState.DONE) {
+        when(io.fu.resp.fire) {
+          state := DivState.IDLE
+        }
+      }
+    }
+  }
+
+  private val resp = Wire(new FuResp)
+
+  resp.result       := resultReg
+  resp.rd           := uopReg.rd
+  resp.pc           := uopReg.pc
+  resp.instr        := uopReg.instr
+  resp.rob_tag      := uopReg.rob_tag
+  resp.trap_req     := false.B
+  resp.trap_target  := 0.U
+  resp.trap_ret     := false.B
+  resp.trap_ret_tgt := 0.U
+
+  io.fu.resp.valid := state === DivState.DONE && !io.fu.flush
+  io.fu.resp.bits  := resp
 }

@@ -2,7 +2,7 @@ package arch
 
 package object configs {
   import core.fu.{ FunctionalUnitDescriptor, FunctionalUnitType }
-  import system.{ DeviceDescriptor, DeviceType }
+  import system.device.{ DeviceDescriptor, DeviceType }
   import isa._
   import vcache.{ CacheParams, CacheAccess, CacheMissMode }
   import vcache.repl.ReplPolicy

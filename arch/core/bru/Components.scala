@@ -2,19 +2,23 @@ package arch.core.bru
 
 import arch.configs._
 import chisel3._
+import chisel3.util.Valid
 
-trait BruUtils extends Utils {
-  def opWidth: Int
-  def hasJump: Boolean
-  def hasJalr: Boolean
-
-  def decode(uop: UInt): BruCtrl
-  def fn(src1: UInt, src2: UInt, op: UInt): Bool
+class BruCtrl(val opWidth: Int) extends Bundle {
+  val is_jump = Bool()
+  val is_jalr = Bool()
+  val op      = UInt(opWidth.W)
 }
 
-object BruUtilsFactory extends UtilsFactory[BruUtils]("BRU")
+class BruResolveBundle(implicit p: Parameters) extends Bundle {
+  val pc          = UInt(p(XLen).W)
+  val instr       = UInt(p(ILen).W)
+  val rob_tag     = UInt(p(RobTagWidth).W)
+  val taken       = Bool()
+  val target      = UInt(p(XLen).W)
+  val fallthrough = UInt(p(XLen).W)
+}
 
-object BruInit {
-  val rv32iUtils  = riscv.RV32IBruUtils
-  val rv32imUtils = riscv.RV32IMBruUtils
+class BruResolveIO(implicit p: Parameters) extends Bundle {
+  val resolved = Valid(new BruResolveBundle)
 }

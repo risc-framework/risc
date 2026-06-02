@@ -1,56 +1,88 @@
 package arch.core.mult
 
 import arch.configs._
+import arch.core.fupool.{ FuIO, FuResp }
+import arch.core.uop.MicroOp
+import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import vutils.math.mul.IntegerMultiplier
 import chisel3._
-import chisel3.util.Decoupled
-
-class MultCtrl extends Bundle {
-  val a_signed = Bool()
-  val b_signed = Bool()
-  val high     = Bool()
-}
-
-class MultReq(implicit p: Parameters) extends Bundle {
-  val src1 = UInt(p(XLen).W)
-  val src2 = UInt(p(XLen).W)
-  val ctrl = new MultCtrl
-}
-
-class MultResp(implicit p: Parameters) extends Bundle {
-  val result = UInt(p(XLen).W)
-}
+import chisel3.util.{ switch, is }
 
 class MultIO(implicit p: Parameters) extends Bundle {
-  val req  = Flipped(Decoupled(new MultReq))
-  val resp = Decoupled(new MultResp)
-
-  val kill = Input(Bool())
-  val busy = Output(Bool())
+  val fu = new FuIO
 }
 
-class Mult(implicit p: Parameters) extends Module {
-  override def desiredName: String = s"${p(ISA).name}_mult"
+object MultState extends ChiselEnum {
+  val IDLE, BUSY, DONE = Value
+}
 
-  val io = IO(new MultIO)
+class Mult(implicit p: Parameters) extends Node(new MultIO) {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      MultDims.ISA -> p(ISA).name
+    )
+  )
 
-  private val multiplier =
-    Module(new IntegerMultiplier(p(XLen), p(MultPipelineStages)))
+  override def nodeType: NodeType  = MultMeta.Type
+  override def desiredName: String = s"mult_${cfg.selector.canonicalName}"
 
-  multiplier.io.kill := io.kill
+  private val isaImpl    = MultIsaFactory.select(cfg)
+  private val multiplier = Module(new IntegerMultiplier(p(XLen), p(MultPipelineStages)))
+  private val state      = RegInit(MultState.IDLE)
+  private val uopReg     = Reg(new MicroOp)
+  private val resultReg  = RegInit(0.U(p(XLen).W))
 
-  multiplier.io.in.valid             := io.req.valid && !io.kill
-  multiplier.io.in.bits.multiplicand := io.req.bits.src1
-  multiplier.io.in.bits.multiplier   := io.req.bits.src2
-  multiplier.io.in.bits.aSigned      := io.req.bits.ctrl.a_signed
-  multiplier.io.in.bits.bSigned      := io.req.bits.ctrl.b_signed
-  multiplier.io.in.bits.takeHigh     := io.req.bits.ctrl.high
+  private val ctrl = isaImpl.decode(io.fu.req.bits.uop)
 
-  io.req.ready := multiplier.io.in.ready && !io.kill
+  io.fu.req.ready := !io.fu.flush && state === MultState.IDLE && multiplier.io.in.ready
 
-  io.resp.valid           := multiplier.io.out.valid && !io.kill
-  io.resp.bits.result     := multiplier.io.out.bits.result
-  multiplier.io.out.ready := io.resp.ready && !io.kill
+  multiplier.io.kill                 := io.fu.flush
+  multiplier.io.in.valid             := io.fu.req.valid && io.fu.req.ready
+  multiplier.io.in.bits.multiplicand := io.fu.req.bits.rs1_data
+  multiplier.io.in.bits.multiplier   := io.fu.req.bits.rs2_data
+  multiplier.io.in.bits.aSigned      := ctrl.a_signed
+  multiplier.io.in.bits.bSigned      := ctrl.b_signed
+  multiplier.io.in.bits.takeHigh     := ctrl.high
+  multiplier.io.out.ready            := !io.fu.flush && state === MultState.BUSY
 
-  io.busy := multiplier.io.busy
+  when(io.fu.flush) {
+    state := MultState.IDLE
+  }.otherwise {
+    switch(state) {
+      is(MultState.IDLE) {
+        when(io.fu.req.fire) {
+          uopReg := io.fu.req.bits
+          state  := MultState.BUSY
+        }
+      }
+
+      is(MultState.BUSY) {
+        when(multiplier.io.out.fire) {
+          resultReg := multiplier.io.out.bits.result
+          state     := MultState.DONE
+        }
+      }
+
+      is(MultState.DONE) {
+        when(io.fu.resp.fire) {
+          state := MultState.IDLE
+        }
+      }
+    }
+  }
+
+  private val resp = Wire(new FuResp)
+
+  resp.result       := resultReg
+  resp.rd           := uopReg.rd
+  resp.pc           := uopReg.pc
+  resp.instr        := uopReg.instr
+  resp.rob_tag      := uopReg.rob_tag
+  resp.trap_req     := false.B
+  resp.trap_target  := 0.U
+  resp.trap_ret     := false.B
+  resp.trap_ret_tgt := 0.U
+
+  io.fu.resp.valid := state === MultState.DONE && !io.fu.flush
+  io.fu.resp.bits  := resp
 }

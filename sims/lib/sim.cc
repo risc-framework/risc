@@ -21,7 +21,7 @@ DemuSimulator::DemuSimulator(bool enabled_trace, int threads, int argc,
     context_->traceEverOn(true);
   }
 
-  dut_ = std::make_unique<system_t>(context_.get(), "TOP");
+  dut_ = std::make_unique<soc_t>(context_.get(), "TOP");
 
   device_manager_ = std::make_unique<demu::hal::DeviceManager>();
 
@@ -114,7 +114,7 @@ auto DemuSimulator::load_elf(const std::string &filename) -> bool {
 void DemuSimulator::init() {
   DEMU_INFO("DEMU Simulator Initializing...");
 
-  hal::register_generated_devices<system_t>(*device_manager_, dut_.get(),
+  hal::register_generated_devices<soc_t>(*device_manager_, dut_.get(),
                                             hal::GeneratedDeviceContext{
                                                 .timer_irq = timer_irq_.get(),
                                                 .soft_irq = soft_irq_.get(),

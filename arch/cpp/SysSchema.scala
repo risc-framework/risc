@@ -1,7 +1,7 @@
 package arch.cpp
 
 import arch.core.fu.FunctionalUnitDescriptor
-import arch.system.DeviceDescriptor
+import arch.system.device.DeviceDescriptor
 import arch.configs._
 import CppEnumMapping._
 import CppLiteral._

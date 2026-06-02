@@ -1,6 +1,6 @@
 package arch.cpp
 
-import arch.system.DeviceType
+import arch.system.device.DeviceType
 import arch.core.fu.FunctionalUnitType
 import vcache.repl.ReplPolicy
 

@@ -1,41 +1,71 @@
 package arch.core.bru
 
+import arch.core.fupool.{ FuIO, FuResp }
+import arch.core.imm.ImmIsaFactory
+import arch.core.uop.MicroOp
 import arch.configs._
+import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import chisel3._
 
-class BruCtrl(val opWidth: Int) extends Bundle {
-  val is_jump = Bool()
-  val is_jalr = Bool()
-  val op      = UInt(opWidth.W)
+class BruIO(implicit p: Parameters) extends Bundle {
+  val fu      = new FuIO
+  val resolve = new BruResolveIO
 }
 
-class Bru(implicit p: Parameters) extends Module {
-  override def desiredName: String = s"${p(ISA).name}_bru"
+class Bru(implicit p: Parameters) extends Node(new BruIO) {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      BruDims.ISA -> p(ISA).name
+    )
+  )
 
-  val utils = BruUtilsFactory.getOrThrow(p(ISA).name)
+  override def nodeType: NodeType  = BruMeta.Type
+  override def desiredName: String = s"bru_${cfg.selector.canonicalName}"
 
-  val en   = IO(Input(Bool()))
-  val pc   = IO(Input(UInt(p(XLen).W)))
-  val src1 = IO(Input(UInt(p(XLen).W)))
-  val src2 = IO(Input(UInt(p(XLen).W)))
-  val imm  = IO(Input(UInt(p(XLen).W)))
-  val uop  = IO(Input(UInt(p(MicroOpWidth).W)))
+  private val isaImpl  = BruIsaFactory.select(cfg)
+  private val imm      = ImmIsaFactory.select(p(ISA).name)
+  private val validReg = RegInit(false.B)
+  private val uopReg   = Reg(new MicroOp)
 
-  val taken  = IO(Output(Bool()))
-  val jump   = IO(Output(Bool()))
-  val target = IO(Output(UInt(p(XLen).W)))
+  io.fu.req.ready  := !io.fu.flush && (!validReg || io.fu.resp.fire)
+  io.fu.resp.valid := validReg && !io.fu.flush
 
-  val ctrl = utils.decode(uop)
-
-  jump  := en && ctrl.is_jump
-  taken := en && utils.fn(src1, src2, ctrl.op)
-
-  if (utils.hasJalr) {
-    val base: UInt        = Mux(ctrl.is_jalr, src1, pc)
-    val raw_target: UInt  = base + imm
-    val jalr_target: UInt = raw_target & ~1.U(p(XLen).W)
-    target := Mux(ctrl.is_jalr, jalr_target, raw_target)
-  } else {
-    target := pc + imm
+  when(io.fu.flush) {
+    validReg := false.B
+  }.elsewhen(io.fu.req.fire) {
+    validReg := true.B
+    uopReg   := io.fu.req.bits
+  }.elsewhen(io.fu.resp.fire) {
+    validReg := false.B
   }
+
+  private val ctrl          = isaImpl.decode(uopReg.uop)
+  private val immValue      = imm.gen(uopReg.instr, uopReg.imm_type)
+  private val branchTaken   = isaImpl.taken(uopReg.rs1_data, uopReg.rs2_data, ctrl.op)
+  private val resolvedTaken = ctrl.is_jump || branchTaken
+  private val branchTarget  = isaImpl.target(uopReg.pc, uopReg.rs1_data, immValue, ctrl)
+  private val fallthrough   = uopReg.pc + p(PCStep).U(p(XLen).W)
+  private val actualTarget  = Mux(resolvedTaken, branchTarget, fallthrough)
+
+  private val resp = Wire(new FuResp)
+
+  resp.result       := fallthrough
+  resp.rd           := uopReg.rd
+  resp.pc           := uopReg.pc
+  resp.instr        := uopReg.instr
+  resp.rob_tag      := uopReg.rob_tag
+  resp.trap_req     := false.B
+  resp.trap_target  := 0.U
+  resp.trap_ret     := false.B
+  resp.trap_ret_tgt := 0.U
+
+  io.fu.resp.bits := resp
+
+  io.resolve.resolved.valid            := validReg && !io.fu.flush
+  io.resolve.resolved.bits.pc          := uopReg.pc
+  io.resolve.resolved.bits.instr       := uopReg.instr
+  io.resolve.resolved.bits.rob_tag     := uopReg.rob_tag
+  io.resolve.resolved.bits.taken       := resolvedTaken
+  io.resolve.resolved.bits.target      := actualTarget
+  io.resolve.resolved.bits.fallthrough := fallthrough
 }

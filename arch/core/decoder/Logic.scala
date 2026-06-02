@@ -5,7 +5,9 @@ import chisel3.util.BitPat
 import chisel3.util.experimental.decode._
 
 object DecodeLogic {
-  private def hasDontCare(bp: BitPat): Boolean      = bp.mask.bitCount != bp.width
+  private def hasDontCare(bp: BitPat): Boolean =
+    bp.mask.bitCount != bp.width
+
   private def padBP(bp: BitPat, width: Int): BitPat =
     if (bp.width == width) bp
     else {
@@ -18,14 +20,16 @@ object DecodeLogic {
       BitPat(0.U(diff.W)) ## bp
     }
 
-  def apply(addr: UInt, default: BitPat, mapping: Iterable[(BitPat, BitPat)]): UInt            =
+  def apply(addr: UInt, default: BitPat, mapping: Iterable[(BitPat, BitPat)]): UInt =
     chisel3.util.experimental.decode.decoder(QMCMinimizer, addr, TruthTable(mapping, default))
+
   def apply(
     addr: UInt,
     default: Seq[BitPat],
     mappingIn: Iterable[(BitPat, Seq[BitPat])]
   ): Seq[UInt] = {
     val nElts = default.size
+
     require(
       mappingIn.forall(_._2.size == nElts),
       s"All Seq[BitPat] must be of the same length, got $nElts vs. ${mappingIn.find(_._2.size != nElts).get}"
@@ -36,9 +40,7 @@ object DecodeLogic {
       (default :: elts.toList).map(_.getWidth).max
     }
     val resultWidth     = elementWidths.sum
-
-    val elementIndices = elementWidths.scan(resultWidth - 1) { case (l, r) => l - r }
-
+    val elementIndices  = elementWidths.scan(resultWidth - 1) { case (l, r) => l - r }
     val defaultsPadded  = default.zip(elementWidths).map { case (bp, w) => padBP(bp, w) }
     val mappingInPadded = mappingIn.map { case (in, elts) =>
       in -> elts.zip(elementWidths).map { case (bp, w) => padBP(bp, w) }
@@ -51,13 +53,15 @@ object DecodeLogic {
 
     elementIndices.zip(elementIndices.tail).map { case (msb, lsb) => decoded(msb, lsb + 1) }.toList
   }
+
   def apply(addr: UInt, default: Seq[BitPat], mappingIn: List[(UInt, Seq[BitPat])]): Seq[UInt] =
     apply(
       addr,
       default,
       mappingIn.map(m => (BitPat(m._1), m._2)).asInstanceOf[Iterable[(BitPat, Seq[BitPat])]]
     )
-  def apply(addr: UInt, trues: Iterable[UInt], falses: Iterable[UInt]): Bool                   =
+
+  def apply(addr: UInt, trues: Iterable[UInt], falses: Iterable[UInt]): Bool =
     apply(
       addr,
       BitPat.dontCare(1),

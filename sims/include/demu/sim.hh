@@ -13,7 +13,7 @@
 
 namespace demu {
 using isa_def::addr_t;
-using isa_def::system_t;
+using isa_def::soc_t;
 using isa_def::word_t;
 
 class DemuSimulator {
@@ -104,7 +104,7 @@ public:
 protected:
   // components
   std::unique_ptr<VerilatedContext> context_;
-  std::unique_ptr<system_t> dut_;
+  std::unique_ptr<soc_t> dut_;
   std::unique_ptr<hal::DeviceManager> device_manager_;
 
   std::unique_ptr<demu::hal::InterruptLine> timer_irq_;
