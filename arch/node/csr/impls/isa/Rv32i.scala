@@ -156,8 +156,10 @@ object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConst
       v
     }
 
-    override def trapEntryUpdates(regs: Map[String, UInt], pc: UInt, cause: UInt)(implicit
-      p: Parameters
+    override def trapEntryUpdates(
+      regs: Map[String, UInt],
+      pc: UInt,
+      cause: UInt
     ): Map[String, UInt] = {
       val mstatus    = get(regs, "mstatus")
       val mie        = mstatus(3)
@@ -175,7 +177,7 @@ object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConst
 
     override def trapReturnUpdates(
       regs: Map[String, UInt]
-    )(implicit p: Parameters): Map[String, UInt] = {
+    ): Map[String, UInt] = {
       val mstatus    = get(regs, "mstatus")
       val mpie       = mstatus(7)
       val newMstatus = Cat(mstatus(31, 8), 1.U(1.W), mstatus(6, 4), mpie, mstatus(2, 0))
@@ -183,10 +185,10 @@ object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConst
       Map("mstatus" -> newMstatus)
     }
 
-    override def isTrapReturn(instr: UInt, uop: UInt)(implicit p: Parameters): Bool =
+    override def isTrapReturn(instr: UInt, uop: UInt): Bool =
       instr === "h30200073".U(p(ILen).W)
 
-    override def hasSyncException(instr: UInt, uop: UInt)(implicit p: Parameters): Bool =
+    override def hasSyncException(instr: UInt, uop: UInt): Bool =
       instr === "h00000073".U(p(ILen).W) || instr === "h00100073".U(p(ILen).W)
 
     override def syncExceptionCause(instr: UInt, uop: UInt)(implicit p: Parameters): UInt =

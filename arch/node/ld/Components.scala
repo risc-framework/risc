@@ -21,7 +21,9 @@ class LdMemIO(implicit p: Parameters) extends Bundle {
 }
 
 class LdSbFwdIO(implicit p: Parameters) extends Bundle {
-  val sb_fwd = Flipped(new StoreForwardIO)
+  val sb_fwd       = Flipped(new StoreForwardIO)
+  val oldest_valid = Input(Bool())
+  val oldest_seq   = Input(UInt(64.W))
 }
 
 trait LoadDataHelpers {

@@ -10,7 +10,9 @@ object InterruptRv32iIsa extends RegisteredNodeUtils[InterruptIsaImpl] {
   override def utils: InterruptIsaImpl = new InterruptIsaImpl {
     override def value: String = "rv32i"
 
-    override def detect(view: CsrTrapView, irq: InterruptLines)(implicit p: Parameters): TrapCandidate = {
+    override def detect(view: CsrTrapView, irq: InterruptLines)(implicit
+      p: Parameters
+    ): TrapCandidate = {
       val out = Wire(new TrapCandidate)
 
       val globalEnable = view.status(3)
@@ -27,7 +29,11 @@ object InterruptRv32iIsa extends RegisteredNodeUtils[InterruptIsaImpl] {
 
       out.valid  := takeExt || takeSft || takeTim
       out.target := view.trapVector
-      out.cause  := Mux(takeExt, asyncBit | 11.U, Mux(takeSft, asyncBit | 3.U, Mux(takeTim, asyncBit | 7.U, 0.U)))
+      out.cause  := Mux(
+        takeExt,
+        asyncBit | 11.U,
+        Mux(takeSft, asyncBit | 3.U, Mux(takeTim, asyncBit | 7.U, 0.U))
+      )
 
       out
     }

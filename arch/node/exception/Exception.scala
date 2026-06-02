@@ -26,7 +26,7 @@ class Exception(implicit p: Parameters) extends Node(new ExceptionIO) {
   override def nodeType: NodeType  = ExceptionMeta.Type
   override def desiredName: String = s"exception_${cfg.selector.canonicalName}"
 
-  private val isaImpl = ExceptionIsaFactory.select(cfg)
+  private val isaImpl  = ExceptionIsaFactory.select(cfg)
   private val selected = isaImpl.select(io.interrupt, io.commitRedirect, io.csrBusy, io.archPc)
 
   io.redirect      := selected._1

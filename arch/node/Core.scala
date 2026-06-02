@@ -100,7 +100,10 @@ class Core(implicit p: Parameters) extends Node(new CoreIO) {
   for (i <- 0 until numLoadFUs) {
     memoryArbiter.io.load.mem(i) <> fuPool.io.ld_mem.ports(i).mem
     memoryArbiter.io.load.mmio(i) <> fuPool.io.ld_mem.ports(i).mmio
+
     fuPool.io.ld_sb.ports(i).sb_fwd <> storeBuffer.io.fwd.ports(i)
+    fuPool.io.ld_sb.ports(i).oldest_valid := storeBuffer.io.state.oldestValid
+    fuPool.io.ld_sb.ports(i).oldest_seq   := storeBuffer.io.state.oldestSeq
   }
 
   for (i <- 0 until numStoreFUs)

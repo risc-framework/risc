@@ -31,7 +31,8 @@ trait ExceptionIsaImpl extends NodeDimensionImpl {
   )(implicit p: Parameters): (RedirectBundle, CsrTrapUpdate)
 }
 
-object ExceptionIsaFactory extends NodeDimensionRegistry[ExceptionIsaImpl](ExceptionMeta.Type, ExceptionDims.ISA)
+object ExceptionIsaFactory
+    extends NodeDimensionRegistry[ExceptionIsaImpl](ExceptionMeta.Type, ExceptionDims.ISA)
 
 object ExceptionInit {
   val rv32i  = impls.isa.rv32i.ExceptionRv32iIsa

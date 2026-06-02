@@ -13,7 +13,9 @@ object InterruptRv32imIsa extends RegisteredNodeUtils[InterruptIsaImpl] {
 
     override def value: String = "rv32im"
 
-    override def detect(view: CsrTrapView, irq: InterruptLines)(implicit p: Parameters): TrapCandidate =
+    override def detect(view: CsrTrapView, irq: InterruptLines)(implicit
+      p: Parameters
+    ): TrapCandidate =
       rv32i.detect(view, irq)
   }
 

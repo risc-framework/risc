@@ -24,7 +24,8 @@ trait InterruptIsaImpl extends NodeDimensionImpl {
   def detect(view: CsrTrapView, irq: InterruptLines)(implicit p: Parameters): TrapCandidate
 }
 
-object InterruptIsaFactory extends NodeDimensionRegistry[InterruptIsaImpl](InterruptMeta.Type, InterruptDims.ISA)
+object InterruptIsaFactory
+    extends NodeDimensionRegistry[InterruptIsaImpl](InterruptMeta.Type, InterruptDims.ISA)
 
 object InterruptInit {
   val rv32i  = impls.isa.rv32i.InterruptRv32iIsa
