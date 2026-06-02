@@ -20,9 +20,3 @@ class MemoryArbiterOutIO(implicit p: Parameters) extends Bundle {
   val mem  = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
   val mmio = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
 }
-
-class MemoryArbiterIO(implicit p: Parameters) extends Bundle {
-  val load  = new MemoryArbiterLoadIO
-  val store = new MemoryArbiterStoreIO
-  val out   = new MemoryArbiterOutIO
-}

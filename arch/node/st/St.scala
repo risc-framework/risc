@@ -4,10 +4,16 @@ import arch.node.pma.PmaModeFactory
 import arch.node.fupool.FuResp
 import arch.node.imm.ImmIsaFactory
 import arch.node.uop.MicroOp
+import arch.node.fupool.FuIO
 import arch.configs._
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
 import chisel3.util.{ is, switch }
+
+class StIO(implicit p: Parameters) extends Bundle {
+  val fu = new FuIO
+  val sb = new StSbWriteIO
+}
 
 object StState extends ChiselEnum {
   val IDLE, WRITE_SB, DONE = Value

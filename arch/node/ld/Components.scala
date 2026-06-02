@@ -1,6 +1,5 @@
 package arch.node.ld
 
-import arch.node.fupool.FuIO
 import arch.node.sb.StoreForwardIO
 import arch.configs._
 import vcache.CachePortIO
@@ -23,12 +22,6 @@ class LdMemIO(implicit p: Parameters) extends Bundle {
 
 class LdSbFwdIO(implicit p: Parameters) extends Bundle {
   val sb_fwd = Flipped(new StoreForwardIO)
-}
-
-class LdIO(implicit p: Parameters) extends Bundle {
-  val fu  = new FuIO
-  val mem = new LdMemIO
-  val sb  = new LdSbFwdIO
 }
 
 trait LoadDataHelpers {

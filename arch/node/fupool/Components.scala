@@ -1,6 +1,10 @@
 package arch.node.fupool
 
+import arch.core.fu.FunctionalUnitType
 import arch.node.uop.MicroOp
+import arch.node.bru.BruResolveIO
+import arch.node.st.StSbWriteIO
+import arch.node.ld.{ LdMemIO, LdSbFwdIO }
 import arch.configs._
 import chisel3._
 import chisel3.util.{ Decoupled, Valid, log2Ceil }
@@ -23,4 +27,24 @@ class FuPoolFuIO(implicit p: Parameters) extends Bundle {
   val req   = Vec(p(NumFUs), Flipped(Decoupled(new MicroOp)))
   val done  = Output(Vec(p(NumFUs), Valid(new FuResp)))
   val flush = Input(Bool())
+}
+
+class VecLdMemIO(implicit p: Parameters) extends Bundle {
+  private val n = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
+  val ports     = Vec(n, new LdMemIO)
+}
+
+class VecLdSbFwdIO(implicit p: Parameters) extends Bundle {
+  private val n = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
+  val ports     = Vec(n, new LdSbFwdIO)
+}
+
+class VecStSbWriteIO(implicit p: Parameters) extends Bundle {
+  private val n = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
+  val ports     = Vec(n, new StSbWriteIO)
+}
+
+class VecBruResolveIO(implicit p: Parameters) extends Bundle {
+  private val n = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
+  val ports     = Vec(n, new BruResolveIO)
 }

@@ -2,6 +2,11 @@ package arch.node.decoder
 
 import arch.configs._
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
+import chisel3._
+
+class DecoderIO(implicit p: Parameters) extends Bundle {
+  val decode = new DecoderDecodeIO
+}
 
 class Decoder(implicit p: Parameters) extends Node(new DecoderIO) {
   private val cfg = NodeConfig(

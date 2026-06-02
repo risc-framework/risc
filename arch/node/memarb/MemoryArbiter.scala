@@ -7,6 +7,12 @@ import vutils.graph.{ Node, NodeType }
 import chisel3._
 import chisel3.util.{ Queue, RRArbiter, UIntToOH, log2Ceil }
 
+class MemoryArbiterIO(implicit p: Parameters) extends Bundle {
+  val load  = new MemoryArbiterLoadIO
+  val store = new MemoryArbiterStoreIO
+  val out   = new MemoryArbiterOutIO
+}
+
 class MemoryArbiterRoutedReq(targetWidth: Int)(implicit p: Parameters) extends Bundle {
   val target = UInt(targetWidth.W)
   val req    = new CacheReq(UInt(p(XLen).W), p(L1DCacheParams))

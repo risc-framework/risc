@@ -20,12 +20,6 @@ class SchedulerCtrlIO extends Bundle {
   val flush = Input(Bool())
 }
 
-class SchedulerIO(implicit p: Parameters) extends Bundle {
-  val dispatch = new SchedulerDispatchIO
-  val fu       = new SchedulerFuIO
-  val ctrl     = new SchedulerCtrlIO
-}
-
 final class SchedulerContext(val io: SchedulerIO)(implicit p: Parameters) {
   val numRegs = p(NumArchRegs)
   val RegIdxW = log2Ceil(p(NumArchRegs))

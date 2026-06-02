@@ -4,11 +4,18 @@ import arch.node.pma.PmaModeFactory
 import arch.node.fupool.FuResp
 import arch.node.imm.ImmIsaFactory
 import arch.node.uop.MicroOp
+import arch.node.fupool.FuIO
 import arch.configs._
 import vcache.CacheCommand
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
 import chisel3.util.{ Fill, is, switch }
+
+class LdIO(implicit p: Parameters) extends Bundle {
+  val fu  = new FuIO
+  val mem = new LdMemIO
+  val sb  = new LdSbFwdIO
+}
 
 object LdState extends ChiselEnum {
   val IDLE, FWD_REQ, FWD_RESP, MEM_REQ, WAIT_MEM, DONE, FLUSH_DRAIN = Value

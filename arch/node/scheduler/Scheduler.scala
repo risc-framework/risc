@@ -3,6 +3,13 @@ package arch.node.scheduler
 import arch.configs._
 import arch.node.fupool.FuPool
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
+import chisel3._
+
+class SchedulerIO(implicit p: Parameters) extends Bundle {
+  val dispatch = new SchedulerDispatchIO
+  val fu       = new SchedulerFuIO
+  val ctrl     = new SchedulerCtrlIO
+}
 
 class Scheduler(implicit p: Parameters) extends Node(new SchedulerIO) {
   private val cfg = NodeConfig(

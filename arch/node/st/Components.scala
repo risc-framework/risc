@@ -1,6 +1,5 @@
 package arch.node.st
 
-import arch.node.fupool.FuIO
 import arch.node.sb.StoreWriteBundle
 import arch.configs._
 import chisel3._
@@ -16,11 +15,6 @@ class StoreCtrl(implicit p: Parameters) extends Bundle {
 
 class StSbWriteIO(implicit p: Parameters) extends Bundle {
   val write = Valid(new StoreWriteBundle)
-}
-
-class StIO(implicit p: Parameters) extends Bundle {
-  val fu = new FuIO
-  val sb = new StSbWriteIO
 }
 
 trait StoreDataHelpers {

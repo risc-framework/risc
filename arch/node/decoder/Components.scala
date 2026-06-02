@@ -38,7 +38,3 @@ class DecoderDecodeIO(implicit p: Parameters) extends Bundle {
   val instr = Input(Vec(p(IssueWidth), UInt(p(ILen).W)))
   val out   = Output(Vec(p(IssueWidth), new DecodedOutput))
 }
-
-class DecoderIO(implicit p: Parameters) extends Bundle {
-  val decode = new DecoderDecodeIO
-}
