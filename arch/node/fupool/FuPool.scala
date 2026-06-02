@@ -6,6 +6,7 @@ import arch.node.mult.Mult
 import arch.node.ld.Ld
 import arch.node.st.St
 import arch.node.bru.Bru
+import arch.node.csr.{ Csr, CsrTrapView }
 import arch.core.fu.FunctionalUnitType
 import arch.configs._
 import vutils.graph.{ Node, NodeType }
@@ -17,6 +18,7 @@ class FuPoolIO(implicit p: Parameters) extends Bundle {
   val ld_sb  = new VecLdSbFwdIO
   val st_sb  = new VecStSbWriteIO
   val bru    = new VecBruResolveIO
+  val csr    = new VecCsrCtrlIO
 }
 
 class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
@@ -31,8 +33,7 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
       case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD   => Module(new Ld)
       case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST   => Module(new St)
       case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU  => Module(new Bru)
-      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR  =>
-        throw new UnsupportedOperationException("FuPool: CSR node is not implemented yet")
+      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR  => Module(new Csr)
       case other                                        =>
         throw new UnsupportedOperationException(
           s"FuPool: unsupported FU type '${other.cppName}' for '${desc.name}'"
@@ -45,25 +46,28 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
     io.fu.done(i).bits  := 0.U.asTypeOf(new FuResp)
   }
 
-  private val activeDescs = p(FunctionalUnits).zipWithIndex.filter { case (desc, _) =>
-    desc.`type` != FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR
+  for (i <- 0 until io.csr.ports.length) {
+    io.csr.ports(i).view := 0.U.asTypeOf(new CsrTrapView)
+    io.csr.ports(i).busy := false.B
   }
 
-  private val units = activeDescs.map { case (desc, idx) =>
+  private val units = p(FunctionalUnits).zipWithIndex.map { case (desc, idx) =>
     build(desc) -> idx
   }
 
   private def connectFu(fu: FuIO, idx: Int): Unit = {
-    fu.flush              := io.fu.flush
+    fu.flush      := io.fu.flush
     fu.req <> io.fu.req(idx)
-    fu.resp.ready         := true.B
-    io.fu.done(idx).valid := fu.resp.valid
+    fu.resp.ready := true.B
+
+    io.fu.done(idx).valid := fu.resp.valid && !io.fu.flush
     io.fu.done(idx).bits  := fu.resp.bits
   }
 
   private var ldIdx  = 0
   private var stIdx  = 0
   private var bruIdx = 0
+  private var csrIdx = 0
 
   for ((unit, fuIdx) <- units)
     unit match {
@@ -92,6 +96,11 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
         io.bru.ports(bruIdx).resolved := bru.io.resolve.resolved
         bruIdx += 1
 
+      case csr: Csr =>
+        connectFu(csr.io.fu, fuIdx)
+        csr.io.ctrl <> io.csr.ports(csrIdx)
+        csrIdx += 1
+
       case _ =>
     }
 
@@ -108,5 +117,10 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
   require(
     bruIdx == io.bru.ports.length,
     s"FuPool: connected $bruIdx BRU nodes, expected ${io.bru.ports.length}"
+  )
+
+  require(
+    csrIdx == io.csr.ports.length,
+    s"FuPool: connected $csrIdx CSR nodes, expected ${io.csr.ports.length}"
   )
 }

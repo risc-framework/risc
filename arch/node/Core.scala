@@ -1,34 +1,31 @@
 package arch.node
 
 import arch.core.DebugIO
-import arch.node.bpu.Bpu
-import arch.node.decoder.Decoder
-import arch.node.fupool.FuPool
 import arch.core.fu.FunctionalUnitType
+import arch.node.bpu.Bpu
+import arch.node.csr.{ CsrTrapView, InterruptLines }
+import arch.node.decoder.Decoder
+import arch.node.exception.{ Exception, RedirectBundle }
+import arch.node.fupool.FuPool
 import arch.node.ifu.Ifu
+import arch.node.interrupt.{ Interrupt, TrapCandidate }
 import arch.node.memarb.MemoryArbiter
 import arch.node.regfile.Regfile
-import arch.node.rob.{ Rob, RobTrapBundle }
+import arch.node.rob.Rob
 import arch.node.sb.StoreBuffer
 import arch.node.scheduler.Scheduler
 import arch.configs._
+import chisel3._
+import chisel3.util.{ Mux1H, PopCount, log2Ceil }
 import vcache.CachePortIO
 import vcache.nonblocking.{ NonBlockingCache, ReadOnlyNonBlockingCache }
 import vutils.graph.{ Node, NodePort, NodeType }
-import chisel3._
-import chisel3.util.{ Mux1H, PopCount, log2Ceil }
-
-class CoreInterruptIO extends Bundle {
-  val timer_irq = Input(Bool())
-  val soft_irq  = Input(Bool())
-  val ext_irq   = Input(Bool())
-}
 
 class CoreIO(implicit p: Parameters) extends Bundle {
   val imem  = new CachePortIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))
   val dmem  = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
   val mmio  = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
-  val irq   = new CoreInterruptIO
+  val irq   = Input(new InterruptLines)
   val debug = Output(new DebugIO)
 }
 
@@ -37,7 +34,7 @@ object CoreMeta {
   val IMEM  = NodePort[CoreIO, CachePortIO[Vec[UInt]]]("imem", _.imem)
   val DMEM  = NodePort[CoreIO, CachePortIO[UInt]]("dmem", _.dmem)
   val MMIO  = NodePort[CoreIO, CachePortIO[UInt]]("mmio", _.mmio)
-  val IRQ   = NodePort[CoreIO, CoreInterruptIO]("irq", _.irq)
+  val IRQ   = NodePort[CoreIO, InterruptLines]("irq", _.irq)
   val DEBUG = NodePort[CoreIO, DebugIO]("debug", _.debug)
 }
 
@@ -51,10 +48,13 @@ class Core(implicit p: Parameters) extends Node(new CoreIO) {
     p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
   private val numBruFUs   =
     p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
+  private val numCsrFUs   =
+    p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
 
   require(numLoadFUs > 0, "Core: at least one LD node is required")
   require(numStoreFUs > 0, "Core: at least one ST node is required")
   require(numBruFUs > 0, "Core: at least one BRU node is required")
+  require(numCsrFUs <= 1, "Core: at most one CSR node is supported")
 
   private val bpu           = Module(new Bpu)
   private val ifu           = Module(new Ifu)
@@ -63,6 +63,8 @@ class Core(implicit p: Parameters) extends Node(new CoreIO) {
   private val scheduler     = Module(new Scheduler)
   private val fuPool        = Module(new FuPool)
   private val rob           = Module(new Rob)
+  private val interrupt     = Module(new Interrupt)
+  private val exception     = Module(new Exception)
   private val storeBuffer   = Module(new StoreBuffer)
   private val memoryArbiter = Module(new MemoryArbiter)
   private val l1ICache      = Module(
@@ -71,6 +73,20 @@ class Core(implicit p: Parameters) extends Node(new CoreIO) {
   private val l1DCache      = Module(new NonBlockingCache(UInt(p(XLen).W), p(L1DCacheParams)))
 
   scheduler.bind(fuPool)
+
+  private val cycleCount     = RegInit(0.U(64.W))
+  private val instretCount   = RegInit(0.U(64.W))
+  private val commitPopCount = Wire(UInt(log2Ceil(p(IssueWidth) + 1).W))
+
+  commitPopCount := PopCount(rob.io.commit.lanes.map(_.pop))
+  cycleCount     := cycleCount + 1.U
+  instretCount   := instretCount + commitPopCount
+
+  private val irqLines = Wire(new InterruptLines)
+
+  irqLines.timer_irq := RegNext(io.irq.timer_irq, false.B)
+  irqLines.soft_irq  := RegNext(io.irq.soft_irq, false.B)
+  irqLines.ext_irq   := RegNext(io.irq.ext_irq, false.B)
 
   ifu.io.mem.mem <> l1ICache.upper
   io.imem <> l1ICache.lower
@@ -100,11 +116,15 @@ class Core(implicit p: Parameters) extends Node(new CoreIO) {
     rob.io.wb.ports(i).valid   := fuPool.io.fu.done(i).valid
     rob.io.wb.ports(i).rob_tag := fuPool.io.fu.done(i).bits.rob_tag
     rob.io.wb.ports(i).data    := fuPool.io.fu.done(i).bits.result
-  }
 
-  for (i <- 0 until p(NumFUs)) {
-    rob.io.trap.ports(i).valid := false.B
-    rob.io.trap.ports(i).bits  := 0.U.asTypeOf(new RobTrapBundle)
+    rob.io.trap.ports(i).valid             := fuPool.io.fu
+      .done(i)
+      .valid && (fuPool.io.fu.done(i).bits.trap_req || fuPool.io.fu.done(i).bits.trap_ret)
+    rob.io.trap.ports(i).bits.rob_tag      := fuPool.io.fu.done(i).bits.rob_tag
+    rob.io.trap.ports(i).bits.trap_req     := fuPool.io.fu.done(i).bits.trap_req
+    rob.io.trap.ports(i).bits.trap_target  := fuPool.io.fu.done(i).bits.trap_target
+    rob.io.trap.ports(i).bits.trap_ret     := fuPool.io.fu.done(i).bits.trap_ret
+    rob.io.trap.ports(i).bits.trap_ret_tgt := fuPool.io.fu.done(i).bits.trap_ret_tgt
   }
 
   private val isFlush = Wire(Vec(p(IssueWidth), Bool()))
@@ -116,13 +136,45 @@ class Core(implicit p: Parameters) extends Node(new CoreIO) {
   private val commitFlushTarget   = Mux1H(isFlush.zipWithIndex.map { case (f, w) =>
     f -> rob.io.commit.lanes(w).flush_target
   })
-  private val globalFlush         = commitFlushPipeline
-  private val redirectPc          = commitFlushTarget
+
+  private val commitRedirect = Wire(new RedirectBundle)
+
+  commitRedirect.valid  := commitFlushPipeline
+  commitRedirect.target := commitFlushTarget
+
+  private val archPc = Mux(rob.io.ctrl.empty, ifu.io.dispatch.fetch_pc, rob.io.commit.lanes(0).pc)
+
+  exception.io.commitRedirect := commitRedirect
+  exception.io.archPc         := archPc
+
+  if (numCsrFUs > 0) {
+    interrupt.io.view := fuPool.io.csr.ports(0).view
+    interrupt.io.irq  := irqLines
+
+    exception.io.interrupt := interrupt.io.out
+    exception.io.csrBusy   := fuPool.io.csr.ports(0).busy
+
+    fuPool.io.csr.ports(0).cycle       := cycleCount
+    fuPool.io.csr.ports(0).instret     := instretCount
+    fuPool.io.csr.ports(0).irq         := irqLines
+    fuPool.io.csr.ports(0).arch_pc     := archPc
+    fuPool.io.csr.ports(0).trap_update := exception.io.csrTrapUpdate
+  } else {
+    interrupt.io.view := 0.U.asTypeOf(new CsrTrapView)
+    interrupt.io.irq  := 0.U.asTypeOf(new InterruptLines)
+
+    exception.io.interrupt := 0.U.asTypeOf(new TrapCandidate)
+    exception.io.csrBusy   := false.B
+  }
+
+  private val globalFlush = exception.io.redirect.valid
+  private val redirectPc  = exception.io.redirect.target
 
   ifu.io.redirect.valid  := globalFlush
   ifu.io.redirect.target := redirectPc
 
   scheduler.io.ctrl.flush   := globalFlush
+  fuPool.io.fu.flush        := globalFlush
   rob.io.ctrl.flush         := globalFlush
   storeBuffer.io.ctrl.flush := globalFlush
 
@@ -364,13 +416,6 @@ class Core(implicit p: Parameters) extends Node(new CoreIO) {
   bpu.io.update.update.pht_index    := bpuUpdatePhtIdx
   bpu.io.update.update.ghr_snapshot := bpuUpdateGhrSnapshot
   bpu.io.update.update.mispredict   := bpuUpdateMispredict
-
-  private val cycleCount     = RegInit(0.U(64.W))
-  private val instretCount   = RegInit(0.U(64.W))
-  private val commitPopCount = PopCount(rob.io.commit.lanes.map(_.pop))
-
-  cycleCount   := cycleCount + 1.U
-  instretCount := instretCount + commitPopCount
 
   io.debug.cycle_count   := cycleCount
   io.debug.instret_count := instretCount

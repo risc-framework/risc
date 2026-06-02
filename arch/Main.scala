@@ -12,6 +12,9 @@ import arch.node.mult.MultInit
 import arch.node.regfile.RegfileInit
 import arch.node.scheduler.SchedulerInit
 import arch.node.st.StInit
+import arch.node.csr.CsrInit
+import arch.node.interrupt.InterruptInit
+import arch.node.exception.ExceptionInit
 import arch.system.RiscSystem
 import arch.system.bridge.BusBridgeInit
 import arch.system.crossbar.BusCrossbarInit
@@ -28,10 +31,13 @@ object MainSystem extends App {
   AluInit
   MultInit
   DivInit
+  CsrInit
   PmaInit
   LdInit
   StInit
   SchedulerInit
+  InterruptInit
+  ExceptionInit
 
   BusBridgeInit
   BusCrossbarInit

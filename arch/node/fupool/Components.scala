@@ -5,6 +5,7 @@ import arch.node.uop.MicroOp
 import arch.node.bru.BruResolveIO
 import arch.node.st.StSbWriteIO
 import arch.node.ld.{ LdMemIO, LdSbFwdIO }
+import arch.node.csr.CsrCtrlIO
 import arch.configs._
 import chisel3._
 import chisel3.util.{ Decoupled, Valid, log2Ceil }
@@ -15,6 +16,11 @@ class FuResp(implicit p: Parameters) extends Bundle {
   val pc      = UInt(p(XLen).W)
   val instr   = UInt(p(ILen).W)
   val rob_tag = UInt(p(RobTagWidth).W)
+
+  val trap_req     = Bool()
+  val trap_target  = UInt(p(XLen).W)
+  val trap_ret     = Bool()
+  val trap_ret_tgt = UInt(p(XLen).W)
 }
 
 class FuIO(implicit p: Parameters) extends Bundle {
@@ -47,4 +53,12 @@ class VecStSbWriteIO(implicit p: Parameters) extends Bundle {
 class VecBruResolveIO(implicit p: Parameters) extends Bundle {
   private val n = p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
   val ports     = Vec(n, new BruResolveIO)
+}
+
+class VecCsrCtrlIO(implicit p: Parameters) extends Bundle {
+  private val numCsrFUs = p(FunctionalUnits).count(
+    _.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR
+  )
+
+  val ports = Vec(numCsrFUs, new CsrCtrlIO)
 }

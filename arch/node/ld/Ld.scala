@@ -116,11 +116,15 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
   private val respResult = Mux(fwdCompleteNow, fwdResult, Mux(memCompleteNow, memResult, resultReg))
   private val resp       = Wire(new FuResp)
 
-  resp.result  := respResult
-  resp.rd      := uopReg.rd
-  resp.pc      := uopReg.pc
-  resp.instr   := uopReg.instr
-  resp.rob_tag := uopReg.rob_tag
+  resp.result       := respResult
+  resp.rd           := uopReg.rd
+  resp.pc           := uopReg.pc
+  resp.instr        := uopReg.instr
+  resp.rob_tag      := uopReg.rob_tag
+  resp.trap_req     := false.B
+  resp.trap_target  := 0.U
+  resp.trap_ret     := false.B
+  resp.trap_ret_tgt := 0.U
 
   io.fu.resp.valid := currentRespValid
   io.fu.resp.bits  := resp

@@ -49,11 +49,15 @@ class Bru(implicit p: Parameters) extends Node(new BruIO) {
 
   private val resp = Wire(new FuResp)
 
-  resp.result  := fallthrough
-  resp.rd      := uopReg.rd
-  resp.pc      := uopReg.pc
-  resp.instr   := uopReg.instr
-  resp.rob_tag := uopReg.rob_tag
+  resp.result       := fallthrough
+  resp.rd           := uopReg.rd
+  resp.pc           := uopReg.pc
+  resp.instr        := uopReg.instr
+  resp.rob_tag      := uopReg.rob_tag
+  resp.trap_req     := false.B
+  resp.trap_target  := 0.U
+  resp.trap_ret     := false.B
+  resp.trap_ret_tgt := 0.U
 
   io.fu.resp.bits := resp
 

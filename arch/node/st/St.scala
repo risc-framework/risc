@@ -56,11 +56,15 @@ class St(implicit p: Parameters) extends Node(new StIO) {
 
   private val resp = Wire(new FuResp)
 
-  resp.result  := 0.U
-  resp.rd      := 0.U
-  resp.pc      := uopReg.pc
-  resp.instr   := uopReg.instr
-  resp.rob_tag := uopReg.rob_tag
+  resp.result       := 0.U
+  resp.rd           := 0.U
+  resp.pc           := uopReg.pc
+  resp.instr        := uopReg.instr
+  resp.rob_tag      := uopReg.rob_tag
+  resp.trap_req     := false.B
+  resp.trap_target  := 0.U
+  resp.trap_ret     := false.B
+  resp.trap_ret_tgt := 0.U
 
   io.fu.resp.valid := state === StState.DONE && !io.fu.flush
   io.fu.resp.bits  := resp

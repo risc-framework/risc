@@ -9,4 +9,5 @@ object FuPoolMeta {
   val LD_SB  = NodePort[FuPoolIO, VecLdSbFwdIO]("ld_sb", _.ld_sb)
   val ST_SB  = NodePort[FuPoolIO, VecStSbWriteIO]("st_sb", _.st_sb)
   val BRU    = NodePort[FuPoolIO, VecBruResolveIO]("bru", _.bru)
+  val CSR    = NodePort[FuPoolIO, VecCsrCtrlIO]("csr", _.csr)
 }
