@@ -67,6 +67,8 @@ object RV32I extends IsaWrapper {
           // J-Type
           enc("JAL", BitPat("b???????_?????_?????_???_?????_1101111")),
           // SYSTEM
+          enc("ECALL", BitPat("b00000000000000000000000001110011")),
+          enc("EBREAK", BitPat("b00000000000100000000000001110011")),
           enc("MRET", BitPat("b00110000001000000000000001110011")),
         ),
       )
@@ -76,8 +78,8 @@ object RV32I extends IsaWrapper {
   private def enc(name: String, bp: BitPat): InstructionEncoding =
     InstructionEncoding(
       name = name,
-      value = bp.value.intValue,
-      mask = bp.mask.intValue,
+      value = bp.value,
+      mask = bp.mask,
     )
 
   IsaFactory.register(this)

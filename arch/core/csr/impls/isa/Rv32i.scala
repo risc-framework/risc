@@ -2,6 +2,7 @@ package arch.core.csr.impls.isa.rv32i
 
 import arch.configs._
 import arch.core.csr._
+import arch.isa._
 import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.{ BitPat, Cat, MuxLookup }
@@ -56,6 +57,21 @@ trait Rv32iCsrMap {
 
 object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConsts with Rv32iCsrMap {
   override def utils: CsrIsaImpl = new CsrIsaImpl with Rv32iCsrUOpConsts with Rv32iCsrMap {
+
+    private def enc(name: String): InstructionEncoding =
+      IsaFactory
+        .instrSet(value)
+        .all
+        .find(_.name == name)
+        .getOrElse {
+          throw new NoSuchElementException(s"Instruction '$name' not found in ISA '$value'")
+        }
+
+    private def isInstr(instr: UInt, name: String)(implicit p: Parameters): Bool = {
+      val e = enc(name)
+      (instr & e.mask.U(p(ILen).W)) === e.value.U(p(ILen).W)
+    }
+
     override def value: String  = "rv32i"
     override def addrWidth: Int = SZ_CSR
     override def opWidth: Int   = SZ_C
@@ -185,13 +201,15 @@ object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConst
     }
 
     override def isTrapReturn(instr: UInt, uop: UInt): Bool =
-      instr === "h30200073".U(p(ILen).W)
+      isInstr("MRET", instr)
 
     override def hasSyncException(instr: UInt, uop: UInt): Bool =
-      instr === "h00000073".U(p(ILen).W) || instr === "h00100073".U(p(ILen).W)
+      isInstr("ECALL", instr) || isInstr("EBREAK", instr)
 
-    override def syncExceptionCause(instr: UInt, uop: UInt)(implicit p: Parameters): UInt =
-      Mux(instr === "h00100073".U(p(ILen).W), 3.U(p(XLen).W), 11.U(p(XLen).W))
+    override def syncExceptionCause(instr: UInt, uop: UInt)(implicit p: Parameters): UInt = {
+      val isEbreak = isInstr("EBREAK", instr)
+      Mux(isEbreak, 3.U(p(XLen).W), 11.U(p(XLen).W))
+    }
   }
 
   override def registry: NodeRegistry[CsrIsaImpl] = CsrIsaFactory

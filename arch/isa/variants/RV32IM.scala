@@ -30,8 +30,8 @@ object RV32IM extends IsaWrapper {
   private def enc(name: String, bp: BitPat): InstructionEncoding =
     InstructionEncoding(
       name = name,
-      value = bp.value.intValue,
-      mask = bp.mask.intValue,
+      value = bp.value,
+      mask = bp.mask,
     )
 
   IsaFactory.register(this)
