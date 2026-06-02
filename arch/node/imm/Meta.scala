@@ -4,7 +4,7 @@ import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistr
 import chisel3._
 
 object ImmMeta {
-  val Type = NodeType("alu")
+  val Type = NodeType("imm")
 }
 
 object ImmDims {

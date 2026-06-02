@@ -6,6 +6,7 @@ import arch.node.bru.BruInit
 import arch.node.decoder.DecoderInit
 import arch.node.div.DivInit
 import arch.node.imm.ImmInit
+import arch.node.pma.PmaInit
 import arch.node.ld.LdInit
 import arch.node.mult.MultInit
 import arch.node.regfile.RegfileInit
@@ -27,6 +28,7 @@ object MainSystem extends App {
   AluInit
   MultInit
   DivInit
+  PmaInit
   LdInit
   StInit
   SchedulerInit

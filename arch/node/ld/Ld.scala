@@ -1,6 +1,6 @@
 package arch.node.ld
 
-import arch.core.pma.PmaChecker
+import arch.node.pma.PmaModeFactory
 import arch.node.fupool.FuResp
 import arch.node.imm.ImmIsaFactory
 import arch.node.uop.MicroOp
@@ -26,6 +26,7 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
 
   private val isaImpl         = LdIsaFactory.select(cfg)
   private val imm             = ImmIsaFactory.select(p(ISA).name)
+  private val pma             = PmaModeFactory.select("default")
   private val state           = RegInit(LdState.IDLE)
   private val uopReg          = Reg(new MicroOp)
   private val ctrlReg         = RegInit(0.U.asTypeOf(new LoadCtrl))
@@ -40,14 +41,14 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
   private val reqOutstanding  = RegInit(false.B)
   private val reqWasCache     = RegInit(false.B)
 
-  private val acceptCtrl                    = isaImpl.decodeLoad(io.fu.req.bits.uop)
-  private val acceptImm                     = imm.gen(io.fu.req.bits.instr, io.fu.req.bits.imm_type)
-  private val acceptAddr                    = io.fu.req.bits.rs1_data + acceptImm
-  private val acceptAlignedAddr             = isaImpl.alignedAddr(acceptAddr)
-  private val acceptRawLoadMask             = isaImpl.shiftedLoadMask(acceptCtrl, acceptAddr)
-  private val acceptLoadMask                =
+  private val acceptCtrl        = isaImpl.decodeLoad(io.fu.req.bits.uop)
+  private val acceptImm         = imm.gen(io.fu.req.bits.instr, io.fu.req.bits.imm_type)
+  private val acceptAddr        = io.fu.req.bits.rs1_data + acceptImm
+  private val acceptAlignedAddr = isaImpl.alignedAddr(acceptAddr)
+  private val acceptRawLoadMask = isaImpl.shiftedLoadMask(acceptCtrl, acceptAddr)
+  private val acceptLoadMask    =
     Mux(acceptRawLoadMask.orR, acceptRawLoadMask, Fill(p(BytesPerWord), 1.U(1.W)).asUInt)
-  private val (_, _, _, acceptPmaCacheable) = PmaChecker(acceptAddr)
+  private val acceptPmaResult   = pma.check(acceptAddr)
 
   private val fwdResp        = io.sb.sb_fwd.resp.bits
   private val fwdRespFire    = io.sb.sb_fwd.resp.fire
@@ -204,7 +205,7 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
       addrReg         := acceptAddr
       alignedAddrReg  := acceptAlignedAddr
       loadMaskReg     := acceptLoadMask
-      pmaCacheableReg := acceptPmaCacheable
+      pmaCacheableReg := acceptPmaResult.cacheable
       resultReg       := 0.U
       fwdDataReg      := 0.U
       fwdMaskReg      := 0.U

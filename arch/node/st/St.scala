@@ -1,6 +1,6 @@
 package arch.node.st
 
-import arch.core.pma.PmaChecker
+import arch.node.pma.PmaModeFactory
 import arch.node.fupool.FuResp
 import arch.node.imm.ImmIsaFactory
 import arch.node.uop.MicroOp
@@ -25,15 +25,16 @@ class St(implicit p: Parameters) extends Node(new StIO) {
 
   private val isaImpl = StIsaFactory.select(cfg)
   private val imm     = ImmIsaFactory.select(p(ISA).name)
+  private val pma     = PmaModeFactory.select("default")
   private val state   = RegInit(StState.IDLE)
   private val uopReg  = Reg(new MicroOp)
 
-  private val ctrl                    = isaImpl.decodeStore(uopReg.uop)
-  private val addr                    = uopReg.rs1_data + imm.gen(uopReg.instr, uopReg.imm_type)
-  private val alignedAddr             = isaImpl.alignedAddr(addr)
-  private val storeData               = isaImpl.alignedStoreData(ctrl, addr, uopReg.rs2_data)
-  private val storeMask               = isaImpl.shiftedStoreMask(ctrl, addr)
-  private val (_, _, _, pmaCacheable) = PmaChecker(addr)
+  private val ctrl        = isaImpl.decodeStore(uopReg.uop)
+  private val addr        = uopReg.rs1_data + imm.gen(uopReg.instr, uopReg.imm_type)
+  private val alignedAddr = isaImpl.alignedAddr(addr)
+  private val storeData   = isaImpl.alignedStoreData(ctrl, addr, uopReg.rs2_data)
+  private val storeMask   = isaImpl.shiftedStoreMask(ctrl, addr)
+  private val pmaResult   = pma.check(addr)
 
   io.fu.req.ready := !io.fu.flush && (state === StState.IDLE || (state === StState.DONE && io.fu.resp.ready))
 
@@ -45,7 +46,7 @@ class St(implicit p: Parameters) extends Node(new StIO) {
   io.sb.write.bits.addr      := alignedAddr
   io.sb.write.bits.data      := storeData
   io.sb.write.bits.mask      := storeMask
-  io.sb.write.bits.cacheable := pmaCacheable
+  io.sb.write.bits.cacheable := pmaResult.cacheable
 
   private val resp = Wire(new FuResp)
 
