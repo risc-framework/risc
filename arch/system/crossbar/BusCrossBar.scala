@@ -2,25 +2,42 @@ package arch.system.crossbar
 
 import arch.configs._
 import chisel3._
+import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 
-class BusCrossbar(implicit p: Parameters) extends Module {
-  override def desiredName: String = s"${p(BusType)}_crossbar"
+class BusCrossbarIO(implicit p: Parameters) extends Bundle {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      BusCrossbarDims.TYPE -> p(BusType)
+    )
+  )
 
-  val utils = BusCrossbarUtilsFactory.getOrThrow(p(BusType))
+  private val impl = BusCrossbarTypeFactory.select(cfg)
 
-  val ibus    = IO(utils.masterType).suggestName("IBUS")
-  val dbus    = IO(utils.masterType).suggestName("DBUS")
-  val mbus    = IO(utils.masterType).suggestName("MBUS")
-  val devices =
-    IO(Vec(p(BusAddressMap).length, utils.slaveType)).suggestName(s"M_${p(BusType)}".toUpperCase)
+  val ibus    = impl.masterType
+  val dbus    = impl.masterType
+  val mbus    = impl.masterType
+  val devices = Vec(p(BusAddressMap).length, impl.slaveType)
+}
 
-  dontTouch(ibus)
-  dontTouch(dbus)
-  dontTouch(mbus)
-  dontTouch(devices)
+class BusCrossbar(implicit p: Parameters) extends Node(new BusCrossbarIO) {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      BusCrossbarDims.TYPE -> p(BusType)
+    )
+  )
 
-  val interface = utils.createInterface(ibus, dbus, mbus)
+  override def nodeType: NodeType  = BusCrossbarMeta.Type
+  override def desiredName: String = s"${p(BusType)}_bus_crossbar"
 
-  for (i <- devices.indices)
-    devices(i) <> interface(i)
+  private val impl = BusCrossbarTypeFactory.select(cfg)
+
+  dontTouch(io.ibus)
+  dontTouch(io.dbus)
+  dontTouch(io.mbus)
+  dontTouch(io.devices)
+
+  private val interface = impl.createInterface(io.ibus, io.dbus, io.mbus)
+
+  for (i <- 0 until p(BusAddressMap).length)
+    io.devices(i) <> interface(i)
 }

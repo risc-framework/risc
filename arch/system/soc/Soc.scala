@@ -4,15 +4,22 @@ import arch.configs._
 import arch.core.cpu.{ Cpu, DebugIO }
 import arch.core.csr.InterruptLines
 import arch.system.bridge.BusBridge
-import arch.system.crossbar.{ BusCrossbar, BusCrossbarUtilsFactory }
+import arch.system.crossbar.{ BusCrossbar, BusCrossbarTypeFactory, BusCrossbarDims }
+import vutils.graph.{ NodeConfig, NodeSelector }
 import chisel3._
 
 class Soc(implicit p: Parameters) extends Module {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      BusCrossbarDims.TYPE -> p(BusType)
+    )
+  )
+
   override def desiredName: String = "soc"
 
-  private val crossbarUtils = BusCrossbarUtilsFactory.getOrThrow(p(BusType))
+  private val crossbarImpl = BusCrossbarTypeFactory.select(cfg)
 
-  val devices = IO(Vec(p(BusAddressMap).length, crossbarUtils.slaveType))
+  val devices = IO(Vec(p(BusAddressMap).length, crossbarImpl.slaveType))
     .suggestName(s"M_${p(BusType)}".toUpperCase)
   val irq     = IO(Input(new InterruptLines))
   val debug   = IO(Output(new DebugIO))
@@ -23,17 +30,17 @@ class Soc(implicit p: Parameters) extends Module {
 
   dontTouch(devices)
 
-  cpu.io.imem <> bridge.imem
-  cpu.io.dmem <> bridge.dmem
-  cpu.io.mmio <> bridge.mmio
+  cpu.io.imem <> bridge.io.imem
+  cpu.io.dmem <> bridge.io.dmem
+  cpu.io.mmio <> bridge.io.mmio
   cpu.io.irq := irq
 
-  crossbarUtils.connect(crossbar.ibus, bridge.ibus)
-  crossbarUtils.connect(crossbar.dbus, bridge.dbus)
-  crossbarUtils.connect(crossbar.mbus, bridge.mbus)
+  crossbarImpl.connect(crossbar.io.ibus, bridge.io.ibus)
+  crossbarImpl.connect(crossbar.io.dbus, bridge.io.dbus)
+  crossbarImpl.connect(crossbar.io.mbus, bridge.io.mbus)
 
   for (i <- 0 until p(BusAddressMap).length)
-    devices(i) <> crossbar.devices(i)
+    devices(i) <> crossbar.io.devices(i)
 
   debug <> cpu.io.debug
 }

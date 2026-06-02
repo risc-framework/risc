@@ -3,28 +3,48 @@ package arch.system.bridge
 import arch.configs._
 import vcache.CachePortIO
 import chisel3._
+import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 
-class BusBridge(implicit p: Parameters) extends Module {
-  override def desiredName: String = s"${p(BusType)}_bridge"
+class BusBridgeIO(implicit p: Parameters) extends Bundle {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      BusBridgeDims.TYPE -> p(BusType)
+    )
+  )
 
-  val utils = BusBridgeUtilsFactory.getOrThrow(p(BusType))
+  private val impl = BusBridgeTypeFactory.select(cfg)
 
-  val imem = IO(Flipped(new CachePortIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))))
-  val dmem = IO(Flipped(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))))
-  val mmio = IO(Flipped(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))))
+  val imem = Flipped(
+    new CachePortIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))
+  )
+  val dmem = Flipped(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams)))
+  val mmio = Flipped(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams)))
 
-  val ibus = IO(utils.busType)
-  val dbus = IO(utils.busType)
-  val mbus = IO(utils.busType)
+  val ibus = impl.busType
+  val dbus = impl.busType
+  val mbus = impl.busType
+}
 
-  dontTouch(imem)
-  dontTouch(dmem)
-  dontTouch(mmio)
-  dontTouch(ibus)
-  dontTouch(dbus)
-  dontTouch(mbus)
+class BusBridge(implicit p: Parameters) extends Node(new BusBridgeIO) {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      BusBridgeDims.TYPE -> p(BusType)
+    )
+  )
 
-  ibus <> utils.createBridgeReadOnly(Vec(p(IssueWidth), UInt(p(ILen).W)), imem, isMmio = false)
-  dbus <> utils.createBridge(UInt(p(XLen).W), dmem, isMmio = false)
-  mbus <> utils.createBridge(UInt(p(XLen).W), mmio, isMmio = true)
+  override def nodeType: NodeType  = BusBridgeMeta.Type
+  override def desiredName: String = s"${p(BusType)}_bus_bridge"
+
+  private val impl = BusBridgeTypeFactory.select(cfg)
+
+  dontTouch(io.imem)
+  dontTouch(io.dmem)
+  dontTouch(io.mmio)
+  dontTouch(io.ibus)
+  dontTouch(io.dbus)
+  dontTouch(io.mbus)
+
+  io.ibus <> impl.createBridgeReadOnly(Vec(p(IssueWidth), UInt(p(ILen).W)), io.imem, isMmio = false)
+  io.dbus <> impl.createBridge(UInt(p(XLen).W), io.dmem, isMmio = false)
+  io.mbus <> impl.createBridge(UInt(p(XLen).W), io.mmio, isMmio = true)
 }

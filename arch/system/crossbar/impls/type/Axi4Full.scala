@@ -1,14 +1,16 @@
-package arch.system.crossbar
+package arch.system.crossbar.impls.bus.axif
 
 import arch.configs._
+import arch.system.crossbar._
 import vamba.axi4.full._
 import chisel3._
+import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
 
-object AXIFullCrossbarUtils extends RegisteredUtils[BusCrossbarUtils] {
-  override def utils: BusCrossbarUtils = new BusCrossbarUtils {
-    override def name: String = "axif"
+object BusCrossbarAxifType extends RegisteredNodeUtils[BusCrossbarTypeImpl] {
+  override def utils: BusCrossbarTypeImpl = new BusCrossbarTypeImpl {
+    override def value: String = "axif"
 
-    private def axiParams: Axi4FullParams =
+    private def axiParams(implicit p: Parameters): Axi4FullParams =
       Axi4FullParams(
         addrWidth = p(XLen),
         dataWidth = p(XLen),
@@ -16,10 +18,10 @@ object AXIFullCrossbarUtils extends RegisteredUtils[BusCrossbarUtils] {
         userWidth = 0
       )
 
-    private def ranges: Seq[Axi4FullAddressRange] =
+    private def ranges(implicit p: Parameters): Seq[Axi4FullAddressRange] =
       p(BusAddressMap).map(desc => Axi4FullAddressRange.fromSize(desc.base, desc.size))
 
-    private def cfg: Axi4FullFabricConfig = {
+    private def cfg(implicit p: Parameters): Axi4FullFabricConfig = {
       val d             = p(BusCrossbarFifoDepthPerClient)
       val maxLineBytes  = p(L1ICacheLineSize).max(p(L1DCacheLineSize))
       val maxBurstBeats = (maxLineBytes / p(BytesPerWord)).max(1)
@@ -37,16 +39,20 @@ object AXIFullCrossbarUtils extends RegisteredUtils[BusCrossbarUtils] {
       )
     }
 
-    override def masterType: Bundle =
+    override def masterType(implicit p: Parameters): Bundle =
       new Axi4FullSlavePort(axiParams)
 
-    override def slaveType: Bundle =
+    override def slaveType(implicit p: Parameters): Bundle =
       new Axi4FullMasterPins(axiParams)
 
-    override def addressMap: Seq[(Long, Long)] =
+    override def addressMap(implicit p: Parameters): Seq[(Long, Long)] =
       p(BusAddressMap).map(desc => (desc.base, desc.base + desc.size))
 
-    override def createInterface(ibus: Bundle, dbus: Bundle, mbus: Bundle): Vec[Bundle] = {
+    override def createInterface(
+      ibus: Bundle,
+      dbus: Bundle,
+      mbus: Bundle
+    )(implicit p: Parameters): Vec[Bundle] = {
       val crossbar = Module(
         new Axi4FullCrossbar(
           p = axiParams,
@@ -68,13 +74,12 @@ object AXIFullCrossbarUtils extends RegisteredUtils[BusCrossbarUtils] {
       interface.asInstanceOf[Vec[Bundle]]
     }
 
-    override def connect(ext: Bundle, inner: Bundle): Unit =
+    override def connect(ext: Bundle, inner: Bundle)(implicit p: Parameters): Unit =
       Axi4Full.connect(
         inner.asInstanceOf[Axi4FullMasterPort],
         ext.asInstanceOf[Axi4FullSlavePort]
       )
   }
 
-  override def factory: UtilsFactory[BusCrossbarUtils] =
-    BusCrossbarUtilsFactory
+  override def registry: NodeRegistry[BusCrossbarTypeImpl] = BusCrossbarTypeFactory
 }
