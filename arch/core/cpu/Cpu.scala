@@ -228,8 +228,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   for (w <- 0 until p(IssueWidth))
     coreValidReq(w) := laneBaseReqOk(w) && lanePrefixOk(w)
 
-  private val laneValid = Wire(Vec(p(IssueWidth), Bool()))
-
   private def sqWrapAdd(x: UInt, y: UInt): UInt = {
     val idxW = log2Ceil(p(StoreBufferSize))
     val sum  = x +& y
@@ -249,14 +247,14 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     sqIdxForLane(w) := sqTailAfter(w)
     sqSeqForLane(w) := sqSeqAfter(w)
 
-    val allocStore = laneValid(w) && isStore(w)
+    val allocStore = scheduler.io.dispatch.reqs(w).fire && isStore(w)
 
     sqTailAfter(w + 1) := Mux(allocStore, sqWrapAdd(sqTailAfter(w), 1.U), sqTailAfter(w))
     sqSeqAfter(w + 1)  := sqSeqAfter(w) + allocStore.asUInt
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    storeBuffer.io.alloc.ports(w).valid        := laneValid(w) && isStore(w)
+    storeBuffer.io.alloc.ports(w).valid        := scheduler.io.dispatch.reqs(w).fire && isStore(w)
     storeBuffer.io.alloc.ports(w).bits.sq_idx  := sqIdxForLane(w)
     storeBuffer.io.alloc.ports(w).bits.sq_seq  := sqSeqForLane(w)
     storeBuffer.io.alloc.ports(w).bits.rob_tag := rob.io.enq.lanes(w).rob_tag
@@ -327,14 +325,12 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     dis.bits.rob_tag  := rob.io.enq.lanes(w).rob_tag
     dis.bits.sq_idx   := sqIdxForLane(w)
     dis.bits.sq_seq   := sqSeqForLane(w)
-
-    laneValid(w) := dis.fire
   }
 
   for (w <- 0 until p(IssueWidth)) {
     val dec = decode.io.out(w).bits
 
-    rob.io.enq.lanes(w).valid            := laneValid(w)
+    rob.io.enq.lanes(w).valid            := scheduler.io.dispatch.reqs(w).fire
     rob.io.enq.lanes(w).pc               := dec.pc
     rob.io.enq.lanes(w).instr            := dec.instr
     rob.io.enq.lanes(w).rd               := dec.rd
@@ -354,7 +350,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   private val decodeReady = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
-    val consumeThisLane = globalFlush || killMask(w) || laneValid(w)
+    val consumeThisLane = globalFlush || killMask(w) || scheduler.io.dispatch.reqs(w).fire
 
     if (w == 0) decodeReady(w) := consumeThisLane
     else decodeReady(w)        := decode.io.out(w - 1).fire && consumeThisLane
@@ -443,8 +439,8 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   )
   io.debug.flush_cycle      := globalFlush
   io.debug.rob_empty        := rob.io.ctrl.empty
-  io.debug.issue_count      := PopCount(laneValid)
+  io.debug.issue_count      := PopCount(scheduler.io.dispatch.reqs.map(_.fire))
   io.debug.commit_count     := commitPopCount
-  io.debug.frontend_stall   := laneBaseReqOk(0) && !laneValid(0)
+  io.debug.frontend_stall   := laneBaseReqOk(0) && !scheduler.io.dispatch.reqs.map(_.fire)(0)
   io.debug.backend_stall    := !rob.io.ctrl.empty && commitPopCount === 0.U
 }
