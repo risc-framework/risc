@@ -35,19 +35,34 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
   private val dropCount   = RegInit(0.U(5.W))
   private val pendingReqs = RegInit(0.U(5.W))
 
-  private val reqFire        = io.mem.mem.req.valid && io.mem.mem.req.ready
-  private val respFire       = io.mem.mem.resp.valid && io.mem.mem.resp.ready
-  private val nextDropCount  = dropCount + pendingReqs
-  private val isDropping     = respFire && nextDropCount > 0.U
-  private val isValidResp    = dropCount === 0.U && !doRedirect
-  private val alignBytes     = p(IssueWidth) * p(BytesPerInstr)
-  private val alignMask      = ~(alignBytes - 1).U(p(XLen).W)
-  private val alignedPc      = pc & alignMask
-  private val nextBlockPc    = alignedPc + alignBytes.U
-  private val reqIdx         =
+  private val reqFire       = io.mem.mem.req.valid && io.mem.mem.req.ready
+  private val respFire      = io.mem.mem.resp.valid && io.mem.mem.resp.ready
+  private val nextDropCount = dropCount + pendingReqs
+  private val isDropping    = respFire && nextDropCount > 0.U
+  private val isValidResp   = dropCount === 0.U && !doRedirect
+
+  private val alignBytes  = p(IssueWidth) * p(BytesPerInstr)
+  private val alignMask   = ~(alignBytes - 1).U(p(XLen).W)
+  private val alignedPc   = pc & alignMask
+  private val nextBlockPc = alignedPc + alignBytes.U
+
+  private val reqIdx =
     if (p(IssueWidth) > 1) pc(log2Ceil(alignBytes) - 1, log2Ceil(p(BytesPerInstr))) else 0.U
+
+  private val reqKilled = Wire(Vec(p(IssueWidth), Bool()))
+  private val reqLive   = Wire(Vec(p(IssueWidth), Bool()))
+
+  reqKilled(0) := false.B
+
+  for (w <- 0 until p(IssueWidth)) {
+    if (w > 0)
+      reqKilled(w) := reqKilled(w - 1) || (reqLive(w - 1) && io.bpu.taken(w - 1))
+
+    reqLive(w) := w.U >= reqIdx && !reqKilled(w)
+  }
+
   private val reqTakenCands  = VecInit(
-    (0 until p(IssueWidth)).map(w => w.U >= reqIdx && io.bpu.taken(w))
+    (0 until p(IssueWidth)).map(w => reqLive(w) && io.bpu.taken(w))
   )
   private val reqHasTaken    = reqTakenCands.asUInt.orR
   private val reqTakenSlot   = PriorityEncoder(reqTakenCands.asUInt)
@@ -102,22 +117,27 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
 
   metaQ.io.deq.ready := respFire && isValidResp
 
-  private val respPc         = metaQ.io.deq.bits.pc
-  private val respIdx        =
+  private val respPc =
+    metaQ.io.deq.bits.pc
+
+  private val respIdx =
     if (p(IssueWidth) > 1) respPc(log2Ceil(alignBytes) - 1, log2Ceil(p(BytesPerInstr))) else 0.U
-  private val respTakenCands = VecInit(
-    (0 until p(IssueWidth)).map(w => w.U >= respIdx && metaQ.io.deq.bits.bpu_pred_taken(w))
-  )
-  private val respHasTaken   = respTakenCands.asUInt.orR
-  private val respTakenSlot  = PriorityEncoder(respTakenCands.asUInt)
+
+  private val respKilled = Wire(Vec(p(IssueWidth), Bool()))
+  private val respLive   = Wire(Vec(p(IssueWidth), Bool()))
+
+  respKilled(0) := false.B
 
   for (w <- 0 until p(IssueWidth)) {
-    val isValidPos  = w.U >= respIdx
-    val beforeTaken = !respHasTaken || w.U <= respTakenSlot
+    if (w > 0)
+      respKilled(w) := respKilled(w - 1) || (respLive(w - 1) && metaQ.io.deq.bits
+        .bpu_pred_taken(w - 1))
 
-    ibuffer.io.enq_valid(
-      w
-    )                                       := respFire && isValidResp && metaQ.io.deq.valid && isValidPos && beforeTaken
+    respLive(w) := w.U >= respIdx && !respKilled(w)
+  }
+
+  for (w <- 0 until p(IssueWidth)) {
+    ibuffer.io.enq_valid(w)                 := respFire && isValidResp && metaQ.io.deq.valid && respLive(w)
     ibuffer.io.enq_bits(w).pc               := (respPc & alignMask) + (w * p(PCStep)).U
     ibuffer.io.enq_bits(w).instr            := io.mem.mem.resp.bits.data(w)
     ibuffer.io.enq_bits(w).bpu_pred_taken   := metaQ.io.deq.bits.bpu_pred_taken(w)

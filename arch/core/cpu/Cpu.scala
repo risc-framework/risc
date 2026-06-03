@@ -179,28 +179,13 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     isStore(w) := dec.isStore
   }
 
-  private val killMask = Wire(Vec(p(IssueWidth), Bool()))
-
-  killMask(0) := false.B
-
-  for (w <- 1 until p(IssueWidth)) {
-    val prev = decode.io.out(w - 1)
-    val cur  = decode.io.out(w)
-
-    killMask(w) := killMask(w - 1) || (
-      prev.valid &&
-        prev.bits.bpu_pred_taken &&
-        cur.bits.pc === prev.bits.pc + p(PCStep).U
-    )
-  }
-
   private val possibleStoreBeforeOrAt = Wire(
     Vec(p(IssueWidth), UInt(log2Ceil(p(IssueWidth) + 1).W))
   )
 
   for (w <- 0 until p(IssueWidth))
     possibleStoreBeforeOrAt(w) := PopCount(
-      (0 to w).map(v => decode.io.out(v).valid && isStore(v) && !killMask(v) && !globalFlush)
+      (0 to w).map(v => decode.io.out(v).valid && isStore(v) && !globalFlush)
     )
 
   private val laneBaseReqOk = Wire(Vec(p(IssueWidth), Bool()))
@@ -211,19 +196,22 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     val dec      = decode.io.out(w).bits
     val sqSlotOk = !isStore(w) || possibleStoreBeforeOrAt(w) <= storeBuffer.io.state.freeCount
 
-    laneBaseReqOk(w) := decode.io.out(w).valid && dec.legal && !globalFlush && !killMask(
-      w
-    ) && sqSlotOk && rob.io.enq.lanes(w).ready
+    laneBaseReqOk(w) := decode.io
+      .out(w)
+      .valid && dec.legal && !globalFlush && sqSlotOk && rob.io.enq.lanes(w).ready
   }
 
   lanePrefixOk(0) := true.B
 
   for (w <- 1 until p(IssueWidth)) {
-    val olderLaneMayBeSkipped   = !decode.io.out(w - 1).valid || killMask(w - 1) || globalFlush
+    val olderLaneMayBeSkipped   = !decode.io.out(w - 1).valid || globalFlush
     val olderLaneCanBePresented = laneBaseReqOk(w - 1)
 
     lanePrefixOk(w) := lanePrefixOk(w - 1) && (olderLaneMayBeSkipped || olderLaneCanBePresented)
   }
+
+  for (w <- 0 until p(IssueWidth))
+    coreValidReq(w) := laneBaseReqOk(w) && lanePrefixOk(w)
 
   for (w <- 0 until p(IssueWidth))
     coreValidReq(w) := laneBaseReqOk(w) && lanePrefixOk(w)
@@ -350,7 +338,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   private val decodeReady = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
-    val consumeThisLane = globalFlush || killMask(w) || scheduler.io.dispatch.reqs(w).fire
+    val consumeThisLane = globalFlush || scheduler.io.dispatch.reqs(w).fire
 
     if (w == 0) decodeReady(w) := consumeThisLane
     else decodeReady(w)        := decode.io.out(w - 1).fire && consumeThisLane
@@ -366,7 +354,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     rob.io.rename.read_rob_tag(w) := 0.U
     rob.io.commit.lanes(w).pop    := rob.io.commit.lanes(w).valid
 
-    commitRegWe(w)   := rob.io.commit.lanes(w).pop && rob.io.commit.lanes(w).rd =/= 0.U
+    commitRegWe(w)   := rob.io.commit.lanes(w).pop && rob.io.commit.lanes(w).rd_write
     commitRegAddr(w) := rob.io.commit.lanes(w).rd
     commitRegData(w) := rob.io.commit.lanes(w).data
 
