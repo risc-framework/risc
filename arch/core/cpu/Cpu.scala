@@ -159,24 +159,18 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   private val rs1s = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
   private val rs2s = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
-  private val rds  = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
-
-  private val isStore = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
     val dec = decode.io.out(w).bits
 
     rs1s(w) := dec.rs1
     rs2s(w) := dec.rs2
-    rds(w)  := dec.rd
 
     regfile.io.read.rs1_addr(w) := dec.rs1
     regfile.io.read.rs2_addr(w) := dec.rs2
 
     rob.io.bypass.rs1_addr(w) := dec.rs1
     rob.io.bypass.rs2_addr(w) := dec.rs2
-
-    isStore(w) := dec.isStore
   }
 
   private val possibleStoreBeforeOrAt = Wire(
@@ -185,7 +179,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   for (w <- 0 until p(IssueWidth))
     possibleStoreBeforeOrAt(w) := PopCount(
-      (0 to w).map(v => decode.io.out(v).valid && isStore(v) && !globalFlush)
+      (0 to w).map(v => decode.io.out(v).valid && decode.io.out(v).bits.isStore && !globalFlush)
     )
 
   private val laneBaseReqOk = Wire(Vec(p(IssueWidth), Bool()))
@@ -194,7 +188,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   for (w <- 0 until p(IssueWidth)) {
     val dec      = decode.io.out(w).bits
-    val sqSlotOk = !isStore(w) || possibleStoreBeforeOrAt(w) <= storeBuffer.io.state.freeCount
+    val sqSlotOk = !dec.isStore || possibleStoreBeforeOrAt(w) <= storeBuffer.io.state.freeCount
 
     laneBaseReqOk(w) := decode.io
       .out(w)
@@ -209,9 +203,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
     lanePrefixOk(w) := lanePrefixOk(w - 1) && (olderLaneMayBeSkipped || olderLaneCanBePresented)
   }
-
-  for (w <- 0 until p(IssueWidth))
-    coreValidReq(w) := laneBaseReqOk(w) && lanePrefixOk(w)
 
   for (w <- 0 until p(IssueWidth))
     coreValidReq(w) := laneBaseReqOk(w) && lanePrefixOk(w)
@@ -235,14 +226,16 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     sqIdxForLane(w) := sqTailAfter(w)
     sqSeqForLane(w) := sqSeqAfter(w)
 
-    val allocStore = scheduler.io.dispatch.reqs(w).fire && isStore(w)
+    val allocStore = scheduler.io.dispatch.reqs(w).fire && decode.io.out(w).bits.isStore
 
     sqTailAfter(w + 1) := Mux(allocStore, sqWrapAdd(sqTailAfter(w), 1.U), sqTailAfter(w))
     sqSeqAfter(w + 1)  := sqSeqAfter(w) + allocStore.asUInt
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    storeBuffer.io.alloc.ports(w).valid        := scheduler.io.dispatch.reqs(w).fire && isStore(w)
+    storeBuffer.io.alloc
+      .ports(w)
+      .valid                                   := scheduler.io.dispatch.reqs(w).fire && decode.io.out(w).bits.isStore
     storeBuffer.io.alloc.ports(w).bits.sq_idx  := sqIdxForLane(w)
     storeBuffer.io.alloc.ports(w).bits.sq_seq  := sqSeqForLane(w)
     storeBuffer.io.alloc.ports(w).bits.rob_tag := rob.io.enq.lanes(w).rob_tag
@@ -326,7 +319,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     rob.io.enq.lanes(w).pd               := 0.U
     rob.io.enq.lanes(w).old_pd           := 0.U
     rob.io.enq.lanes(w).is_branch        := dec.isBru
-    rob.io.enq.lanes(w).is_store         := isStore(w)
+    rob.io.enq.lanes(w).is_store         := dec.isStore
     rob.io.enq.lanes(w).commit_barrier   := dec.commit_barrier
     rob.io.enq.lanes(w).bpu_pred_taken   := dec.bpu_pred_taken
     rob.io.enq.lanes(w).bpu_pred_target  := dec.bpu_pred_target
