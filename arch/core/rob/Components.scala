@@ -11,6 +11,7 @@ class RobEnqIO(implicit p: Parameters) extends Bundle {
   val pc               = Input(UInt(p(XLen).W))
   val instr            = Input(UInt(p(ILen).W))
   val rd               = Input(UInt(log2Ceil(p(NumArchRegs)).W))
+  val rd_write         = Input(Bool())
   val pd               = Input(UInt(log2Ceil(p(NumPhyRegs)).W))
   val old_pd           = Input(UInt(log2Ceil(p(NumPhyRegs)).W))
   val is_branch        = Input(Bool())
@@ -20,8 +21,8 @@ class RobEnqIO(implicit p: Parameters) extends Bundle {
   val bpu_pred_target  = Input(UInt(p(XLen).W))
   val bpu_pht_index    = Input(UInt(p(GShareGhrWidth).W))
   val bpu_ghr_snapshot = Input(UInt(p(GShareGhrWidth).W))
-  val sq_idx           = Input(UInt(log2Ceil(p(StoreBufferSize)).W))
   val rob_tag          = Output(UInt(p(RobTagWidth).W))
+  val sq_idx           = Input(UInt(log2Ceil(p(StoreBufferSize)).W))
 }
 
 class RobWbIO(implicit p: Parameters) extends Bundle {
@@ -49,6 +50,7 @@ class RobCommitIO(implicit p: Parameters) extends Bundle {
   val pc                = Output(UInt(p(XLen).W))
   val instr             = Output(UInt(p(ILen).W))
   val rd                = Output(UInt(log2Ceil(p(NumArchRegs)).W))
+  val rd_write          = Output(Bool())
   val data              = Output(UInt(p(XLen).W))
   val pd                = Output(UInt(log2Ceil(p(NumPhyRegs)).W))
   val old_pd            = Output(UInt(log2Ceil(p(NumPhyRegs)).W))
@@ -115,6 +117,7 @@ class RobEntry(implicit p: Parameters) extends Bundle {
   val pc             = UInt(p(XLen).W)
   val instr          = UInt(p(ILen).W)
   val rd             = UInt(log2Ceil(p(NumArchRegs)).W)
+  val rd_write       = Bool()
   val data           = UInt(p(XLen).W)
   val pd             = UInt(log2Ceil(p(NumPhyRegs)).W)
   val old_pd         = UInt(log2Ceil(p(NumPhyRegs)).W)

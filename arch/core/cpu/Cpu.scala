@@ -62,12 +62,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   cycleCount     := cycleCount + 1.U
   instretCount   := instretCount + commitPopCount
 
-  private val irqLines = Wire(new InterruptLines)
-
-  irqLines.timer_irq := RegNext(io.irq.timer_irq, false.B)
-  irqLines.soft_irq  := RegNext(io.irq.soft_irq, false.B)
-  irqLines.ext_irq   := RegNext(io.irq.ext_irq, false.B)
-
   ifu.io.mem.mem <> l1ICache.upper
   io.imem <> l1ICache.lower
 
@@ -132,14 +126,14 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   if (p(NumCSRs) > 0) {
     interrupt.io.view := fuPool.io.csr.ports(0).view
-    interrupt.io.irq  := irqLines
+    interrupt.io.irq <> io.irq
 
     exception.io.interrupt := interrupt.io.out
     exception.io.csrBusy   := fuPool.io.csr.ports(0).busy
 
     fuPool.io.csr.ports(0).cycle       := cycleCount
     fuPool.io.csr.ports(0).instret     := instretCount
-    fuPool.io.csr.ports(0).irq         := irqLines
+    fuPool.io.csr.ports(0).irq <> io.irq
     fuPool.io.csr.ports(0).arch_pc     := archPc
     fuPool.io.csr.ports(0).trap_update := exception.io.csrTrapUpdate
   } else {
@@ -282,10 +276,14 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   for (w <- 0 until p(IssueWidth)) {
     val match1 = (0 until p(IssueWidth)).map(cw =>
-      rob.io.commit.lanes(cw).pop && rob.io.commit.lanes(cw).rd === rs1s(w) && rs1s(w) =/= 0.U
+      rob.io.commit.lanes(cw).pop && rob.io.commit.lanes(cw).rd === rs1s(w) && rob.io.commit
+        .lanes(cw)
+        .rd_write
     )
     val match2 = (0 until p(IssueWidth)).map(cw =>
-      rob.io.commit.lanes(cw).pop && rob.io.commit.lanes(cw).rd === rs2s(w) && rs2s(w) =/= 0.U
+      rob.io.commit.lanes(cw).pop && rob.io.commit.lanes(cw).rd === rs2s(w) && rob.io.commit
+        .lanes(cw)
+        .rd_write
     )
 
     rs1CommitMatch(w) := match1.reduce(_ || _)
@@ -319,7 +317,8 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     dis.bits.imm      := dec.imm
     dis.bits.rs1      := dec.rs1
     dis.bits.rs2      := dec.rs2
-    dis.bits.rd       := Mux(dec.rd_write, dec.rd, 0.U)
+    dis.bits.rd       := dec.rd
+    dis.bits.rd_write := dec.rd_write
     dis.bits.rs1_read := dec.rs1_read
     dis.bits.rs2_read := dec.rs2_read
     dis.bits.rd_write := dec.rd_write
@@ -338,7 +337,8 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     rob.io.enq.lanes(w).valid            := laneValid(w)
     rob.io.enq.lanes(w).pc               := dec.pc
     rob.io.enq.lanes(w).instr            := dec.instr
-    rob.io.enq.lanes(w).rd               := Mux(dec.rd_write, dec.rd, 0.U)
+    rob.io.enq.lanes(w).rd               := dec.rd
+    rob.io.enq.lanes(w).rd_write         := dec.rd_write
     rob.io.enq.lanes(w).pd               := 0.U
     rob.io.enq.lanes(w).old_pd           := 0.U
     rob.io.enq.lanes(w).is_branch        := dec.isBru

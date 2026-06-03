@@ -109,6 +109,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
     io.commit.lanes(w).pc                := entry.pc
     io.commit.lanes(w).instr             := entry.instr
     io.commit.lanes(w).rd                := entry.rd
+    io.commit.lanes(w).rd_write          := entry.rd_write
     io.commit.lanes(w).data              := entry.data
     io.commit.lanes(w).pd                := entry.pd
     io.commit.lanes(w).old_pd            := entry.old_pd
@@ -173,6 +174,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
       buffer(idx).pc             := io.enq.lanes(w).pc
       buffer(idx).instr          := io.enq.lanes(w).instr
       buffer(idx).rd             := io.enq.lanes(w).rd
+      buffer(idx).rd_write       := io.enq.lanes(w).rd_write
       buffer(idx).data           := 0.U
       buffer(idx).pd             := io.enq.lanes(w).pd
       buffer(idx).old_pd         := io.enq.lanes(w).old_pd
@@ -212,7 +214,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
       val idx   = indexFromNewest(d)
       val entry = buffer(idx)
 
-      matchVec(d) := entry.valid && entry.rd === rs && rs =/= 0.U
+      matchVec(d) := entry.valid && entry.rd_write && entry.rd === rs
       readyVec(d) := matchVec(d) && entry.ready
       dataVec(d)  := entry.data
     }
