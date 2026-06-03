@@ -1,4 +1,4 @@
-package arch.core.decoder
+package arch.core.decode
 
 import chisel3._
 import chisel3.util.BitPat

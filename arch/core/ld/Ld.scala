@@ -2,7 +2,6 @@ package arch.core.ld
 
 import arch.core.pma.PmaModeFactory
 import arch.core.fupool.FuResp
-import arch.core.imm.ImmIsaFactory
 import arch.core.uop.MicroOp
 import arch.core.fupool.FuIO
 import arch.configs._
@@ -32,7 +31,6 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
   override def desiredName: String = s"ld_${cfg.selector.canonicalName}"
 
   private val isaImpl = LdIsaFactory.select(cfg)
-  private val imm     = ImmIsaFactory.select(p(ISA).name)
   private val pma     = PmaModeFactory.select("default")
 
   private val state           = RegInit(LdState.IDLE)
@@ -49,7 +47,7 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
   private val reqWasCache     = RegInit(false.B)
 
   private val acceptCtrl          = isaImpl.decodeLoad(io.fu.req.bits.uop)
-  private val acceptImm           = imm.gen(io.fu.req.bits.instr, io.fu.req.bits.imm_type)
+  private val acceptImm           = io.fu.req.bits.imm
   private val acceptAddr          = io.fu.req.bits.rs1_data + acceptImm
   private val acceptAlignedAddr   = isaImpl.alignedAddr(acceptAddr)
   private val acceptLoadMask      = isaImpl.shiftedLoadMask(acceptCtrl, acceptAddr)

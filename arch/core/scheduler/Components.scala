@@ -22,12 +22,12 @@ class SchedulerCtrlIO extends Bundle {
 
 final class SchedulerContext(val io: SchedulerIO)(implicit p: Parameters) {
   val numRegs = p(NumArchRegs)
-  val RegIdxW = log2Ceil(p(NumArchRegs))
+  val regIdxW = log2Ceil(p(NumArchRegs))
 
   val fuTypes =
     p(FunctionalUnits).map(_.`type`.index.U(p(FuTypeWidth).W))
 
-  def isFuType(op: MicroOp, t: arch.core.fu.FunctionalUnitType): Bool =
+  def isFuType(op: MicroOp, t: FunctionalUnitType): Bool =
     op.fu_type === t.index.U(p(FuTypeWidth).W)
 
   def isLoad(op: MicroOp): Bool =

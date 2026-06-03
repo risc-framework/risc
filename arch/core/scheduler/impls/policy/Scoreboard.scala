@@ -1,12 +1,11 @@
 package arch.core.scheduler.impls.policy.scoreboard
 
 import arch.configs._
-import arch.core.regfile.RegfileIsaFactory
 import arch.core.scheduler._
 import arch.core.uop.MicroOp
 import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ Mux1H, PriorityEncoder }
+import chisel3.util.{ Mux1H, PriorityEncoder, log2Ceil }
 
 class ScoreboardEntry(implicit p: Parameters) extends Bundle {
   val valid = Bool()
@@ -28,10 +27,9 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
     override def value: String = "scoreboard"
 
     override def elaborate(io: SchedulerIO)(implicit p: Parameters): Unit = {
-      val ctx     = new SchedulerContext(io)
-      val regfile = RegfileIsaFactory.select(p(ISA).name)
+      val ctx = new SchedulerContext(io)
 
-      import ctx.{ numRegs, RegIdxW, fuTypes, olderLaneAccepted, defaultFuReqs, defaultDispatchReady }
+      import ctx.{ numRegs, fuTypes, olderLaneAccepted, defaultFuReqs, defaultDispatchReady }
 
       defaultFuReqs()
       defaultDispatchReady()
@@ -47,7 +45,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       val cdb_valid   = Wire(Vec(p(NumFUs), Bool()))
       val cdb_data    = Wire(Vec(p(NumFUs), UInt(p(XLen).W)))
       val cdb_rob_tag = Wire(Vec(p(NumFUs), UInt(p(RobTagWidth).W)))
-      val cdb_rd      = Wire(Vec(p(NumFUs), UInt(RegIdxW.W)))
+      val cdb_rd      = Wire(Vec(p(NumFUs), UInt(log2Ceil(p(NumArchRegs)).W)))
 
       for (i <- 0 until p(NumFUs)) {
         cdb_valid(i)   := io.fu.done(i).valid
@@ -67,7 +65,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         for (c <- 0 until p(NumFUs))
           hits(c) := cdb_valid(c) && reg_pending_valid(r) && reg_pending_rob(r) === cdb_rob_tag(
             c
-          ) && cdb_rd(c) === r.U && regfile.writable(r.U)
+          ) && cdb_rd(c) === r.U
 
         val hit = hits.asUInt.orR
 
@@ -160,7 +158,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
 
         val target_fu_idx = PriorityEncoder(fu_match_mask)
         val fu_available  = fu_match_mask.asUInt.orR
-        val writes_rd     = op.rd_valid && regfile.writable(op.rd)
+        val writes_rd     = op.rd_write
         val prev_ok       = olderLaneAccepted(w, accepted)
         val can_accept    = fu_available && prev_ok
 
@@ -194,7 +192,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
 
           temp_seq(w + 1) := temp_seq(w) + 1.U
 
-          val r1_used      = op.rs1_valid && regfile.readable(op.rs1)
+          val r1_used      = op.rs1_read
           val r1_pending   = r1_used && temp_pending_valid(w)(op.rs1)
           val r1_completed = r1_used && !r1_pending && temp_completed_valid(w)(op.rs1)
           val r1_rob_tag   = temp_pending_rob(w)(op.rs1)
@@ -214,7 +212,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
             Mux(r1_completed, temp_completed_data(w)(op.rs1), op.rs1_data)
           )
 
-          val r2_used      = op.rs2_valid && regfile.readable(op.rs2)
+          val r2_used      = op.rs2_read
           val r2_pending   = r2_used && temp_pending_valid(w)(op.rs2)
           val r2_completed = r2_used && !r2_pending && temp_completed_valid(w)(op.rs2)
           val r2_rob_tag   = temp_pending_rob(w)(op.rs2)

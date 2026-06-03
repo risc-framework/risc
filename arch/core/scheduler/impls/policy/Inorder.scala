@@ -1,7 +1,6 @@
 package arch.core.scheduler.impls.policy.inorder
 
 import arch.configs._
-import arch.core.regfile.RegfileIsaFactory
 import arch.core.scheduler._
 import arch.core.uop.MicroOp
 import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
@@ -13,8 +12,7 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
     override def value: String = "in-order"
 
     override def elaborate(io: SchedulerIO)(implicit p: Parameters): Unit = {
-      val ctx     = new SchedulerContext(io)
-      val regfile = RegfileIsaFactory.select(p(ISA).name)
+      val ctx = new SchedulerContext(io)
 
       import ctx.{ numRegs, selectFu, olderLaneAccepted, defaultFuReqs, defaultDispatchReady }
 
@@ -31,9 +29,7 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
 
       for (r <- 0 until numRegs) {
         for (f <- 0 until p(NumFUs))
-          cdb_hit(r)(f) := io.fu.done(f).valid && io.fu.done(f).bits.rd === r.U && regfile.writable(
-            r.U
-          )
+          cdb_hit(r)(f) := io.fu.done(f).valid && io.fu.done(f).bits.rd === r.U
 
         cdb_valid(r) := cdb_hit(r).asUInt.orR
         cdb_data(r)  := Mux1H(cdb_hit(r), io.fu.done.map(_.bits.result))
@@ -58,9 +54,9 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
         val dis = io.dispatch.reqs(w)
         val op  = dis.bits
 
-        val rs1_used = op.rs1_valid && regfile.readable(op.rs1)
-        val rs2_used = op.rs2_valid && regfile.readable(op.rs2)
-        val rd_used  = op.rd_valid && regfile.writable(op.rd)
+        val rs1_used = op.rs1_read
+        val rs2_used = op.rs2_read
+        val rd_used  = op.rd_write
 
         val rs1_haz = rs1_used && temp_pending(w)(op.rs1)
         val rs2_haz = rs2_used && temp_pending(w)(op.rs2)

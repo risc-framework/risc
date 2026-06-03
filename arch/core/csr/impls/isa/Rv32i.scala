@@ -201,13 +201,13 @@ object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConst
     }
 
     override def isTrapReturn(instr: UInt, uop: UInt): Bool =
-      isInstr("MRET", instr)
+      isInstr(instr, "MRET")
 
     override def hasSyncException(instr: UInt, uop: UInt): Bool =
-      isInstr("ECALL", instr) || isInstr("EBREAK", instr)
+      isInstr(instr, "ECALL") || isInstr(instr, "EBREAK")
 
     override def syncExceptionCause(instr: UInt, uop: UInt)(implicit p: Parameters): UInt = {
-      val isEbreak = isInstr("EBREAK", instr)
+      val isEbreak = isInstr(instr, "EBREAK")
       Mux(isEbreak, 3.U(p(XLen).W), 11.U(p(XLen).W))
     }
   }

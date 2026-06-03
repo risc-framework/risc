@@ -1,20 +1,11 @@
 package arch.core.regfile.impls.isa.rv32i
 
-import arch.configs._
 import arch.core.regfile._
 import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
-import chisel3._
 
 object RegfileRv32iIsa extends RegisteredNodeUtils[RegfileIsaImpl] {
   override def utils: RegfileIsaImpl = new RegfileIsaImpl {
     override def value: String = "rv32i"
-
-    override def getRs1(instr: UInt): UInt = instr(19, 15)
-    override def getRs2(instr: UInt): UInt = instr(24, 20)
-    override def getRd(instr: UInt): UInt  = instr(11, 7)
-
-    override def readable(addr: UInt)(implicit p: Parameters): Bool = addr =/= 0.U
-    override def writable(addr: UInt)(implicit p: Parameters): Bool = addr =/= 0.U
 
     override def regName(addr: Int): String =
       addr match {

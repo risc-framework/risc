@@ -3,8 +3,8 @@ package arch.core.csr.impls.isa.rv32im
 import arch.configs._
 import arch.core.csr._
 import arch.core.csr.impls.isa.rv32i.CsrRv32iIsa
-import chisel3._
 import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import chisel3._
 
 object CsrRv32imIsa extends RegisteredNodeUtils[CsrIsaImpl] {
   override def utils: CsrIsaImpl = new CsrIsaImpl {

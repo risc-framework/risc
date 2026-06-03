@@ -3,9 +3,8 @@ package arch
 import arch.core.alu.AluInit
 import arch.core.bpu.BpuInit
 import arch.core.bru.BruInit
-import arch.core.decoder.DecoderInit
+import arch.core.decode.DecodeInit
 import arch.core.div.DivInit
-import arch.core.imm.ImmInit
 import arch.core.pma.PmaInit
 import arch.core.ld.LdInit
 import arch.core.mult.MultInit
@@ -23,8 +22,7 @@ import cpp.CppCodegen
 import vutils._
 
 object MainSystem extends App {
-  ImmInit
-  DecoderInit
+  DecodeInit
   BruInit
   BpuInit
   RegfileInit

@@ -2,7 +2,6 @@ package arch.core.st
 
 import arch.core.pma.PmaModeFactory
 import arch.core.fupool.FuResp
-import arch.core.imm.ImmIsaFactory
 import arch.core.uop.MicroOp
 import arch.core.fupool.FuIO
 import arch.configs._
@@ -30,13 +29,12 @@ class St(implicit p: Parameters) extends Node(new StIO) {
   override def desiredName: String = s"st_${cfg.selector.canonicalName}"
 
   private val isaImpl = StIsaFactory.select(cfg)
-  private val imm     = ImmIsaFactory.select(p(ISA).name)
   private val pma     = PmaModeFactory.select("default")
   private val state   = RegInit(StState.IDLE)
   private val uopReg  = Reg(new MicroOp)
 
   private val ctrl        = isaImpl.decodeStore(uopReg.uop)
-  private val addr        = uopReg.rs1_data + imm.gen(uopReg.instr, uopReg.imm_type)
+  private val addr        = uopReg.rs1_data + uopReg.imm
   private val alignedAddr = isaImpl.alignedAddr(addr)
   private val storeData   = isaImpl.alignedStoreData(ctrl, addr, uopReg.rs2_data)
   private val storeMask   = isaImpl.shiftedStoreMask(ctrl, addr)

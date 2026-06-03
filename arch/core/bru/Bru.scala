@@ -1,7 +1,6 @@
 package arch.core.bru
 
 import arch.core.fupool.{ FuIO, FuResp }
-import arch.core.imm.ImmIsaFactory
 import arch.core.uop.MicroOp
 import arch.configs._
 import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
@@ -23,7 +22,6 @@ class Bru(implicit p: Parameters) extends Node(new BruIO) {
   override def desiredName: String = s"bru_${cfg.selector.canonicalName}"
 
   private val isaImpl  = BruIsaFactory.select(cfg)
-  private val imm      = ImmIsaFactory.select(p(ISA).name)
   private val validReg = RegInit(false.B)
   private val uopReg   = Reg(new MicroOp)
 
@@ -40,7 +38,7 @@ class Bru(implicit p: Parameters) extends Node(new BruIO) {
   }
 
   private val ctrl          = isaImpl.decode(uopReg.uop)
-  private val immValue      = imm.gen(uopReg.instr, uopReg.imm_type)
+  private val immValue      = uopReg.imm
   private val branchTaken   = isaImpl.taken(uopReg.rs1_data, uopReg.rs2_data, ctrl.op)
   private val resolvedTaken = ctrl.is_jump || branchTaken
   private val branchTarget  = isaImpl.target(uopReg.pc, uopReg.rs1_data, immValue, ctrl)

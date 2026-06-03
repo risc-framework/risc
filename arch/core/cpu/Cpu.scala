@@ -2,7 +2,7 @@ package arch.core.cpu
 
 import arch.core.bpu.Bpu
 import arch.core.csr.{ CsrTrapView, InterruptLines }
-import arch.core.decoder.Decoder
+import arch.core.decode.Decode
 import arch.core.exception.{ Exception, RedirectBundle }
 import arch.core.fupool.FuPool
 import arch.core.ifu.Ifu
@@ -38,7 +38,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   private val bpu           = Module(new Bpu)
   private val ifu           = Module(new Ifu)
-  private val decoder       = Module(new Decoder)
+  private val decode        = Module(new Decode)
   private val regfile       = Module(new Regfile)
   private val scheduler     = Module(new Scheduler)
   private val fuPool        = Module(new FuPool)
@@ -161,42 +161,44 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   rob.io.ctrl.flush         := globalFlush
   storeBuffer.io.ctrl.flush := globalFlush
 
+  decode.io.in <> ifu.io.dispatch.out
+
   private val rs1s = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
   private val rs2s = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
   private val rds  = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
 
-  private val isStore        = Wire(Vec(p(IssueWidth), Bool()))
-  private val decodedRdValid = Wire(Vec(p(IssueWidth), Bool()))
+  private val isStore = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
-    decoder.io.decode.instr(w) := ifu.io.dispatch.out(w).bits.instr
-    regfile.io.decode.instr(w) := ifu.io.dispatch.out(w).bits.instr
+    val dec = decode.io.out(w).bits
 
-    rs1s(w) := regfile.io.decode.rs1_addr(w)
-    rs2s(w) := regfile.io.decode.rs2_addr(w)
-    rds(w)  := regfile.io.decode.rd_addr(w)
+    rs1s(w) := dec.rs1
+    rs2s(w) := dec.rs2
+    rds(w)  := dec.rd
 
-    regfile.io.read.rs1_addr(w) := rs1s(w)
-    regfile.io.read.rs2_addr(w) := rs2s(w)
+    regfile.io.read.rs1_addr(w) := dec.rs1
+    regfile.io.read.rs2_addr(w) := dec.rs2
 
-    rob.io.bypass.rs1_addr(w) := rs1s(w)
-    rob.io.bypass.rs2_addr(w) := rs2s(w)
+    rob.io.bypass.rs1_addr(w) := dec.rs1
+    rob.io.bypass.rs2_addr(w) := dec.rs2
 
-    isStore(w)        := decoder.io.decode.out(w).isStore
-    decodedRdValid(w) := decoder.io.decode.out(w).rd_valid && rds(w) =/= 0.U
+    isStore(w) := dec.isStore
   }
 
   private val killMask = Wire(Vec(p(IssueWidth), Bool()))
 
   killMask(0) := false.B
 
-  for (w <- 1 until p(IssueWidth))
-    killMask(w) := killMask(w - 1) || (ifu.io.dispatch.out(w - 1).valid && ifu.io.dispatch
-      .out(w - 1)
-      .bits
-      .bpu_pred_taken && ifu.io.dispatch.out(w).bits.pc === ifu.io.dispatch.out(w - 1).bits.pc + p(
-      PCStep
-    ).U)
+  for (w <- 1 until p(IssueWidth)) {
+    val prev = decode.io.out(w - 1)
+    val cur  = decode.io.out(w)
+
+    killMask(w) := killMask(w - 1) || (
+      prev.valid &&
+        prev.bits.bpu_pred_taken &&
+        cur.bits.pc === prev.bits.pc + p(PCStep).U
+    )
+  }
 
   private val possibleStoreBeforeOrAt = Wire(
     Vec(p(IssueWidth), UInt(log2Ceil(p(IssueWidth) + 1).W))
@@ -204,7 +206,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   for (w <- 0 until p(IssueWidth))
     possibleStoreBeforeOrAt(w) := PopCount(
-      (0 to w).map(v => ifu.io.dispatch.out(v).valid && isStore(v) && !killMask(v) && !globalFlush)
+      (0 to w).map(v => decode.io.out(v).valid && isStore(v) && !killMask(v) && !globalFlush)
     )
 
   private val laneBaseReqOk = Wire(Vec(p(IssueWidth), Bool()))
@@ -212,17 +214,20 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   private val coreValidReq  = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
+    val dec      = decode.io.out(w).bits
     val sqSlotOk = !isStore(w) || possibleStoreBeforeOrAt(w) <= storeBuffer.io.state.freeCount
-    laneBaseReqOk(w) := ifu.io.dispatch.out(w).valid && decoder.io.decode
-      .out(w)
-      .legal && !globalFlush && !killMask(w) && sqSlotOk && rob.io.enq.lanes(w).ready
+
+    laneBaseReqOk(w) := decode.io.out(w).valid && dec.legal && !globalFlush && !killMask(
+      w
+    ) && sqSlotOk && rob.io.enq.lanes(w).ready
   }
 
   lanePrefixOk(0) := true.B
 
   for (w <- 1 until p(IssueWidth)) {
-    val olderLaneMayBeSkipped   = !ifu.io.dispatch.out(w - 1).valid || killMask(w - 1) || globalFlush
+    val olderLaneMayBeSkipped   = !decode.io.out(w - 1).valid || killMask(w - 1) || globalFlush
     val olderLaneCanBePresented = laneBaseReqOk(w - 1)
+
     lanePrefixOk(w) := lanePrefixOk(w - 1) && (olderLaneMayBeSkipped || olderLaneCanBePresented)
   }
 
@@ -234,6 +239,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   private def sqWrapAdd(x: UInt, y: UInt): UInt = {
     val idxW = log2Ceil(p(StoreBufferSize))
     val sum  = x +& y
+
     Mux(sum >= p(StoreBufferSize).U, sum - p(StoreBufferSize).U, sum)(idxW - 1, 0)
   }
 
@@ -250,6 +256,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     sqSeqForLane(w) := sqSeqAfter(w)
 
     val allocStore = laneValid(w) && isStore(w)
+
     sqTailAfter(w + 1) := Mux(allocStore, sqWrapAdd(sqTailAfter(w), 1.U), sqTailAfter(w))
     sqSeqAfter(w + 1)  := sqSeqAfter(w) + allocStore.asUInt
   }
@@ -288,6 +295,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   }
 
   for (w <- 0 until p(IssueWidth)) {
+    val dec              = decode.io.out(w).bits
     val rs1Bypassed      = Mux(
       rob.io.bypass.rs1_bypass(w).valid,
       rob.io.bypass.rs1_bypass(w).data,
@@ -302,54 +310,56 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     val rs2FullyBypassed = Mux(rs2CommitMatch(w), rs2CommitData(w), rs2Bypassed)
     val dis              = scheduler.io.dispatch.reqs(w)
 
-    dis.valid          := coreValidReq(w)
-    dis.bits.pc        := ifu.io.dispatch.out(w).bits.pc
-    dis.bits.instr     := ifu.io.dispatch.out(w).bits.instr
-    dis.bits.fu_type   := decoder.io.decode.out(w).fu_type
-    dis.bits.fu_id     := 0.U
-    dis.bits.uop       := decoder.io.decode.out(w).uop
-    dis.bits.imm_type  := decoder.io.decode.out(w).imm_type
-    dis.bits.rs1       := rs1s(w)
-    dis.bits.rs2       := rs2s(w)
-    dis.bits.rd        := Mux(decodedRdValid(w), rds(w), 0.U)
-    dis.bits.rs1_valid := decoder.io.decode.out(w).rs1_valid
-    dis.bits.rs2_valid := decoder.io.decode.out(w).rs2_valid
-    dis.bits.rd_valid  := decodedRdValid(w)
-    dis.bits.rs1_data  := rs1FullyBypassed
-    dis.bits.rs2_data  := rs2FullyBypassed
-    dis.bits.rob_tag   := rob.io.enq.lanes(w).rob_tag
-    dis.bits.sq_idx    := sqIdxForLane(w)
-    dis.bits.sq_seq    := sqSeqForLane(w)
+    dis.valid         := coreValidReq(w)
+    dis.bits.pc       := dec.pc
+    dis.bits.instr    := dec.instr
+    dis.bits.fu_type  := dec.fu_type
+    dis.bits.fu_id    := 0.U
+    dis.bits.uop      := dec.uop
+    dis.bits.imm      := dec.imm
+    dis.bits.rs1      := dec.rs1
+    dis.bits.rs2      := dec.rs2
+    dis.bits.rd       := Mux(dec.rd_write, dec.rd, 0.U)
+    dis.bits.rs1_read := dec.rs1_read
+    dis.bits.rs2_read := dec.rs2_read
+    dis.bits.rd_write := dec.rd_write
+    dis.bits.rs1_data := rs1FullyBypassed
+    dis.bits.rs2_data := rs2FullyBypassed
+    dis.bits.rob_tag  := rob.io.enq.lanes(w).rob_tag
+    dis.bits.sq_idx   := sqIdxForLane(w)
+    dis.bits.sq_seq   := sqSeqForLane(w)
 
     laneValid(w) := dis.fire
   }
 
   for (w <- 0 until p(IssueWidth)) {
+    val dec = decode.io.out(w).bits
+
     rob.io.enq.lanes(w).valid            := laneValid(w)
-    rob.io.enq.lanes(w).pc               := ifu.io.dispatch.out(w).bits.pc
-    rob.io.enq.lanes(w).instr            := ifu.io.dispatch.out(w).bits.instr
-    rob.io.enq.lanes(w).rd               := Mux(decodedRdValid(w), rds(w), 0.U)
+    rob.io.enq.lanes(w).pc               := dec.pc
+    rob.io.enq.lanes(w).instr            := dec.instr
+    rob.io.enq.lanes(w).rd               := Mux(dec.rd_write, dec.rd, 0.U)
     rob.io.enq.lanes(w).pd               := 0.U
     rob.io.enq.lanes(w).old_pd           := 0.U
-    rob.io.enq.lanes(w).is_branch        := decoder.io.decode.out(w).isBru
+    rob.io.enq.lanes(w).is_branch        := dec.isBru
     rob.io.enq.lanes(w).is_store         := isStore(w)
-    rob.io.enq.lanes(w).commit_barrier   := decoder.io.decode.out(w).commit_barrier
-    rob.io.enq.lanes(w).bpu_pred_taken   := ifu.io.dispatch.out(w).bits.bpu_pred_taken
-    rob.io.enq.lanes(w).bpu_pred_target  := ifu.io.dispatch.out(w).bits.bpu_pred_target
-    rob.io.enq.lanes(w).bpu_pht_index    := ifu.io.dispatch.out(w).bits.bpu_pht_index
-    rob.io.enq.lanes(w).bpu_ghr_snapshot := ifu.io.dispatch.out(w).bits.bpu_ghr_snapshot
+    rob.io.enq.lanes(w).commit_barrier   := dec.commit_barrier
+    rob.io.enq.lanes(w).bpu_pred_taken   := dec.bpu_pred_taken
+    rob.io.enq.lanes(w).bpu_pred_target  := dec.bpu_pred_target
+    rob.io.enq.lanes(w).bpu_pht_index    := dec.bpu_pht_index
+    rob.io.enq.lanes(w).bpu_ghr_snapshot := dec.bpu_ghr_snapshot
     rob.io.enq.lanes(w).sq_idx           := sqIdxForLane(w)
   }
 
-  private val ifuReady = Wire(Vec(p(IssueWidth), Bool()))
+  private val decodeReady = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
     val consumeThisLane = globalFlush || killMask(w) || laneValid(w)
 
-    if (w == 0) ifuReady(w) := consumeThisLane
-    else ifuReady(w)        := ifu.io.dispatch.out(w - 1).fire && consumeThisLane
+    if (w == 0) decodeReady(w) := consumeThisLane
+    else decodeReady(w)        := decode.io.out(w - 1).fire && consumeThisLane
 
-    ifu.io.dispatch.out(w).ready := ifuReady(w)
+    decode.io.out(w).ready := decodeReady(w)
   }
 
   private val commitRegWe   = Wire(Vec(p(IssueWidth), Bool()))
@@ -421,11 +431,11 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   io.debug.l1_dcache_miss   := !l1DCache.upper.resp.bits.hit
   io.debug.bpu_mispredict   := (0 until p(IssueWidth))
     .map(w =>
-      rob.io.commit.lanes(w).pop && (rob.io.commit.lanes(w).is_branch || (!rob.io.commit
-        .lanes(w)
-        .is_branch && rob.io.commit.lanes(w).bpu_pred_taken)) && rob.io.commit
-        .lanes(w)
-        .flush_pipeline
+      rob.io.commit.lanes(w).pop &&
+        (rob.io.commit.lanes(w).is_branch || (!rob.io.commit
+          .lanes(w)
+          .is_branch && rob.io.commit.lanes(w).bpu_pred_taken)) &&
+        rob.io.commit.lanes(w).flush_pipeline
     )
     .reduce(_ || _)
   io.debug.branch_commit    := PopCount(

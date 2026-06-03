@@ -1,6 +1,5 @@
 package arch.core.alu.impls.isa.rv32i
 
-import arch.core.imm.ImmIsaFactory
 import arch.core.uop.MicroOp
 import arch.core.alu._
 import arch.configs._
@@ -67,7 +66,6 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
     }
 
     override def execute(uop: MicroOp)(implicit p: Parameters): UInt = {
-      val imm  = ImmIsaFactory.select(p(ISA).name)
       val ctrl = decode(uop.uop)
 
       val src1 = MuxLookup(ctrl.sel1, 0.U(p(XLen).W))(
@@ -82,7 +80,7 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
         Seq(
           A2_ZERO.value.U(SZ_A2.W)   -> 0.U(p(XLen).W),
           A2_RS2.value.U(SZ_A2.W)    -> uop.rs2_data,
-          A2_IMM.value.U(SZ_A2.W)    -> imm.gen(uop.instr, uop.imm_type),
+          A2_IMM.value.U(SZ_A2.W)    -> uop.imm,
           A2_PCSTEP.value.U(SZ_A2.W) -> p(PCStep).U(p(XLen).W)
         )
       )

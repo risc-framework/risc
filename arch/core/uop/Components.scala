@@ -1,30 +1,27 @@
 package arch.core.uop
 
 import arch.core.fu.FunctionalUnitType
-import arch.core.imm.ImmIsaFactory
 import arch.configs._
 import chisel3._
 import chisel3.util.log2Ceil
 
 class MicroOp(implicit p: Parameters) extends Bundle {
-  private val imm = ImmIsaFactory.select(p(ISA).name)
-
   val pc    = UInt(p(XLen).W)
   val instr = UInt(p(ILen).W)
 
   val fu_type = UInt(log2Ceil(FunctionalUnitType.values.size).W)
   val fu_id   = UInt(log2Ceil(p(NumFUs)).W)
 
-  val uop      = UInt(p(MicroOpWidth).W)
-  val imm_type = UInt(imm.immTypeWidth.W)
+  val uop = UInt(p(MicroOpWidth).W)
+  val imm = UInt(p(XLen).W)
 
   val rs1 = UInt(log2Ceil(p(NumArchRegs)).W)
   val rs2 = UInt(log2Ceil(p(NumArchRegs)).W)
   val rd  = UInt(log2Ceil(p(NumArchRegs)).W)
 
-  val rs1_valid = Bool()
-  val rs2_valid = Bool()
-  val rd_valid  = Bool()
+  val rs1_read = Bool()
+  val rs2_read = Bool()
+  val rd_write = Bool()
 
   val rs1_data = UInt(p(XLen).W)
   val rs2_data = UInt(p(XLen).W)
