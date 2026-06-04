@@ -15,7 +15,6 @@ object CsrRv32imIsa extends RegisteredNodeUtils[CsrIsaImpl] {
     override def opWidth: Int   = rv32i.opWidth
 
     override def getAddr(instr: UInt)(implicit p: Parameters): UInt = rv32i.getAddr(instr)
-    override def genImm(instr: UInt)(implicit p: Parameters): UInt  = rv32i.genImm(instr)
     override def decode(uop: UInt): CsrCtrl                         = rv32i.decode(uop)
 
     override def fn(op: UInt, csrData: UInt, srcData: UInt)(implicit p: Parameters): UInt =

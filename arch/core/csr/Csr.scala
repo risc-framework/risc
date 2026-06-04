@@ -83,7 +83,7 @@ class Csr(implicit p: Parameters) extends Node(new CsrIO) {
   private val wrHits   = csrTable.zip(hits).map { case ((reg, _), hit) => hit && reg.writable.B }
   private val wrHitAny = wrHits.reduce(_ || _)
   private val wrAllow  = hitAny && wrHitAny && !ctrl.is_sys
-  private val srcData  = Mux(ctrl.is_imm, isaImpl.genImm(activeInstr), uopReg.rs1_data)
+  private val srcData  = Mux(ctrl.is_imm, uopReg.imm, uopReg.rs1_data)
 
   private val trapUpdates = isaImpl.trapEntryUpdates(regNameMap, trapUpdate.pc, trapUpdate.cause)
   private val retUpdates  = isaImpl.trapReturnUpdates(regNameMap)

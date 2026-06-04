@@ -12,7 +12,7 @@ package object configs {
 
   // --------------------------------------------
   // Architecture Parameters
-  object ISA         extends Field[IsaWrapper](RV32IM)
+  object ISA         extends Field[Isa](RV32IM.isa)
   object Frequency   extends Field[Long](50_000_000L) // NOTE: default: 50MHZ
   object EnableDebug extends Field[Boolean](true)
 

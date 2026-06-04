@@ -20,21 +20,8 @@ trait Rv32imDecodeConsts
 }
 
 object DecodeRv32imIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32imDecodeConsts {
-  private val allEncodings =
-    RV32IM.isa.instrSet.map(s => s.nop.toSeq ++ s.encodings).getOrElse(Seq.empty)
-
-  private def enc(name: String)(implicit p: Parameters): BitPat = {
-    val e    = allEncodings
-      .find(_.name == name)
-      .getOrElse(throw new NoSuchElementException(s"Instruction '$name' not found in RV32I"))
-    val bits = (p(ILen) - 1 to 0 by -1).map { i =>
-      val valueBit = (e.value >> i) & 1
-      val maskBit  = (e.mask >> i) & 1
-      if (maskBit == 1) valueBit.toString else "?"
-    }.mkString
-
-    BitPat("b" + bits)
-  }
+  private def enc(name: String): BitPat =
+    RV32IM.isa.bitPat(name)
 
   override def utils: DecodeIsaImpl = new DecodeIsaImpl {
     private val rv32i = DecodeRv32iIsa.utils

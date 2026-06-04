@@ -79,11 +79,6 @@ object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConst
     override def getAddr(instr: UInt)(implicit p: Parameters): UInt =
       instr(31, 20)
 
-    override def genImm(instr: UInt)(implicit p: Parameters): UInt = {
-      val zimm = instr(19, 15)
-      Cat(0.U((p(XLen) - 5).W), zimm)
-    }
-
     override def decode(uop: UInt): CsrCtrl = {
       val ctrl = Wire(new CsrCtrl(opWidth))
       ctrl.is_sys := uop(3)

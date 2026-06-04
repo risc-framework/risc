@@ -23,7 +23,6 @@ trait CsrIsaImpl extends NodeDimensionImpl {
   def opWidth: Int
 
   def getAddr(instr: UInt)(implicit p: Parameters): UInt
-  def genImm(instr: UInt)(implicit p: Parameters): UInt
   def decode(uop: UInt): CsrCtrl
   def fn(op: UInt, csrData: UInt, srcData: UInt)(implicit p: Parameters): UInt
   def table(implicit p: Parameters): Seq[(CsrRegister, CsrUpdateBehavior)]
