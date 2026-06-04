@@ -19,11 +19,19 @@ verilate(demu
     -Wno-PINCONNECTEMPTY
     -j 0
     --top-module ${TOP_MODULE}
-    -CFLAGS "-Wno-unused-variable -Wno-bool-operation -Wno-parentheses-equality"
+
+    --x-assign fast
+    --x-initial fast
+    --noassert
+    --inline-mult 0
+    --unroll-count 256
+    --unroll-stmts 100000
 
     --output-split 2000
     --output-split-cfuncs 2000
     --output-split-ctrace 2000
+
+    -CFLAGS "-O3 -march=native -funroll-loops -fomit-frame-pointer -Wno-unused-variable -Wno-bool-operation -Wno-parentheses-equality"
 
   PREFIX V${TOP_MODULE}
   TRACE_THREADS ${NUM_TRACE_THREADS}
