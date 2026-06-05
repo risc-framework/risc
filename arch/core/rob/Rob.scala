@@ -144,10 +144,10 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
       olderFires := PopCount((0 until w).map(i => enqFire(i)))
     }
 
-    io.enq.lanes(w).ready := availableSlotsAfterCommit > olderFires
-    enqFire(w)            := io.enq.lanes(w).valid && io.enq.lanes(w).ready
-    enqOffset(w)          := olderFires(p(RobTagWidth) - 1, 0)
-    enqIdx(w)             := wrapAdd(tail, enqOffset(w))
+    io.enq.lanes(w).req.ready := availableSlotsAfterCommit > olderFires
+    enqFire(w)                := io.enq.lanes(w).req.valid && io.enq.lanes(w).req.ready
+    enqOffset(w)              := olderFires(p(RobTagWidth) - 1, 0)
+    enqIdx(w)                 := wrapAdd(tail, enqOffset(w))
 
     io.enq.lanes(w).rob_tag := enqIdx(w)
   }
@@ -162,26 +162,28 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   for (w <- 0 until p(IssueWidth))
     when(enqFire(w)) {
       val idx = enqIdx(w)
+      val pkt = io.enq.lanes(w).req.bits
+      val dec = pkt.decoded
 
       buffer(idx).valid          := true.B
       buffer(idx).ready          := false.B
-      buffer(idx).pc             := io.enq.lanes(w).pc
-      buffer(idx).instr          := io.enq.lanes(w).instr
-      buffer(idx).rd             := io.enq.lanes(w).rd
-      buffer(idx).rd_write       := io.enq.lanes(w).rd_write
+      buffer(idx).pc             := dec.pc
+      buffer(idx).instr          := dec.instr
+      buffer(idx).rd             := dec.rd
+      buffer(idx).rd_write       := dec.rd_write
       buffer(idx).data           := 0.U
-      buffer(idx).is_branch      := io.enq.lanes(w).is_branch
-      buffer(idx).is_store       := io.enq.lanes(w).is_store
-      buffer(idx).commit_barrier := io.enq.lanes(w).commit_barrier
-      buffer(idx).pred_taken     := io.enq.lanes(w).bpu_pred_taken
-      buffer(idx).pred_target    := io.enq.lanes(w).bpu_pred_target
-      buffer(idx).pht_index      := io.enq.lanes(w).bpu_pht_index
-      buffer(idx).ghr_snapshot   := io.enq.lanes(w).bpu_ghr_snapshot
+      buffer(idx).is_branch      := dec.isBru
+      buffer(idx).is_store       := dec.isStore
+      buffer(idx).commit_barrier := dec.commit_barrier
+      buffer(idx).pred_taken     := dec.bpu_pred_taken
+      buffer(idx).pred_target    := dec.bpu_pred_target
+      buffer(idx).pht_index      := dec.bpu_pht_index
+      buffer(idx).ghr_snapshot   := dec.bpu_ghr_snapshot
       buffer(idx).actual_taken   := false.B
       buffer(idx).actual_target  := 0.U
       buffer(idx).flush_pipeline := false.B
       buffer(idx).flush_target   := 0.U
-      buffer(idx).sq_idx         := io.enq.lanes(w).sq_idx
+      buffer(idx).sq_idx         := pkt.sq_idx
     }
 
   head  := wrapAdd(head, commitCount)

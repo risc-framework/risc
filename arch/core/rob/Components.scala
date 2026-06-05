@@ -1,26 +1,19 @@
 package arch.core.rob
 
 import arch.core.bru.BruResolveIO
+import arch.core.decode.DecodedPacket
 import arch.configs._
 import chisel3._
-import chisel3.util.log2Ceil
+import chisel3.util.{ Decoupled, log2Ceil }
+
+class RobEnqPacket(implicit p: Parameters) extends Bundle {
+  val decoded = new DecodedPacket
+  val sq_idx  = UInt(log2Ceil(p(StoreBufferSize)).W)
+}
 
 class RobEnqIO(implicit p: Parameters) extends Bundle {
-  val valid            = Input(Bool())
-  val ready            = Output(Bool())
-  val pc               = Input(UInt(p(XLen).W))
-  val instr            = Input(UInt(p(ILen).W))
-  val rd               = Input(UInt(log2Ceil(p(NumArchRegs)).W))
-  val rd_write         = Input(Bool())
-  val is_branch        = Input(Bool())
-  val is_store         = Input(Bool())
-  val commit_barrier   = Input(Bool())
-  val bpu_pred_taken   = Input(Bool())
-  val bpu_pred_target  = Input(UInt(p(XLen).W))
-  val bpu_pht_index    = Input(UInt(p(GShareGhrWidth).W))
-  val bpu_ghr_snapshot = Input(UInt(p(GShareGhrWidth).W))
-  val rob_tag          = Output(UInt(p(RobTagWidth).W))
-  val sq_idx           = Input(UInt(log2Ceil(p(StoreBufferSize)).W))
+  val req     = Flipped(Decoupled(new RobEnqPacket))
+  val rob_tag = Output(UInt(p(RobTagWidth).W))
 }
 
 class RobWbIO(implicit p: Parameters) extends Bundle {

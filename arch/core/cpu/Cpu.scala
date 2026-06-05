@@ -192,7 +192,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
     laneBaseReqOk(w) := decode.io
       .out(w)
-      .valid && dec.legal && !globalFlush && sqSlotOk && rob.io.enq.lanes(w).ready
+      .valid && dec.legal && !globalFlush && sqSlotOk && rob.io.enq.lanes(w).req.ready
   }
 
   lanePrefixOk(0) := true.B
@@ -309,21 +309,9 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    val dec = decode.io.out(w).bits
-
-    rob.io.enq.lanes(w).valid            := scheduler.io.dispatch.reqs(w).fire
-    rob.io.enq.lanes(w).pc               := dec.pc
-    rob.io.enq.lanes(w).instr            := dec.instr
-    rob.io.enq.lanes(w).rd               := dec.rd
-    rob.io.enq.lanes(w).rd_write         := dec.rd_write
-    rob.io.enq.lanes(w).is_branch        := dec.isBru
-    rob.io.enq.lanes(w).is_store         := dec.isStore
-    rob.io.enq.lanes(w).commit_barrier   := dec.commit_barrier
-    rob.io.enq.lanes(w).bpu_pred_taken   := dec.bpu_pred_taken
-    rob.io.enq.lanes(w).bpu_pred_target  := dec.bpu_pred_target
-    rob.io.enq.lanes(w).bpu_pht_index    := dec.bpu_pht_index
-    rob.io.enq.lanes(w).bpu_ghr_snapshot := dec.bpu_ghr_snapshot
-    rob.io.enq.lanes(w).sq_idx           := sqIdxForLane(w)
+    rob.io.enq.lanes(w).req.valid        := scheduler.io.dispatch.reqs(w).fire
+    rob.io.enq.lanes(w).req.bits.decoded := decode.io.out(w).bits
+    rob.io.enq.lanes(w).req.bits.sq_idx  := sqIdxForLane(w)
   }
 
   private val decodeReady = Wire(Vec(p(IssueWidth), Bool()))
