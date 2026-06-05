@@ -7,12 +7,12 @@ import vutils.graph.{ Node, NodeType }
 import chisel3._
 
 class DispatchIO(implicit p: Parameters) extends Bundle {
-  val decode      = new DispatchDecodeIO
-  val regfile     = new DispatchRegfileIO
-  val rob         = new DispatchRobIO
-  val storeBuffer = new DispatchStoreBufferIO
-  val scheduler   = Flipped(new SchedulerDispatchIO)
-  val exception   = new DispatchExceptionIO
+  val decode       = new DispatchDecodeIO
+  val regfile      = new DispatchRegfileIO
+  val rob          = new DispatchRobIO
+  val store_buffer = new DispatchStoreBufferIO
+  val scheduler    = Flipped(new SchedulerDispatchIO)
+  val exception    = new DispatchExceptionIO
 }
 
 class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
@@ -29,17 +29,17 @@ class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
     io.regfile.rs1_addr(w) := dec.rs1
     io.regfile.rs2_addr(w) := dec.rs2
 
-    io.storeBuffer.lanes(w).valid   := io.decode.lanes(w).valid
-    io.storeBuffer.lanes(w).bits    := dec
-    io.storeBuffer.lanes(w).rob_tag := io.rob.lanes(w).rob_tag
+    io.store_buffer.lanes(w).valid   := io.decode.lanes(w).valid
+    io.store_buffer.lanes(w).bits    := dec
+    io.store_buffer.lanes(w).rob_tag := io.rob.lanes(w).rob_tag
 
     io.rob.lanes(w).req.bits.decoded := dec
-    io.rob.lanes(w).req.bits.sq_idx  := io.storeBuffer.lanes(w).ticket.sq_idx
+    io.rob.lanes(w).req.bits.sq_idx  := io.store_buffer.lanes(w).ticket.sq_idx
 
     laneBaseReqOk(w) := io.decode.lanes(w).valid &&
       dec.legal &&
       !io.exception.flush &&
-      io.storeBuffer.lanes(w).ready &&
+      io.store_buffer.lanes(w).ready &&
       io.rob.lanes(w).req.ready
   }
 
@@ -79,14 +79,14 @@ class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
     issueOp.rs1_data := rs1Bypassed
     issueOp.rs2_data := rs2Bypassed
     issueOp.rob_tag  := io.rob.lanes(w).rob_tag
-    issueOp.sq_idx   := io.storeBuffer.lanes(w).ticket.sq_idx
-    issueOp.sq_seq   := io.storeBuffer.lanes(w).ticket.sq_seq
+    issueOp.sq_idx   := io.store_buffer.lanes(w).ticket.sq_idx
+    issueOp.sq_seq   := io.store_buffer.lanes(w).ticket.sq_seq
 
     dis.valid := coreValidReq(w)
     dis.bits  := issueOp
 
-    io.rob.lanes(w).req.valid    := dis.fire
-    io.storeBuffer.lanes(w).fire := dis.fire
+    io.rob.lanes(w).req.valid     := dis.fire
+    io.store_buffer.lanes(w).fire := dis.fire
   }
 
   for (w <- 0 until p(IssueWidth)) {
