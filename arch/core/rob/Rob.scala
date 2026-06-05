@@ -13,6 +13,7 @@ class RobIO(implicit p: Parameters) extends Bundle {
   val commit = new RobCommitPortIO
   val bypass = new RobBypassIO
   val ctrl   = new RobCtrlIO
+  val flush  = new RobFlushIO
 }
 
 class Rob(implicit p: Parameters) extends Node(new RobIO) {
@@ -235,4 +236,10 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
     io.bypass.rs2_bypass(w).data    := rs2Data
     io.bypass.rs2_bypass(w).pending := rs2Pending
   }
+
+  // Flush node interface
+  io.flush.flushes := io.commit.lanes.map(_.flush_pipeline).zip(io.commit.lanes.map(_.pop)).map {
+    case (f, p) => f && p
+  }
+  io.flush.targets := io.commit.lanes.map(_.flush_target)
 }

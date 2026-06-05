@@ -3,7 +3,7 @@ package arch.core.cpu
 import arch.core.bpu.Bpu
 import arch.core.csr.{ CsrTrapView, InterruptLines }
 import arch.core.decode.Decode
-import arch.core.exception.{ Exception, RedirectBundle }
+import arch.core.exception.Exception
 import arch.core.fupool.FuPool
 import arch.core.ifu.Ifu
 import arch.core.interrupt.{ Interrupt, TrapCandidate }
@@ -12,6 +12,7 @@ import arch.core.regfile.Regfile
 import arch.core.rob.Rob
 import arch.core.sb.StoreBuffer
 import arch.core.scheduler.Scheduler
+import arch.core.flush.Flush
 import arch.configs._
 import vcache.CachePortIO
 import vcache.nonblocking.{ NonBlockingCache, ReadOnlyNonBlockingCache }
@@ -46,6 +47,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   private val interrupt     = Module(new Interrupt)
   private val exception     = Module(new Exception)
   private val storeBuffer   = Module(new StoreBuffer)
+  private val flush         = Module(new Flush)
   private val memoryArbiter = Module(new MemoryArbiter)
   private val l1ICache      = Module(
     new ReadOnlyNonBlockingCache(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))
@@ -104,25 +106,11 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     rob.io.trap.ports(i).bits.trap_ret_tgt := fuPool.io.fu.done(i).bits.trap_ret_tgt
   }
 
-  private val isFlush = Wire(Vec(p(IssueWidth), Bool()))
-
-  for (w <- 0 until p(IssueWidth))
-    isFlush(w) := rob.io.commit.lanes(w).pop && rob.io.commit.lanes(w).flush_pipeline
-
-  private val commitFlushPipeline = isFlush.asUInt.orR
-  private val commitFlushTarget   = Mux1H(isFlush.zipWithIndex.map { case (f, w) =>
-    f -> rob.io.commit.lanes(w).flush_target
-  })
-
-  private val commitRedirect = Wire(new RedirectBundle)
-
-  commitRedirect.valid  := commitFlushPipeline
-  commitRedirect.target := commitFlushTarget
+  flush.io.rob <> rob.io.flush
+  flush.io.exception <> exception.io.flush
 
   private val archPc = Mux(rob.io.ctrl.empty, ifu.io.dispatch.fetch_pc, rob.io.commit.lanes(0).pc)
-
-  exception.io.commitRedirect := commitRedirect
-  exception.io.archPc         := archPc
+  exception.io.archPc := archPc
 
   if (p(NumCSRs) > 0) {
     interrupt.io.view := fuPool.io.csr.ports(0).view

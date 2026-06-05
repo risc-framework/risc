@@ -9,7 +9,7 @@ import chisel3._
 object ExceptionMeta {
   val Type            = NodeType("exception")
   val INTERRUPT       = NodePort[ExceptionIO, TrapCandidate]("interrupt", _.interrupt)
-  val COMMIT_REDIRECT = NodePort[ExceptionIO, RedirectBundle]("commit_redirect", _.commitRedirect)
+  val FLUSH           = NodePort[ExceptionIO, ExceptionFlushIO]("flush", _.flush)
   val REDIRECT        = NodePort[ExceptionIO, RedirectBundle]("redirect", _.redirect)
   val CSR_TRAP_UPDATE = NodePort[ExceptionIO, CsrTrapUpdate]("csr_trap_update", _.csrTrapUpdate)
 }
@@ -25,7 +25,7 @@ trait ExceptionIsaImpl extends NodeDimensionImpl {
 
   def select(
     interrupt: TrapCandidate,
-    commitRedirect: RedirectBundle,
+    commitRedirect: ExceptionFlushIO,
     csrBusy: Bool,
     archPc: UInt
   )(implicit p: Parameters): (RedirectBundle, CsrTrapUpdate)

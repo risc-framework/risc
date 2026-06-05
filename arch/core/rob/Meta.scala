@@ -11,4 +11,5 @@ object RobMeta {
   val COMMIT = NodePort[RobIO, RobCommitPortIO]("commit", _.commit)
   val BYPASS = NodePort[RobIO, RobBypassIO]("bypass", _.bypass)
   val CTRL   = NodePort[RobIO, RobCtrlIO]("ctrl", _.ctrl)
+  val FLUSH  = NodePort[RobIO, RobFlushIO]("flush", _.flush)
 }

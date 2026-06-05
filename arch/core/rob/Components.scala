@@ -116,3 +116,8 @@ class RobEntry(implicit p: Parameters) extends Bundle {
   val flush_target   = UInt(p(XLen).W)
   val sq_idx         = UInt(log2Ceil(p(StoreBufferSize)).W)
 }
+
+class RobFlushIO(implicit p: Parameters) extends Bundle {
+  val flushes = Output(Vec(p(IssueWidth), Bool()))
+  val targets = Output(Vec(p(IssueWidth), UInt(p(XLen).W)))
+}

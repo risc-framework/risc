@@ -13,7 +13,7 @@ object ExceptionRv32iIsa extends RegisteredNodeUtils[ExceptionIsaImpl] {
 
     override def select(
       interrupt: TrapCandidate,
-      commitRedirect: RedirectBundle,
+      commitRedirect: ExceptionFlushIO,
       csrBusy: Bool,
       archPc: UInt
     )(implicit p: Parameters): (RedirectBundle, CsrTrapUpdate) = {
@@ -22,7 +22,7 @@ object ExceptionRv32iIsa extends RegisteredNodeUtils[ExceptionIsaImpl] {
 
       val takeInterrupt = interrupt.valid && !csrBusy
 
-      redirect.valid  := takeInterrupt || commitRedirect.valid
+      redirect.valid  := takeInterrupt || commitRedirect.redirect
       redirect.target := Mux(takeInterrupt, interrupt.target, commitRedirect.target)
 
       trapUpdate.valid := takeInterrupt

@@ -16,7 +16,7 @@ object ExceptionRv32imIsa extends RegisteredNodeUtils[ExceptionIsaImpl] {
 
     override def select(
       interrupt: TrapCandidate,
-      commitRedirect: RedirectBundle,
+      commitRedirect: ExceptionFlushIO,
       csrBusy: Bool,
       archPc: UInt
     )(implicit p: Parameters): (RedirectBundle, CsrTrapUpdate) =
