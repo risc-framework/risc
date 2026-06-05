@@ -12,8 +12,6 @@ class RobEnqIO(implicit p: Parameters) extends Bundle {
   val instr            = Input(UInt(p(ILen).W))
   val rd               = Input(UInt(log2Ceil(p(NumArchRegs)).W))
   val rd_write         = Input(Bool())
-  val pd               = Input(UInt(log2Ceil(p(NumPhyRegs)).W))
-  val old_pd           = Input(UInt(log2Ceil(p(NumPhyRegs)).W))
   val is_branch        = Input(Bool())
   val is_store         = Input(Bool())
   val commit_barrier   = Input(Bool())
@@ -52,8 +50,6 @@ class RobCommitIO(implicit p: Parameters) extends Bundle {
   val rd                = Output(UInt(log2Ceil(p(NumArchRegs)).W))
   val rd_write          = Output(Bool())
   val data              = Output(UInt(p(XLen).W))
-  val pd                = Output(UInt(log2Ceil(p(NumPhyRegs)).W))
-  val old_pd            = Output(UInt(log2Ceil(p(NumPhyRegs)).W))
   val flush_pipeline    = Output(Bool())
   val flush_target      = Output(UInt(p(XLen).W))
   val is_branch         = Output(Bool())
@@ -94,11 +90,6 @@ class RobCommitPortIO(implicit p: Parameters) extends Bundle {
   val lanes = Vec(p(IssueWidth), new RobCommitIO)
 }
 
-class RobRenameIO(implicit p: Parameters) extends Bundle {
-  val read_rob_tag = Input(Vec(p(IssueWidth), UInt(p(RobTagWidth).W)))
-  val read_pd      = Output(Vec(p(IssueWidth), UInt(log2Ceil(p(NumPhyRegs)).W)))
-}
-
 class RobBypassIO(implicit p: Parameters) extends Bundle {
   val rs1_addr   = Input(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
   val rs1_bypass = Vec(p(IssueWidth), new RobBypassResp)
@@ -119,8 +110,6 @@ class RobEntry(implicit p: Parameters) extends Bundle {
   val rd             = UInt(log2Ceil(p(NumArchRegs)).W)
   val rd_write       = Bool()
   val data           = UInt(p(XLen).W)
-  val pd             = UInt(log2Ceil(p(NumPhyRegs)).W)
-  val old_pd         = UInt(log2Ceil(p(NumPhyRegs)).W)
   val is_branch      = Bool()
   val is_store       = Bool()
   val commit_barrier = Bool()

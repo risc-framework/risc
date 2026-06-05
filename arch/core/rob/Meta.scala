@@ -9,7 +9,6 @@ object RobMeta {
   val BRU    = NodePort[RobIO, RobBruPortIO]("bru", _.bru)
   val TRAP   = NodePort[RobIO, RobTrapPortIO]("trap", _.trap)
   val COMMIT = NodePort[RobIO, RobCommitPortIO]("commit", _.commit)
-  val RENAME = NodePort[RobIO, RobRenameIO]("rename", _.rename)
   val BYPASS = NodePort[RobIO, RobBypassIO]("bypass", _.bypass)
   val CTRL   = NodePort[RobIO, RobCtrlIO]("ctrl", _.ctrl)
 }

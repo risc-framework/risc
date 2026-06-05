@@ -316,8 +316,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     rob.io.enq.lanes(w).instr            := dec.instr
     rob.io.enq.lanes(w).rd               := dec.rd
     rob.io.enq.lanes(w).rd_write         := dec.rd_write
-    rob.io.enq.lanes(w).pd               := 0.U
-    rob.io.enq.lanes(w).old_pd           := 0.U
     rob.io.enq.lanes(w).is_branch        := dec.isBru
     rob.io.enq.lanes(w).is_store         := dec.isStore
     rob.io.enq.lanes(w).commit_barrier   := dec.commit_barrier
@@ -344,8 +342,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   private val commitRegData = Wire(Vec(p(IssueWidth), UInt(p(XLen).W)))
 
   for (w <- 0 until p(IssueWidth)) {
-    rob.io.rename.read_rob_tag(w) := 0.U
-    rob.io.commit.lanes(w).pop    := rob.io.commit.lanes(w).valid
+    rob.io.commit.lanes(w).pop := rob.io.commit.lanes(w).valid
 
     commitRegWe(w)   := rob.io.commit.lanes(w).pop && rob.io.commit.lanes(w).rd_write
     commitRegAddr(w) := rob.io.commit.lanes(w).rd

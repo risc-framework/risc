@@ -11,7 +11,6 @@ class RobIO(implicit p: Parameters) extends Bundle {
   val bru    = new RobBruPortIO
   val trap   = new RobTrapPortIO
   val commit = new RobCommitPortIO
-  val rename = new RobRenameIO
   val bypass = new RobBypassIO
   val ctrl   = new RobCtrlIO
 }
@@ -38,9 +37,6 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   }
 
   io.ctrl.empty := count === 0.U
-
-  for (w <- 0 until p(IssueWidth))
-    io.rename.read_pd(w) := buffer(io.rename.read_rob_tag(w)).pd
 
   for (i <- 0 until p(NumFUs))
     when(io.wb.ports(i).valid) {
@@ -111,8 +107,6 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
     io.commit.lanes(w).rd                := entry.rd
     io.commit.lanes(w).rd_write          := entry.rd_write
     io.commit.lanes(w).data              := entry.data
-    io.commit.lanes(w).pd                := entry.pd
-    io.commit.lanes(w).old_pd            := entry.old_pd
     io.commit.lanes(w).flush_pipeline    := entry.flush_pipeline
     io.commit.lanes(w).flush_target      := entry.flush_target
     io.commit.lanes(w).is_branch         := entry.is_branch
@@ -176,8 +170,6 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
       buffer(idx).rd             := io.enq.lanes(w).rd
       buffer(idx).rd_write       := io.enq.lanes(w).rd_write
       buffer(idx).data           := 0.U
-      buffer(idx).pd             := io.enq.lanes(w).pd
-      buffer(idx).old_pd         := io.enq.lanes(w).old_pd
       buffer(idx).is_branch      := io.enq.lanes(w).is_branch
       buffer(idx).is_store       := io.enq.lanes(w).is_store
       buffer(idx).commit_barrier := io.enq.lanes(w).commit_barrier
