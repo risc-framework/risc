@@ -85,6 +85,6 @@ class StoreBufferMemIO(implicit p: Parameters) extends Bundle {
   val mmio = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
 }
 
-class StoreBufferCtrlIO extends Bundle {
+class StoreBufferExceptionIO extends Bundle {
   val flush = Input(Bool())
 }

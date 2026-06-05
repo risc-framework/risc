@@ -6,9 +6,9 @@ import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
 
 class SchedulerIO(implicit p: Parameters) extends Bundle {
-  val dispatch = new SchedulerDispatchIO
-  val fu       = new SchedulerFuIO
-  val ctrl     = new SchedulerCtrlIO
+  val exception = new SchedulerExceptionIO
+  val dispatch  = new SchedulerDispatchIO
+  val fu        = new SchedulerFuIO
 }
 
 class Scheduler(implicit p: Parameters) extends Node(new SchedulerIO) {
@@ -25,12 +25,9 @@ class Scheduler(implicit p: Parameters) extends Node(new SchedulerIO) {
 
   policy.elaborate(io)
 
-  def bind(pool: FuPool): Unit = {
-    pool.io.fu.flush := io.ctrl.flush
-
+  def bind(pool: FuPool): Unit =
     for (i <- 0 until p(NumFUs)) {
       pool.io.fu.req(i) <> io.fu.reqs(i)
       io.fu.done(i) := pool.io.fu.done(i)
     }
-  }
 }

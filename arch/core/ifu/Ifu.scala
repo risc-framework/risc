@@ -7,10 +7,10 @@ import chisel3._
 import chisel3.util.{ PriorityEncoder, Queue, log2Ceil }
 
 class IfuIO(implicit p: Parameters) extends Bundle {
-  val mem      = new IfuMemIO
-  val bpu      = Flipped(new BpuFetchIO)
-  val redirect = new IfuRedirectIO
-  val dispatch = new IfuDispatchIO
+  val mem       = new IfuMemIO
+  val exception = new IfuExceptionIO
+  val bpu       = Flipped(new BpuFetchIO)
+  val dispatch  = new IfuDispatchIO
 }
 
 class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
@@ -20,7 +20,7 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
   private val ibuffer = Module(new IBuffer)
   private val pc      = RegInit(p(ResetVector).U(p(XLen).W))
 
-  private val doRedirect = io.redirect.valid
+  private val doRedirect = io.exception.redirect
 
   class FetchMeta extends Bundle {
     val pc               = UInt(p(XLen).W)
@@ -110,7 +110,7 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
   metaQ.io.enq.bits.bpu_ghr_snapshot := io.bpu.ghr_snapshot
 
   when(doRedirect) {
-    pc := io.redirect.target
+    pc := io.exception.target
   }.elsewhen(reqFire) {
     pc := reqTakenTarget
   }

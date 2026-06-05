@@ -14,9 +14,9 @@ class IBufferEntry(implicit p: Parameters) extends Bundle {
   val bpu_ghr_snapshot = UInt(p(GShareGhrWidth).W)
 }
 
-class IfuRedirectIO(implicit p: Parameters) extends Bundle {
-  val valid  = Input(Bool())
-  val target = Input(UInt(p(XLen).W))
+class IfuExceptionIO(implicit p: Parameters) extends Bundle {
+  val redirect = Input(Bool())
+  val target   = Input(UInt(p(XLen).W))
 }
 
 class IfuDispatchIO(implicit p: Parameters) extends Bundle {

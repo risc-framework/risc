@@ -6,14 +6,15 @@ import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 
 class RobIO(implicit p: Parameters) extends Bundle {
-  val enq    = new RobEnqPortIO
-  val wb     = new RobWbPortIO
-  val bru    = new RobBruPortIO
-  val trap   = new RobTrapPortIO
-  val commit = new RobCommitPortIO
-  val bypass = new RobBypassIO
-  val ctrl   = new RobCtrlIO
-  val flush  = new RobFlushIO
+  val flush     = new RobFlushIO
+  val exception = new RobExceptionIO
+  val enq       = new RobEnqPortIO
+  val wb        = new RobWbPortIO
+  val bru       = new RobBruPortIO
+  val trap      = new RobTrapPortIO
+  val commit    = new RobCommitPortIO
+  val bypass    = new RobBypassIO
+  val ctrl      = new RobCtrlIO
 }
 
 class Rob(implicit p: Parameters) extends Node(new RobIO) {
@@ -191,7 +192,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   tail  := wrapAdd(tail, enqCount)
   count := count + enqCount - commitCount
 
-  when(io.ctrl.flush) {
+  when(io.exception.flush) {
     head  := 0.U
     tail  := 0.U
     count := 0.U
@@ -237,7 +238,6 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
     io.bypass.rs2_bypass(w).pending := rs2Pending
   }
 
-  // Flush node interface
   io.flush.flushes := io.commit.lanes.map(_.flush_pipeline).zip(io.commit.lanes.map(_.pop)).map {
     case (f, p) => f && p
   }

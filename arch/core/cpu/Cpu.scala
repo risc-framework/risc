@@ -133,15 +133,11 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   }
 
   private val globalFlush = exception.io.redirect.valid
-  private val redirectPc  = exception.io.redirect.target
-
-  ifu.io.redirect.valid  := globalFlush
-  ifu.io.redirect.target := redirectPc
-
-  scheduler.io.ctrl.flush   := globalFlush
-  fuPool.io.fu.flush        := globalFlush
-  rob.io.ctrl.flush         := globalFlush
-  storeBuffer.io.ctrl.flush := globalFlush
+  ifu.io.exception <> exception.io.ifu
+  storeBuffer.io.exception <> exception.io.sb
+  scheduler.io.exception <> exception.io.scheduler
+  fuPool.io.exception <> exception.io.fu_pool
+  rob.io.exception <> exception.io.rob
 
   decode.io.in <> ifu.io.dispatch.out
 

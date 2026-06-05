@@ -16,7 +16,7 @@ class SchedulerFuIO(implicit p: Parameters) extends Bundle {
   val done = Flipped(Vec(p(NumFUs), Valid(new FuResp)))
 }
 
-class SchedulerCtrlIO extends Bundle {
+class SchedulerExceptionIO extends Bundle {
   val flush = Input(Bool())
 }
 

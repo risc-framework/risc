@@ -13,12 +13,13 @@ import vutils.graph.{ Node, NodeType }
 import chisel3._
 
 class FuPoolIO(implicit p: Parameters) extends Bundle {
-  val fu     = new FuPoolFuIO
-  val ld_mem = new VecLdMemIO
-  val ld_sb  = new VecLdSbFwdIO
-  val st_sb  = new VecStSbWriteIO
-  val bru    = new VecBruResolveIO
-  val csr    = new VecCsrCtrlIO
+  val exception = new FuPoolExceptionIO
+  val fu        = new FuPoolFuIO
+  val ld_mem    = new VecLdMemIO
+  val ld_sb     = new VecLdSbFwdIO
+  val st_sb     = new VecStSbWriteIO
+  val bru       = new VecBruResolveIO
+  val csr       = new VecCsrCtrlIO
 }
 
 class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
@@ -56,11 +57,11 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
   }
 
   private def connectFu(fu: FuIO, idx: Int): Unit = {
-    fu.flush      := io.fu.flush
+    fu.flush      := io.exception.flush
     fu.req <> io.fu.req(idx)
     fu.resp.ready := true.B
 
-    io.fu.done(idx).valid := fu.resp.valid && !io.fu.flush
+    io.fu.done(idx).valid := fu.resp.valid && !io.exception.flush
     io.fu.done(idx).bits  := fu.resp.bits
   }
 

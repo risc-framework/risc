@@ -8,8 +8,13 @@ import chisel3._
 
 object ExceptionMeta {
   val Type            = NodeType("exception")
-  val INTERRUPT       = NodePort[ExceptionIO, TrapCandidate]("interrupt", _.interrupt)
   val FLUSH           = NodePort[ExceptionIO, ExceptionFlushIO]("flush", _.flush)
+  val IFU             = NodePort[ExceptionIO, ExceptionIfuIO]("ifu", _.ifu)
+  val SB              = NodePort[ExceptionIO, ExceptionStoreBufferIO]("sb", _.sb)
+  val SCHEDULER       = NodePort[ExceptionIO, ExceptionSchedulerIO]("scheduler", _.scheduler)
+  val FU_POOL         = NodePort[ExceptionIO, ExceptionFuPoolIO]("fu_pool", _.fu_pool)
+  val ROB             = NodePort[ExceptionIO, ExceptionRobIO]("rob", _.rob)
+  val INTERRUPT       = NodePort[ExceptionIO, TrapCandidate]("interrupt", _.interrupt)
   val REDIRECT        = NodePort[ExceptionIO, RedirectBundle]("redirect", _.redirect)
   val CSR_TRAP_UPDATE = NodePort[ExceptionIO, CsrTrapUpdate]("csr_trap_update", _.csrTrapUpdate)
 }

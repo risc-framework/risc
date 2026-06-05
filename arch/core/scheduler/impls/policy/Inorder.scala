@@ -103,7 +103,7 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
         }
       }
 
-      when(io.ctrl.flush) {
+      when(io.exception.flush) {
         reg_pending.foreach(_ := false.B)
         reg_completed_valid.foreach(_ := false.B)
         reg_completed_data.foreach(_ := 0.U)

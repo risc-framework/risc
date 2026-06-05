@@ -12,13 +12,13 @@ object StoreBuffer {
 }
 
 class StoreBufferIO(numLoadPorts: Int, numStorePorts: Int)(implicit p: Parameters) extends Bundle {
-  val alloc  = new StoreBufferAllocIO
-  val commit = new StoreBufferCommitIO
-  val write  = new StoreBufferWriteIO(numStorePorts)
-  val fwd    = new StoreBufferForwardIO(numLoadPorts)
-  val state  = new StoreBufferStateIO
-  val mem    = new StoreBufferMemIO
-  val ctrl   = new StoreBufferCtrlIO
+  val exception = new StoreBufferExceptionIO
+  val alloc     = new StoreBufferAllocIO
+  val commit    = new StoreBufferCommitIO
+  val write     = new StoreBufferWriteIO(numStorePorts)
+  val fwd       = new StoreBufferForwardIO(numLoadPorts)
+  val state     = new StoreBufferStateIO
+  val mem       = new StoreBufferMemIO
 }
 
 class StoreBuffer(implicit p: Parameters)
@@ -58,14 +58,17 @@ class StoreBuffer(implicit p: Parameters)
   private val allocValid = Wire(Vec(p(IssueWidth), Bool()))
 
   for (a <- 0 until p(IssueWidth))
-    allocValid(a) := io.alloc.ports(a).valid && !io.ctrl.flush
+    allocValid(a) := io.alloc.ports(a).valid && !io.exception.flush
 
   for (q <- 0 until numLoadPorts) {
     val fwdRespValid = RegInit(false.B)
     val fwdRespBits  = RegInit(0.U.asTypeOf(new StoreForwardResp))
 
-    io.fwd.ports(q).req.ready  := (!fwdRespValid || io.fwd.ports(q).resp.ready) && !io.ctrl.flush
-    io.fwd.ports(q).resp.valid := fwdRespValid && !io.ctrl.flush
+    io.fwd
+      .ports(q)
+      .req
+      .ready                   := (!fwdRespValid || io.fwd.ports(q).resp.ready) && !io.exception.flush
+    io.fwd.ports(q).resp.valid := fwdRespValid && !io.exception.flush
     io.fwd.ports(q).resp.bits  := fwdRespBits
 
     val req       = io.fwd.ports(q).req.bits
@@ -123,7 +126,7 @@ class StoreBuffer(implicit p: Parameters)
     nextResp.data      := Cat((p(BytesPerWord) - 1 to 0 by -1).map(i => finalDataVec(i)))
     nextResp.mask      := finalMaskUInt
 
-    when(io.ctrl.flush) {
+    when(io.exception.flush) {
       fwdRespValid := false.B
       fwdRespBits  := 0.U.asTypeOf(new StoreForwardResp)
     }.otherwise {
@@ -272,15 +275,15 @@ class StoreBuffer(implicit p: Parameters)
   }
 
   for (i <- 0 until p(StoreBufferSize))
-    when(io.ctrl.flush && !keepPhysical(i)) {
+    when(io.exception.flush && !keepPhysical(i)) {
       entries(i) := zeroEntry
     }.otherwise {
       entries(i) := afterOpsEntries(i)
     }
 
   head    := afterDrainHead
-  tail    := Mux(io.ctrl.flush, flushTail, normalTail)
-  count   := Mux(io.ctrl.flush, flushCount, normalCount)
+  tail    := Mux(io.exception.flush, flushTail, normalTail)
+  count   := Mux(io.exception.flush, flushCount, normalCount)
   tailSeq := normalSeq
 
   when(drainReqFire) {

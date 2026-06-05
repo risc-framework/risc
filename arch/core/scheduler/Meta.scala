@@ -4,10 +4,10 @@ import arch.configs._
 import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
 
 object SchedulerMeta {
-  val Type     = NodeType("scheduler")
-  val DISPATCH = NodePort[SchedulerIO, SchedulerDispatchIO]("dispatch", _.dispatch)
-  val FU       = NodePort[SchedulerIO, SchedulerFuIO]("fu", _.fu)
-  val CTRL     = NodePort[SchedulerIO, SchedulerCtrlIO]("ctrl", _.ctrl)
+  val Type      = NodeType("scheduler")
+  val EXCEPTION = NodePort[SchedulerIO, SchedulerExceptionIO]("exception", _.exception)
+  val DISPATCH  = NodePort[SchedulerIO, SchedulerDispatchIO]("dispatch", _.dispatch)
+  val FU        = NodePort[SchedulerIO, SchedulerFuIO]("fu", _.fu)
 }
 
 object SchedulerDims {

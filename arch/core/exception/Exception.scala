@@ -7,8 +7,13 @@ import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
 
 class ExceptionIO(implicit p: Parameters) extends Bundle {
-  val interrupt     = Input(new TrapCandidate)
   val flush         = new ExceptionFlushIO
+  val ifu           = new ExceptionIfuIO
+  val sb            = new ExceptionStoreBufferIO
+  val scheduler     = new ExceptionSchedulerIO
+  val fu_pool       = new ExceptionFuPoolIO
+  val rob           = new ExceptionRobIO
+  val interrupt     = Input(new TrapCandidate)
   val csrBusy       = Input(Bool())
   val archPc        = Input(UInt(p(XLen).W))
   val redirect      = Output(new RedirectBundle)
@@ -30,4 +35,15 @@ class Exception(implicit p: Parameters) extends Node(new ExceptionIO) {
 
   io.redirect      := selected._1
   io.csrTrapUpdate := selected._2
+
+  io.ifu.redirect := selected._1.valid
+  io.ifu.target   := selected._1.target
+
+  io.sb.flush := selected._1.valid
+
+  io.scheduler.flush := selected._1.valid
+
+  io.fu_pool.flush := selected._1.valid
+
+  io.rob.flush := selected._1.valid
 }

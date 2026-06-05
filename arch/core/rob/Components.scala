@@ -91,8 +91,11 @@ class RobBypassIO(implicit p: Parameters) extends Bundle {
 }
 
 class RobCtrlIO extends Bundle {
-  val flush = Input(Bool())
   val empty = Output(Bool())
+}
+
+class RobExceptionIO extends Bundle {
+  val flush = Input(Bool())
 }
 
 class RobEntry(implicit p: Parameters) extends Bundle {

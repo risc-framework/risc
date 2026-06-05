@@ -234,7 +234,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         }
       }
 
-      when(io.ctrl.flush) {
+      when(io.exception.flush) {
         for (r <- 0 until numRegs) {
           reg_pending_valid(r)   := false.B
           reg_pending_rob(r)     := 0.U
