@@ -145,7 +145,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   dispatch.io.scheduler <> scheduler.io.dispatch
   dispatch.io.regfile <> regfile.io.dispatch
   dispatch.io.rob <> rob.io.dispatch
-  dispatch.io.storeBuffer <> storeBuffer.io.dispatch
+  dispatch.io.sb <> storeBuffer.io.dispatch
   dispatch.io.exception <> exception.io.dispatch
 
   private val commitRegWe   = Wire(Vec(p(IssueWidth), Bool()))
