@@ -6,7 +6,7 @@ import chisel3.util.Decoupled
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 
 class DecodeIO(implicit p: Parameters) extends Bundle {
-  val in  = Flipped(Vec(p(IssueWidth), Decoupled(new DecodePacket)))
+  val ifu = Flipped(Vec(p(IssueWidth), Decoupled(new DecodePacket)))
   val out = Vec(p(IssueWidth), Decoupled(new DecodedPacket))
 }
 
@@ -25,8 +25,8 @@ class Decode(implicit p: Parameters) extends Node(new DecodeIO) {
   private val kindImpl = DecodeKindFactory.select(cfg)
 
   for (w <- 0 until p(IssueWidth)) {
-    io.out(w).valid := io.in(w).valid
-    io.in(w).ready  := io.out(w).ready
-    io.out(w).bits  := kindImpl.decode(isaImpl, io.in(w).bits)
+    io.out(w).valid := io.ifu(w).valid
+    io.ifu(w).ready := io.out(w).ready
+    io.out(w).bits  := kindImpl.decode(isaImpl, io.ifu(w).bits)
   }
 }

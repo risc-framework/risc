@@ -3,7 +3,6 @@ package arch.core.ifu
 import arch.configs._
 import vcache.CacheReadOnlyPortIO
 import chisel3._
-import chisel3.util.Decoupled
 
 class IBufferEntry(implicit p: Parameters) extends Bundle {
   val pc               = UInt(p(XLen).W)
@@ -20,7 +19,6 @@ class IfuExceptionIO(implicit p: Parameters) extends Bundle {
 }
 
 class IfuDispatchIO(implicit p: Parameters) extends Bundle {
-  val out            = Vec(p(IssueWidth), Decoupled(new IBufferEntry))
   val fetch_pc       = Output(UInt(p(XLen).W))
   val fetch_fire     = Output(Bool())
   val frontend_flush = Output(Bool())

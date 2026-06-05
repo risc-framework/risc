@@ -132,14 +132,13 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     exception.io.csrBusy   := false.B
   }
 
-  private val globalFlush = exception.io.redirect.valid
   ifu.io.exception <> exception.io.ifu
   storeBuffer.io.exception <> exception.io.sb
   scheduler.io.exception <> exception.io.scheduler
   fuPool.io.exception <> exception.io.fu_pool
   rob.io.exception <> exception.io.rob
 
-  decode.io.in <> ifu.io.dispatch.out
+  decode.io.ifu <> ifu.io.decode
 
   private val rs1s = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
   private val rs2s = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
@@ -163,7 +162,9 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   for (w <- 0 until p(IssueWidth))
     possibleStoreBeforeOrAt(w) := PopCount(
-      (0 to w).map(v => decode.io.out(v).valid && decode.io.out(v).bits.isStore && !globalFlush)
+      (0 to w).map(v =>
+        decode.io.out(v).valid && decode.io.out(v).bits.isStore && !exception.io.redirect.valid
+      )
     )
 
   private val laneBaseReqOk = Wire(Vec(p(IssueWidth), Bool()))
@@ -176,13 +177,16 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
     laneBaseReqOk(w) := decode.io
       .out(w)
-      .valid && dec.legal && !globalFlush && sqSlotOk && rob.io.enq.lanes(w).req.ready
+      .valid && dec.legal && !exception.io.redirect.valid && sqSlotOk && rob.io.enq
+      .lanes(w)
+      .req
+      .ready
   }
 
   lanePrefixOk(0) := true.B
 
   for (w <- 1 until p(IssueWidth)) {
-    val olderLaneMayBeSkipped   = !decode.io.out(w - 1).valid || globalFlush
+    val olderLaneMayBeSkipped   = !decode.io.out(w - 1).valid || exception.io.redirect.valid
     val olderLaneCanBePresented = laneBaseReqOk(w - 1)
 
     lanePrefixOk(w) := lanePrefixOk(w - 1) && (olderLaneMayBeSkipped || olderLaneCanBePresented)
@@ -301,7 +305,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   private val decodeReady = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
-    val consumeThisLane = globalFlush || scheduler.io.dispatch.reqs(w).fire
+    val consumeThisLane = exception.io.redirect.valid || scheduler.io.dispatch.reqs(w).fire
 
     if (w == 0) decodeReady(w) := consumeThisLane
     else decodeReady(w)        := decode.io.out(w - 1).fire && consumeThisLane
@@ -387,7 +391,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   io.debug.branch_commit    := PopCount(
     (0 until p(IssueWidth)).map(w => rob.io.commit.lanes(w).pop && rob.io.commit.lanes(w).is_branch)
   )
-  io.debug.flush_cycle      := globalFlush
+  io.debug.flush_cycle      := exception.io.redirect.valid
   io.debug.rob_empty        := rob.io.ctrl.empty
   io.debug.issue_count      := PopCount(scheduler.io.dispatch.reqs.map(_.fire))
   io.debug.commit_count     := commitPopCount

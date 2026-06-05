@@ -9,7 +9,7 @@ case object DecodeKind extends Field[String]("table")
 
 object DecodeMeta {
   val Type = NodeType("decode")
-  val IN   = NodePort[DecodeIO, Vec[DecoupledIO[DecodePacket]]]("in", _.in)
+  val IFU  = NodePort[DecodeIO, Vec[DecoupledIO[DecodePacket]]]("ifu", _.ifu)
   val OUT  = NodePort[DecodeIO, Vec[DecoupledIO[DecodedPacket]]]("out", _.out)
 }
 

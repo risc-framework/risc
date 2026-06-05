@@ -4,10 +4,11 @@ import arch.configs._
 import arch.core.bpu.BpuFetchIO
 import vutils.graph.{ Node, NodeType }
 import chisel3._
-import chisel3.util.{ PriorityEncoder, Queue, log2Ceil }
+import chisel3.util.{ Decoupled, PriorityEncoder, Queue, log2Ceil }
 
 class IfuIO(implicit p: Parameters) extends Bundle {
   val mem       = new IfuMemIO
+  val decode    = Vec(p(IssueWidth), Decoupled(new IBufferEntry))
   val exception = new IfuExceptionIO
   val bpu       = Flipped(new BpuFetchIO)
   val dispatch  = new IfuDispatchIO
@@ -149,9 +150,9 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
   ibuffer.io.flush := doRedirect
 
   for (w <- 0 until p(IssueWidth)) {
-    ibuffer.io.deq(w).ready  := io.dispatch.out(w).ready
-    io.dispatch.out(w).valid := ibuffer.io.deq(w).valid && !doRedirect
-    io.dispatch.out(w).bits  := ibuffer.io.deq(w).bits
+    ibuffer.io.deq(w).ready := io.decode(w).ready
+    io.decode(w).valid      := ibuffer.io.deq(w).valid && !doRedirect
+    io.decode(w).bits       := ibuffer.io.deq(w).bits
   }
 
   io.dispatch.frontend_flush := doRedirect
