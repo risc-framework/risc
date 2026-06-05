@@ -5,10 +5,18 @@ import vcache.CachePortIO
 import chisel3._
 import chisel3.util.{ Decoupled, Valid, log2Ceil }
 
-class StoreAllocBundle(implicit p: Parameters) extends Bundle {
-  val sq_idx  = UInt(log2Ceil(p(StoreBufferSize)).W)
-  val sq_seq  = UInt(64.W)
-  val rob_tag = UInt(p(RobTagWidth).W)
+class StoreBufferTicket(implicit p: Parameters) extends Bundle {
+  val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
+  val sq_seq = UInt(64.W)
+}
+
+class StoreBufferRobCommitBundle(implicit p: Parameters) extends Bundle {
+  val is_store = Bool()
+  val sq_idx   = UInt(log2Ceil(p(StoreBufferSize)).W)
+}
+
+class StoreBufferRobIO(implicit p: Parameters) extends Bundle {
+  val commit = Flipped(Vec(p(IssueWidth), Valid(new StoreBufferRobCommitBundle)))
 }
 
 class StoreWriteBundle(implicit p: Parameters) extends Bundle {
@@ -52,14 +60,6 @@ class StoreBufferEntry(implicit p: Parameters) extends Bundle {
   val data      = UInt(p(XLen).W)
   val mask      = UInt(p(BytesPerWord).W)
   val cacheable = Bool()
-}
-
-class StoreBufferAllocIO(implicit p: Parameters) extends Bundle {
-  val ports = Flipped(Vec(p(IssueWidth), Valid(new StoreAllocBundle)))
-}
-
-class StoreBufferCommitIO(implicit p: Parameters) extends Bundle {
-  val ports = Flipped(Vec(p(IssueWidth), Valid(UInt(log2Ceil(p(StoreBufferSize)).W))))
 }
 
 class StoreBufferWriteIO(numStorePorts: Int)(implicit p: Parameters) extends Bundle {

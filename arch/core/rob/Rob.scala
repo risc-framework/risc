@@ -1,19 +1,19 @@
 package arch.core.rob
 
-import vutils.graph.{ Node, NodeType }
+import arch.core.dispatch.DispatchRobIO
 import arch.configs._
+import vutils.graph.{ Node, NodeType }
 import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 
 class RobIO(implicit p: Parameters) extends Bundle {
+  val dispatch  = Flipped(new DispatchRobIO)
   val flush     = new RobFlushIO
   val exception = new RobExceptionIO
-  val enq       = new RobEnqPortIO
   val wb        = new RobWbPortIO
   val bru       = new RobBruPortIO
   val trap      = new RobTrapPortIO
   val commit    = new RobCommitPortIO
-  val bypass    = new RobBypassIO
   val ctrl      = new RobCtrlIO
 }
 
@@ -36,6 +36,30 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   private def indexFromNewest(distance: Int): UInt = {
     val sub = distance + 1
     Mux(tail >= sub.U, tail - sub.U, tail + p(RobSize).U - sub.U)(p(RobTagWidth) - 1, 0)
+  }
+
+  private def bypassNewest(rs: UInt): (Bool, UInt, Bool) = {
+    val matchVec = Wire(Vec(p(RobSize), Bool()))
+    val readyVec = Wire(Vec(p(RobSize), Bool()))
+    val dataVec  = Wire(Vec(p(RobSize), UInt(p(XLen).W)))
+
+    for (d <- 0 until p(RobSize)) {
+      val idx   = indexFromNewest(d)
+      val entry = buffer(idx)
+
+      matchVec(d) := entry.valid && entry.rd_write && entry.rd === rs
+      readyVec(d) := matchVec(d) && entry.ready
+      dataVec(d)  := entry.data
+    }
+
+    val anyMatch    = matchVec.asUInt.orR
+    val newest      = PriorityEncoder(matchVec)
+    val newestOH    = UIntToOH(newest, p(RobSize))
+    val newestReady = anyMatch && Mux1H(newestOH, readyVec)
+    val newestData  = Mux(anyMatch, Mux1H(newestOH, dataVec), 0.U(p(XLen).W))
+    val pending     = anyMatch && !newestReady
+
+    (newestReady, newestData, pending)
   }
 
   io.ctrl.empty := count === 0.U
@@ -146,12 +170,12 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
       olderFires := PopCount((0 until w).map(i => enqFire(i)))
     }
 
-    io.enq.lanes(w).req.ready := availableSlotsAfterCommit > olderFires
-    enqFire(w)                := io.enq.lanes(w).req.valid && io.enq.lanes(w).req.ready
-    enqOffset(w)              := olderFires(p(RobTagWidth) - 1, 0)
-    enqIdx(w)                 := wrapAdd(tail, enqOffset(w))
+    io.dispatch.lanes(w).req.ready := availableSlotsAfterCommit > olderFires
+    enqFire(w)                     := io.dispatch.lanes(w).req.fire
+    enqOffset(w)                   := olderFires(p(RobTagWidth) - 1, 0)
+    enqIdx(w)                      := wrapAdd(tail, enqOffset(w))
 
-    io.enq.lanes(w).rob_tag := enqIdx(w)
+    io.dispatch.lanes(w).rob_tag := enqIdx(w)
   }
 
   private val enqCount = PopCount(enqFire)
@@ -164,7 +188,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   for (w <- 0 until p(IssueWidth))
     when(enqFire(w)) {
       val idx = enqIdx(w)
-      val pkt = io.enq.lanes(w).req.bits
+      val pkt = io.dispatch.lanes(w).req.bits
       val dec = pkt.decoded
 
       buffer(idx).valid          := true.B
@@ -201,45 +225,26 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
       buffer(i).valid := false.B
   }
 
-  private def bypassNewest(rs: UInt): (Bool, UInt, Bool) = {
-    val matchVec = Wire(Vec(p(RobSize), Bool()))
-    val readyVec = Wire(Vec(p(RobSize), Bool()))
-    val dataVec  = Wire(Vec(p(RobSize), UInt(p(XLen).W)))
-
-    for (d <- 0 until p(RobSize)) {
-      val idx   = indexFromNewest(d)
-      val entry = buffer(idx)
-
-      matchVec(d) := entry.valid && entry.rd_write && entry.rd === rs
-      readyVec(d) := matchVec(d) && entry.ready
-      dataVec(d)  := entry.data
-    }
-
-    val anyMatch    = matchVec.asUInt.orR
-    val newest      = PriorityEncoder(matchVec)
-    val newestOH    = UIntToOH(newest, p(RobSize))
-    val newestReady = anyMatch && Mux1H(newestOH, readyVec)
-    val newestData  = Mux(anyMatch, Mux1H(newestOH, dataVec), 0.U(p(XLen).W))
-    val pending     = anyMatch && !newestReady
-
-    (newestReady, newestData, pending)
-  }
-
   for (w <- 0 until p(IssueWidth)) {
-    val (rs1Valid, rs1Data, rs1Pending) = bypassNewest(io.bypass.rs1_addr(w))
-    val (rs2Valid, rs2Data, rs2Pending) = bypassNewest(io.bypass.rs2_addr(w))
+    val dec = io.dispatch.lanes(w).req.bits.decoded
 
-    io.bypass.rs1_bypass(w).valid   := rs1Valid
-    io.bypass.rs1_bypass(w).data    := rs1Data
-    io.bypass.rs1_bypass(w).pending := rs1Pending
+    val (rs1Valid, rs1Data, rs1Pending) = bypassNewest(dec.rs1)
+    val (rs2Valid, rs2Data, rs2Pending) = bypassNewest(dec.rs2)
 
-    io.bypass.rs2_bypass(w).valid   := rs2Valid
-    io.bypass.rs2_bypass(w).data    := rs2Data
-    io.bypass.rs2_bypass(w).pending := rs2Pending
+    io.dispatch.lanes(w).rs1_bypass.valid   := rs1Valid
+    io.dispatch.lanes(w).rs1_bypass.data    := rs1Data
+    io.dispatch.lanes(w).rs1_bypass.pending := rs1Pending
+
+    io.dispatch.lanes(w).rs2_bypass.valid   := rs2Valid
+    io.dispatch.lanes(w).rs2_bypass.data    := rs2Data
+    io.dispatch.lanes(w).rs2_bypass.pending := rs2Pending
   }
 
-  io.flush.flushes := io.commit.lanes.map(_.flush_pipeline).zip(io.commit.lanes.map(_.pop)).map {
-    case (f, p) => f && p
-  }
-  io.flush.targets := io.commit.lanes.map(_.flush_target)
+  io.flush.flushes := VecInit(
+    io.commit.lanes.map(lane => lane.flush_pipeline && lane.pop)
+  )
+
+  io.flush.targets := VecInit(
+    io.commit.lanes.map(_.flush_target)
+  )
 }

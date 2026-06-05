@@ -13,12 +13,13 @@ import arch.core.rob.Rob
 import arch.core.sb.StoreBuffer
 import arch.core.scheduler.Scheduler
 import arch.core.flush.Flush
+import arch.core.dispatch.Dispatch
 import arch.configs._
 import vcache.CachePortIO
 import vcache.nonblocking.{ NonBlockingCache, ReadOnlyNonBlockingCache }
 import vutils.graph.{ Node, NodeType }
 import chisel3._
-import chisel3.util.{ Mux1H, PopCount, log2Ceil }
+import chisel3.util.{ PopCount, log2Ceil }
 
 class CpuIO(implicit p: Parameters) extends Bundle {
   val imem  = new CachePortIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))
@@ -47,6 +48,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   private val interrupt     = Module(new Interrupt)
   private val exception     = Module(new Exception)
   private val storeBuffer   = Module(new StoreBuffer)
+  private val dispatch      = Module(new Dispatch)
   private val flush         = Module(new Flush)
   private val memoryArbiter = Module(new MemoryArbiter)
   private val l1ICache      = Module(
@@ -139,179 +141,12 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   rob.io.exception <> exception.io.rob
 
   decode.io.ifu <> ifu.io.decode
-
-  private val rs1s = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
-  private val rs2s = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
-
-  for (w <- 0 until p(IssueWidth)) {
-    val dec = decode.io.out(w).bits
-
-    rs1s(w) := dec.rs1
-    rs2s(w) := dec.rs2
-
-    regfile.io.read.rs1_addr(w) := dec.rs1
-    regfile.io.read.rs2_addr(w) := dec.rs2
-
-    rob.io.bypass.rs1_addr(w) := dec.rs1
-    rob.io.bypass.rs2_addr(w) := dec.rs2
-  }
-
-  private val possibleStoreBeforeOrAt = Wire(
-    Vec(p(IssueWidth), UInt(log2Ceil(p(IssueWidth) + 1).W))
-  )
-
-  for (w <- 0 until p(IssueWidth))
-    possibleStoreBeforeOrAt(w) := PopCount(
-      (0 to w).map(v =>
-        decode.io.out(v).valid && decode.io.out(v).bits.isStore && !exception.io.redirect.valid
-      )
-    )
-
-  private val laneBaseReqOk = Wire(Vec(p(IssueWidth), Bool()))
-  private val lanePrefixOk  = Wire(Vec(p(IssueWidth), Bool()))
-  private val coreValidReq  = Wire(Vec(p(IssueWidth), Bool()))
-
-  for (w <- 0 until p(IssueWidth)) {
-    val dec      = decode.io.out(w).bits
-    val sqSlotOk = !dec.isStore || possibleStoreBeforeOrAt(w) <= storeBuffer.io.state.freeCount
-
-    laneBaseReqOk(w) := decode.io
-      .out(w)
-      .valid && dec.legal && !exception.io.redirect.valid && sqSlotOk && rob.io.enq
-      .lanes(w)
-      .req
-      .ready
-  }
-
-  lanePrefixOk(0) := true.B
-
-  for (w <- 1 until p(IssueWidth)) {
-    val olderLaneMayBeSkipped   = !decode.io.out(w - 1).valid || exception.io.redirect.valid
-    val olderLaneCanBePresented = laneBaseReqOk(w - 1)
-
-    lanePrefixOk(w) := lanePrefixOk(w - 1) && (olderLaneMayBeSkipped || olderLaneCanBePresented)
-  }
-
-  for (w <- 0 until p(IssueWidth))
-    coreValidReq(w) := laneBaseReqOk(w) && lanePrefixOk(w)
-
-  private def sqWrapAdd(x: UInt, y: UInt): UInt = {
-    val idxW = log2Ceil(p(StoreBufferSize))
-    val sum  = x +& y
-
-    Mux(sum >= p(StoreBufferSize).U, sum - p(StoreBufferSize).U, sum)(idxW - 1, 0)
-  }
-
-  private val sqIdxForLane = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(StoreBufferSize)).W)))
-  private val sqTailAfter  = Wire(Vec(p(IssueWidth) + 1, UInt(log2Ceil(p(StoreBufferSize)).W)))
-  private val sqSeqForLane = Wire(Vec(p(IssueWidth), UInt(64.W)))
-  private val sqSeqAfter   = Wire(Vec(p(IssueWidth) + 1, UInt(64.W)))
-
-  sqTailAfter(0) := storeBuffer.io.state.tail
-  sqSeqAfter(0)  := storeBuffer.io.state.tailSeq
-
-  for (w <- 0 until p(IssueWidth)) {
-    sqIdxForLane(w) := sqTailAfter(w)
-    sqSeqForLane(w) := sqSeqAfter(w)
-
-    val allocStore = scheduler.io.dispatch.reqs(w).fire && decode.io.out(w).bits.isStore
-
-    sqTailAfter(w + 1) := Mux(allocStore, sqWrapAdd(sqTailAfter(w), 1.U), sqTailAfter(w))
-    sqSeqAfter(w + 1)  := sqSeqAfter(w) + allocStore.asUInt
-  }
-
-  for (w <- 0 until p(IssueWidth)) {
-    storeBuffer.io.alloc
-      .ports(w)
-      .valid                                   := scheduler.io.dispatch.reqs(w).fire && decode.io.out(w).bits.isStore
-    storeBuffer.io.alloc.ports(w).bits.sq_idx  := sqIdxForLane(w)
-    storeBuffer.io.alloc.ports(w).bits.sq_seq  := sqSeqForLane(w)
-    storeBuffer.io.alloc.ports(w).bits.rob_tag := rob.io.enq.lanes(w).rob_tag
-  }
-
-  for (w <- 0 until p(IssueWidth)) {
-    storeBuffer.io.commit
-      .ports(w)
-      .valid                            := rob.io.commit.lanes(w).pop && rob.io.commit.lanes(w).is_store
-    storeBuffer.io.commit.ports(w).bits := rob.io.commit.lanes(w).sq_idx
-  }
-
-  private val rs1CommitMatch = Wire(Vec(p(IssueWidth), Bool()))
-  private val rs2CommitMatch = Wire(Vec(p(IssueWidth), Bool()))
-  private val rs1CommitData  = Wire(Vec(p(IssueWidth), UInt(p(XLen).W)))
-  private val rs2CommitData  = Wire(Vec(p(IssueWidth), UInt(p(XLen).W)))
-
-  for (w <- 0 until p(IssueWidth)) {
-    val match1 = (0 until p(IssueWidth)).map(cw =>
-      rob.io.commit.lanes(cw).pop && rob.io.commit.lanes(cw).rd === rs1s(w) && rob.io.commit
-        .lanes(cw)
-        .rd_write
-    )
-    val match2 = (0 until p(IssueWidth)).map(cw =>
-      rob.io.commit.lanes(cw).pop && rob.io.commit.lanes(cw).rd === rs2s(w) && rob.io.commit
-        .lanes(cw)
-        .rd_write
-    )
-
-    rs1CommitMatch(w) := match1.reduce(_ || _)
-    rs2CommitMatch(w) := match2.reduce(_ || _)
-    rs1CommitData(w)  := Mux1H(match1, rob.io.commit.lanes.map(_.data))
-    rs2CommitData(w)  := Mux1H(match2, rob.io.commit.lanes.map(_.data))
-  }
-
-  for (w <- 0 until p(IssueWidth)) {
-    val dec              = decode.io.out(w).bits
-    val rs1Bypassed      = Mux(
-      rob.io.bypass.rs1_bypass(w).valid,
-      rob.io.bypass.rs1_bypass(w).data,
-      regfile.io.read.rs1_data(w)
-    )
-    val rs2Bypassed      = Mux(
-      rob.io.bypass.rs2_bypass(w).valid,
-      rob.io.bypass.rs2_bypass(w).data,
-      regfile.io.read.rs2_data(w)
-    )
-    val rs1FullyBypassed = Mux(rs1CommitMatch(w), rs1CommitData(w), rs1Bypassed)
-    val rs2FullyBypassed = Mux(rs2CommitMatch(w), rs2CommitData(w), rs2Bypassed)
-    val dis              = scheduler.io.dispatch.reqs(w)
-
-    dis.valid         := coreValidReq(w)
-    dis.bits.pc       := dec.pc
-    dis.bits.instr    := dec.instr
-    dis.bits.fu_type  := dec.fu_type
-    dis.bits.fu_id    := 0.U
-    dis.bits.uop      := dec.uop
-    dis.bits.imm      := dec.imm
-    dis.bits.rs1      := dec.rs1
-    dis.bits.rs2      := dec.rs2
-    dis.bits.rd       := dec.rd
-    dis.bits.rd_write := dec.rd_write
-    dis.bits.rs1_read := dec.rs1_read
-    dis.bits.rs2_read := dec.rs2_read
-    dis.bits.rd_write := dec.rd_write
-    dis.bits.rs1_data := rs1FullyBypassed
-    dis.bits.rs2_data := rs2FullyBypassed
-    dis.bits.rob_tag  := rob.io.enq.lanes(w).rob_tag
-    dis.bits.sq_idx   := sqIdxForLane(w)
-    dis.bits.sq_seq   := sqSeqForLane(w)
-  }
-
-  for (w <- 0 until p(IssueWidth)) {
-    rob.io.enq.lanes(w).req.valid        := scheduler.io.dispatch.reqs(w).fire
-    rob.io.enq.lanes(w).req.bits.decoded := decode.io.out(w).bits
-    rob.io.enq.lanes(w).req.bits.sq_idx  := sqIdxForLane(w)
-  }
-
-  private val decodeReady = Wire(Vec(p(IssueWidth), Bool()))
-
-  for (w <- 0 until p(IssueWidth)) {
-    val consumeThisLane = exception.io.redirect.valid || scheduler.io.dispatch.reqs(w).fire
-
-    if (w == 0) decodeReady(w) := consumeThisLane
-    else decodeReady(w)        := decode.io.out(w - 1).fire && consumeThisLane
-
-    decode.io.out(w).ready := decodeReady(w)
-  }
+  decode.io.dispatch <> dispatch.io.decode
+  dispatch.io.scheduler <> scheduler.io.dispatch
+  dispatch.io.regfile <> regfile.io.dispatch
+  dispatch.io.rob <> rob.io.dispatch
+  dispatch.io.storeBuffer <> storeBuffer.io.dispatch
+  dispatch.io.exception <> exception.io.dispatch
 
   private val commitRegWe   = Wire(Vec(p(IssueWidth), Bool()))
   private val commitRegAddr = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
@@ -360,6 +195,12 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   bpu.io.update.update.ghr_snapshot := bpuUpdateGhrSnapshot
   bpu.io.update.update.mispredict   := bpuUpdateMispredict
 
+  for (w <- 0 until p(IssueWidth)) {
+    storeBuffer.io.rob.commit(w).valid         := rob.io.commit.lanes(w).pop
+    storeBuffer.io.rob.commit(w).bits.is_store := rob.io.commit.lanes(w).is_store
+    storeBuffer.io.rob.commit(w).bits.sq_idx   := rob.io.commit.lanes(w).sq_idx
+  }
+
   io.debug.cycle_count   := cycleCount
   io.debug.instret_count := instretCount
 
@@ -376,9 +217,9 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   io.debug.branch_source    := bpuUpdatePc
   io.debug.branch_target    := bpuUpdateTarget
   io.debug.l1_icache_access := l1ICache.upper.resp.fire
-  io.debug.l1_icache_miss   := !l1ICache.upper.resp.bits.hit
+  io.debug.l1_icache_miss   := l1ICache.upper.resp.fire && !l1ICache.upper.resp.bits.hit
   io.debug.l1_dcache_access := l1DCache.upper.resp.fire
-  io.debug.l1_dcache_miss   := !l1DCache.upper.resp.bits.hit
+  io.debug.l1_dcache_miss   := l1DCache.upper.resp.fire && !l1DCache.upper.resp.bits.hit
   io.debug.bpu_mispredict   := (0 until p(IssueWidth))
     .map(w =>
       rob.io.commit.lanes(w).pop &&
@@ -395,6 +236,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   io.debug.rob_empty        := rob.io.ctrl.empty
   io.debug.issue_count      := PopCount(scheduler.io.dispatch.reqs.map(_.fire))
   io.debug.commit_count     := commitPopCount
-  io.debug.frontend_stall   := laneBaseReqOk(0) && !scheduler.io.dispatch.reqs.map(_.fire)(0)
+  io.debug.frontend_stall   := false.B
   io.debug.backend_stall    := !rob.io.ctrl.empty && commitPopCount === 0.U
 }

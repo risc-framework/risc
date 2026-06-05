@@ -1,16 +1,17 @@
 package arch.core.decode
 
+import arch.core.dispatch.DispatchDecodeIO
 import arch.configs._
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
 import chisel3._
 import chisel3.util.{ BitPat, DecoupledIO }
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
 
 case object DecodeKind extends Field[String]("table")
 
 object DecodeMeta {
-  val Type = NodeType("decode")
-  val IFU  = NodePort[DecodeIO, Vec[DecoupledIO[DecodePacket]]]("ifu", _.ifu)
-  val OUT  = NodePort[DecodeIO, Vec[DecoupledIO[DecodedPacket]]]("out", _.out)
+  val Type     = NodeType("decode")
+  val IFU      = NodePort[DecodeIO, Vec[DecoupledIO[DecodePacket]]]("ifu", _.ifu)
+  val DISPATCH = NodePort[DecodeIO, DispatchDecodeIO]("dispatch", _.dispatch)
 }
 
 object DecodeDims {

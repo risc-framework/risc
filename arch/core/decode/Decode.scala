@@ -1,13 +1,14 @@
 package arch.core.decode
 
 import arch.configs._
+import arch.core.dispatch.DispatchDecodeIO
 import chisel3._
 import chisel3.util.Decoupled
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 
 class DecodeIO(implicit p: Parameters) extends Bundle {
-  val ifu = Flipped(Vec(p(IssueWidth), Decoupled(new DecodePacket)))
-  val out = Vec(p(IssueWidth), Decoupled(new DecodedPacket))
+  val ifu      = Flipped(Vec(p(IssueWidth), Decoupled(new DecodePacket)))
+  val dispatch = Flipped(new DispatchDecodeIO)
 }
 
 class Decode(implicit p: Parameters) extends Node(new DecodeIO) {
@@ -25,8 +26,8 @@ class Decode(implicit p: Parameters) extends Node(new DecodeIO) {
   private val kindImpl = DecodeKindFactory.select(cfg)
 
   for (w <- 0 until p(IssueWidth)) {
-    io.out(w).valid := io.ifu(w).valid
-    io.ifu(w).ready := io.out(w).ready
-    io.out(w).bits  := kindImpl.decode(isaImpl, io.ifu(w).bits)
+    io.dispatch.lanes(w).valid := io.ifu(w).valid
+    io.ifu(w).ready            := io.dispatch.lanes(w).ready
+    io.dispatch.lanes(w).bits  := kindImpl.decode(isaImpl, io.ifu(w).bits)
   }
 }

@@ -1,13 +1,14 @@
 package arch.core.regfile
 
+import arch.core.dispatch.DispatchRegfileIO
 import arch.configs._
 import chisel3._
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 
 class RegfileIO(implicit p: Parameters) extends Bundle {
-  val read  = new RegfileReadIO
-  val write = new RegfileWriteIO
-  val debug = new RegfileDebugIO
+  val dispatch = Flipped(new DispatchRegfileIO)
+  val write    = new RegfileWriteIO
+  val debug    = new RegfileDebugIO
 }
 
 class Regfile(implicit p: Parameters) extends Node(new RegfileIO) {
@@ -37,26 +38,26 @@ class Regfile(implicit p: Parameters) extends Node(new RegfileIO) {
       }
 
   for (w <- 0 until p(IssueWidth)) {
-    val rs1Raw = regsVec(io.read.rs1_addr(w))
-    val rs2Raw = regsVec(io.read.rs2_addr(w))
+    val rs1Raw = regsVec(io.dispatch.rs1_addr(w))
+    val rs2Raw = regsVec(io.dispatch.rs2_addr(w))
 
     if (p(IsRegfileUseBypass)) {
       var rs1Bypassed = rs1Raw
       var rs2Bypassed = rs2Raw
 
       for (i <- 0 until p(IssueWidth)) {
-        val matchRs1 = io.write.en(i) && io.read.rs1_addr(w) === io.write.addr(i)
-        val matchRs2 = io.write.en(i) && io.read.rs2_addr(w) === io.write.addr(i)
+        val matchRs1 = io.write.en(i) && io.dispatch.rs1_addr(w) === io.write.addr(i)
+        val matchRs2 = io.write.en(i) && io.dispatch.rs2_addr(w) === io.write.addr(i)
 
         rs1Bypassed = Mux(matchRs1, io.write.data(i), rs1Bypassed)
         rs2Bypassed = Mux(matchRs2, io.write.data(i), rs2Bypassed)
       }
 
-      io.read.rs1_data(w) := rs1Bypassed
-      io.read.rs2_data(w) := rs2Bypassed
+      io.dispatch.rs1_data(w) := rs1Bypassed
+      io.dispatch.rs2_data(w) := rs2Bypassed
     } else {
-      io.read.rs1_data(w) := rs1Raw
-      io.read.rs2_data(w) := rs2Raw
+      io.dispatch.rs1_data(w) := rs1Raw
+      io.dispatch.rs2_data(w) := rs2Raw
     }
   }
 

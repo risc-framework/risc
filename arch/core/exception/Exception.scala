@@ -1,8 +1,9 @@
 package arch.core.exception
 
-import arch.configs._
 import arch.core.csr.CsrTrapUpdate
 import arch.core.interrupt.TrapCandidate
+import arch.core.dispatch.DispatchExceptionIO
+import arch.configs._
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
 
@@ -13,6 +14,7 @@ class ExceptionIO(implicit p: Parameters) extends Bundle {
   val scheduler     = new ExceptionSchedulerIO
   val fu_pool       = new ExceptionFuPoolIO
   val rob           = new ExceptionRobIO
+  val dispatch      = Flipped(new DispatchExceptionIO)
   val interrupt     = Input(new TrapCandidate)
   val csrBusy       = Input(Bool())
   val archPc        = Input(UInt(p(XLen).W))
@@ -46,4 +48,6 @@ class Exception(implicit p: Parameters) extends Node(new ExceptionIO) {
   io.fu_pool.flush := selected._1.valid
 
   io.rob.flush := selected._1.valid
+
+  io.dispatch.flush := selected._1.valid
 }
