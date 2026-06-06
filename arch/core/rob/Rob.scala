@@ -1,13 +1,13 @@
 package arch.core.rob
 
-import arch.core.dispatch.DispatchRobIO
 import arch.configs._
 import vutils.graph.{ Node, NodeType }
 import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 
 class RobIO(implicit p: Parameters) extends Bundle {
-  val dispatch  = Flipped(new DispatchRobIO)
+  val dispatch  = new RobDispatchIO
+  val bpu       = new RobBpuIO
   val flush     = new RobFlushIO
   val exception = new RobExceptionIO
   val wb        = new RobWbPortIO
@@ -84,26 +84,24 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
 
   for (i <- 0 until io.bru.ports.length)
     when(io.bru.ports(i).resolved.valid) {
-      val resolved      = io.bru.ports(i).resolved.bits
-      val idx           = resolved.rob_tag
-      val oldPredTaken  = buffer(idx).pred_taken
-      val oldPredTarget = buffer(idx).pred_target
-      val bruMispredict =
-        resolved.taken =/= oldPredTaken || (resolved.taken && resolved.target =/= oldPredTarget)
+      val resolved        = io.bru.ports(i).resolved.bits
+      val idx             = resolved.rob_tag
+      val oldPredTaken    = buffer(idx).pred_taken
+      val oldPredTarget   = buffer(idx).pred_target
+      val actualTarget    = Mux(resolved.taken, resolved.target, resolved.fallthrough)
+      val bruMispredict   = resolved.taken =/= oldPredTaken || actualTarget =/= oldPredTarget
 
       buffer(idx).actual_taken  := resolved.taken
-      buffer(idx).actual_target := resolved.target
+      buffer(idx).actual_target := actualTarget
 
       when(bruMispredict) {
         buffer(idx).flush_pipeline := true.B
-        buffer(idx).flush_target   := resolved.target
+        buffer(idx).flush_target   := actualTarget
       }
     }
 
   for (i <- 0 until p(NumFUs))
-    when(
-      io.trap.ports(i).valid && (io.trap.ports(i).bits.trap_req || io.trap.ports(i).bits.trap_ret)
-    ) {
+    when(io.trap.ports(i).valid && (io.trap.ports(i).bits.trap_req || io.trap.ports(i).bits.trap_ret)) {
       val trap = io.trap.ports(i).bits
       val idx  = trap.rob_tag
 
@@ -124,8 +122,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
 
     val entry       = buffer(commitIdx(w))
     val hasEntry    = count > w.U
-    val committable =
-      hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
+    val committable = hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
 
     io.commit.lanes(w).valid             := committable
     io.commit.lanes(w).pc                := entry.pc
@@ -170,8 +167,8 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
       olderFires := PopCount((0 until w).map(i => enqFire(i)))
     }
 
-    io.dispatch.lanes(w).req.ready := availableSlotsAfterCommit > olderFires
-    enqFire(w)                     := io.dispatch.lanes(w).req.fire
+    io.dispatch.lanes(w).req_ready := availableSlotsAfterCommit > olderFires
+    enqFire(w)                     := io.dispatch.lanes(w).req_valid && io.dispatch.lanes(w).req_ready
     enqOffset(w)                   := olderFires(p(RobTagWidth) - 1, 0)
     enqIdx(w)                      := wrapAdd(tail, enqOffset(w))
 
@@ -188,7 +185,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   for (w <- 0 until p(IssueWidth))
     when(enqFire(w)) {
       val idx = enqIdx(w)
-      val pkt = io.dispatch.lanes(w).req.bits
+      val pkt = io.dispatch.lanes(w).req_bits
       val dec = pkt.decoded
 
       buffer(idx).valid          := true.B
@@ -226,19 +223,40 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    val dec = io.dispatch.lanes(w).req.bits.decoded
+    val dec = io.dispatch.lanes(w).req_bits.decoded
 
     val (rs1Valid, rs1Data, rs1Pending) = bypassNewest(dec.rs1)
     val (rs2Valid, rs2Data, rs2Pending) = bypassNewest(dec.rs2)
 
-    io.dispatch.lanes(w).rs1_bypass.valid   := rs1Valid
-    io.dispatch.lanes(w).rs1_bypass.data    := rs1Data
-    io.dispatch.lanes(w).rs1_bypass.pending := rs1Pending
+    io.dispatch.lanes(w).rs1_bypass_valid   := rs1Valid
+    io.dispatch.lanes(w).rs1_bypass_data    := rs1Data
+    io.dispatch.lanes(w).rs1_bypass_pending := rs1Pending
 
-    io.dispatch.lanes(w).rs2_bypass.valid   := rs2Valid
-    io.dispatch.lanes(w).rs2_bypass.data    := rs2Data
-    io.dispatch.lanes(w).rs2_bypass.pending := rs2Pending
+    io.dispatch.lanes(w).rs2_bypass_valid   := rs2Valid
+    io.dispatch.lanes(w).rs2_bypass_data    := rs2Data
+    io.dispatch.lanes(w).rs2_bypass_pending := rs2Pending
   }
+
+  private val bpuUpdate = WireDefault(0.U.asTypeOf(new arch.core.bpu.BpuUpdate))
+
+  for (w <- 0 until p(IssueWidth)) {
+    val lane               = io.commit.lanes(w)
+    val isBruCommit        = lane.is_branch
+    val predTakenNonBranch = !isBruCommit && lane.bpu_pred_taken
+    val shouldUpdateBranch = lane.pop && (isBruCommit || predTakenNonBranch)
+
+    when(shouldUpdateBranch) {
+      bpuUpdate.valid        := true.B
+      bpuUpdate.pc           := lane.pc
+      bpuUpdate.target       := lane.bpu_actual_target
+      bpuUpdate.taken        := lane.bpu_actual_taken
+      bpuUpdate.pht_index    := lane.bpu_pht_index
+      bpuUpdate.ghr_snapshot := lane.bpu_ghr_snapshot
+      bpuUpdate.mispredict   := lane.flush_pipeline
+    }
+  }
+
+  io.bpu.update := bpuUpdate
 
   io.flush.flushes := VecInit(
     io.commit.lanes.map(lane => lane.flush_pipeline && lane.pop)

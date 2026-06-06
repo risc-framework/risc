@@ -23,7 +23,7 @@ class BpuUpdate(implicit p: Parameters) extends Bundle {
   val mispredict   = Bool()
 }
 
-class BpuFetchIO(implicit p: Parameters) extends Bundle {
+class BpuIfuIO(implicit p: Parameters) extends Bundle {
   val query_pc      = Input(Vec(p(IssueWidth), UInt(p(XLen).W)))
   val advance_valid = Input(Bool())
   val flush         = Input(Bool())
@@ -31,6 +31,10 @@ class BpuFetchIO(implicit p: Parameters) extends Bundle {
   val target        = Output(Vec(p(IssueWidth), UInt(p(XLen).W)))
   val pht_index     = Output(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W)))
   val ghr_snapshot  = Output(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W)))
+}
+
+class BpuRobIO(implicit p: Parameters) extends Bundle {
+  val update = Input(new BpuUpdate)
 }
 
 class BpuUpdateIO(implicit p: Parameters) extends Bundle {
@@ -61,4 +65,8 @@ class PredictorQueryIO(implicit p: Parameters) extends Bundle {
   val taken        = Output(Vec(p(IssueWidth), Bool()))
   val pht_index    = Output(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W)))
   val ghr_snapshot = Output(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W)))
+}
+
+class PredictorUpdateIO(implicit p: Parameters) extends Bundle {
+  val update = Input(new BpuUpdate)
 }

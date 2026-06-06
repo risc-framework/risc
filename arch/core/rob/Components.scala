@@ -1,10 +1,31 @@
 package arch.core.rob
 
-import arch.core.bru.BruResolveIO
+import arch.core.bpu.BpuUpdate
 import arch.core.decode.DecodedPacket
+import arch.core.dispatch.DispatchRobPacket
 import arch.configs._
 import chisel3._
 import chisel3.util.{ Decoupled, log2Ceil }
+
+class RobDispatchLaneIO(implicit p: Parameters) extends Bundle {
+  val req_valid = Input(Bool())
+  val req_ready = Output(Bool())
+  val req_bits  = Input(new DispatchRobPacket)
+
+  val rob_tag = Output(UInt(p(RobTagWidth).W))
+
+  val rs1_bypass_valid   = Output(Bool())
+  val rs1_bypass_data    = Output(UInt(p(XLen).W))
+  val rs1_bypass_pending = Output(Bool())
+
+  val rs2_bypass_valid   = Output(Bool())
+  val rs2_bypass_data    = Output(UInt(p(XLen).W))
+  val rs2_bypass_pending = Output(Bool())
+}
+
+class RobDispatchIO(implicit p: Parameters) extends Bundle {
+  val lanes = Vec(p(IssueWidth), new RobDispatchLaneIO)
+}
 
 class RobEnqPacket(implicit p: Parameters) extends Bundle {
   val decoded = new DecodedPacket
@@ -12,8 +33,8 @@ class RobEnqPacket(implicit p: Parameters) extends Bundle {
 }
 
 class RobEnqIO(implicit p: Parameters) extends Bundle {
-  val req     = Flipped(Decoupled(new RobEnqPacket))
-  val rob_tag = Output(UInt(p(RobTagWidth).W))
+  val req     = Decoupled(new RobEnqPacket)
+  val rob_tag = Input(UInt(p(RobTagWidth).W))
 }
 
 class RobWbIO(implicit p: Parameters) extends Bundle {
@@ -33,6 +54,28 @@ class RobTrapBundle(implicit p: Parameters) extends Bundle {
 class RobTrapIO(implicit p: Parameters) extends Bundle {
   val valid = Input(Bool())
   val bits  = Input(new RobTrapBundle)
+}
+
+class RobBruResolvedBundle(implicit p: Parameters) extends Bundle {
+  val pc          = UInt(p(XLen).W)
+  val instr       = UInt(p(ILen).W)
+  val rob_tag     = UInt(p(RobTagWidth).W)
+  val taken       = Bool()
+  val target      = UInt(p(XLen).W)
+  val fallthrough = UInt(p(XLen).W)
+}
+
+class RobBruResolvedIO(implicit p: Parameters) extends Bundle {
+  val valid = Input(Bool())
+  val bits  = Input(new RobBruResolvedBundle)
+}
+
+class RobBruLaneIO(implicit p: Parameters) extends Bundle {
+  val resolved = new RobBruResolvedIO
+}
+
+class RobBruPortIO(implicit p: Parameters) extends Bundle {
+  val ports = Vec(p(NumBRUs), new RobBruLaneIO)
 }
 
 class RobCommitIO(implicit p: Parameters) extends Bundle {
@@ -71,10 +114,6 @@ class RobWbPortIO(implicit p: Parameters) extends Bundle {
   val ports = Vec(p(NumFUs), new RobWbIO)
 }
 
-class RobBruPortIO(implicit p: Parameters) extends Bundle {
-  val ports = Flipped(Vec(p(NumBRUs), new BruResolveIO))
-}
-
 class RobTrapPortIO(implicit p: Parameters) extends Bundle {
   val ports = Vec(p(NumFUs), new RobTrapIO)
 }
@@ -88,6 +127,10 @@ class RobBypassIO(implicit p: Parameters) extends Bundle {
   val rs1_bypass = Vec(p(IssueWidth), new RobBypassResp)
   val rs2_addr   = Input(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
   val rs2_bypass = Vec(p(IssueWidth), new RobBypassResp)
+}
+
+class RobBpuIO(implicit p: Parameters) extends Bundle {
+  val update = Output(new BpuUpdate)
 }
 
 class RobCtrlIO extends Bundle {

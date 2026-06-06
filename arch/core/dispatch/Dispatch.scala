@@ -1,8 +1,7 @@
 package arch.core.dispatch
 
-import arch.core.scheduler.SchedulerDispatchIO
-import arch.core.uop.MicroOp
 import arch.configs._
+import arch.core.uop.MicroOp
 import vutils.graph.{ Node, NodeType }
 import chisel3._
 
@@ -11,7 +10,7 @@ class DispatchIO(implicit p: Parameters) extends Bundle {
   val regfile   = new DispatchRegfileIO
   val rob       = new DispatchRobIO
   val sb        = new DispatchStoreBufferIO
-  val scheduler = Flipped(new SchedulerDispatchIO)
+  val scheduler = new DispatchSchedulerIO
   val exception = new DispatchExceptionIO
 }
 
@@ -33,14 +32,14 @@ class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
     io.sb.lanes(w).bits    := dec
     io.sb.lanes(w).rob_tag := io.rob.lanes(w).rob_tag
 
-    io.rob.lanes(w).req.bits.decoded := dec
-    io.rob.lanes(w).req.bits.sq_idx  := io.sb.lanes(w).ticket.sq_idx
+    io.rob.lanes(w).req_bits.decoded := dec
+    io.rob.lanes(w).req_bits.sq_idx  := io.sb.lanes(w).ticket.sq_idx
 
     laneBaseReqOk(w) := io.decode.lanes(w).valid &&
       dec.legal &&
       !io.exception.flush &&
       io.sb.lanes(w).ready &&
-      io.rob.lanes(w).req.ready
+      io.rob.lanes(w).req_ready
   }
 
   lanePrefixOk(0) := true.B
@@ -58,9 +57,9 @@ class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
   for (w <- 0 until p(IssueWidth)) {
     val dec         = io.decode.lanes(w).bits
     val rs1Bypassed =
-      Mux(io.rob.lanes(w).rs1_bypass.valid, io.rob.lanes(w).rs1_bypass.data, io.regfile.rs1_data(w))
+      Mux(io.rob.lanes(w).rs1_bypass_valid, io.rob.lanes(w).rs1_bypass_data, io.regfile.rs1_data(w))
     val rs2Bypassed =
-      Mux(io.rob.lanes(w).rs2_bypass.valid, io.rob.lanes(w).rs2_bypass.data, io.regfile.rs2_data(w))
+      Mux(io.rob.lanes(w).rs2_bypass_valid, io.rob.lanes(w).rs2_bypass_data, io.regfile.rs2_data(w))
     val dis         = io.scheduler.reqs(w)
     val issueOp     = Wire(new MicroOp)
 
@@ -85,7 +84,7 @@ class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
     dis.valid := coreValidReq(w)
     dis.bits  := issueOp
 
-    io.rob.lanes(w).req.valid := dis.fire
+    io.rob.lanes(w).req_valid := dis.fire
     io.sb.lanes(w).fire       := dis.fire
   }
 
@@ -95,7 +94,9 @@ class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
     if (w == 0) {
       io.decode.lanes(w).ready := consumeThisLane
     } else {
-      io.decode.lanes(w).ready := io.decode.lanes(w - 1).fire && consumeThisLane
+      io.decode
+        .lanes(w)
+        .ready := io.decode.lanes(w - 1).ready && io.decode.lanes(w - 1).valid && consumeThisLane
     }
   }
 }

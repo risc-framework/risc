@@ -18,9 +18,9 @@ object PredictorMeta {
 }
 
 object BpuMeta {
-  val Type   = NodeType("bpu")
-  val FETCH  = NodePort[BpuIO, BpuFetchIO]("fetch", _.fetch)
-  val UPDATE = NodePort[BpuIO, BpuUpdateIO]("update", _.update)
+  val Type = NodeType("bpu")
+  val IFU  = NodePort[BpuIO, BpuIfuIO]("ifu", _.ifu)
+  val ROB  = NodePort[BpuIO, BpuRobIO]("rob", _.rob)
 }
 
 object PredictorDims {

@@ -57,7 +57,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   private val l1DCache      = Module(new NonBlockingCache(UInt(p(XLen).W), p(L1DCacheParams)))
 
   io.imem <> l1ICache.lower
-  ifu.io.bpu <> bpu.io.fetch
+  ifu.io.bpu <> bpu.io.ifu
   ifu.io.icache.mem <> l1ICache.upper
   decode.io.ifu <> ifu.io.decode
 
@@ -163,37 +163,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     regfile.io.write.data(w) := commitRegData(w)
   }
 
-  private val bpuUpdateValid       = WireDefault(false.B)
-  private val bpuUpdatePc          = WireDefault(0.U(p(XLen).W))
-  private val bpuUpdateTarget      = WireDefault(0.U(p(XLen).W))
-  private val bpuUpdateTaken       = WireDefault(false.B)
-  private val bpuUpdatePhtIdx      = WireDefault(0.U(p(GShareGhrWidth).W))
-  private val bpuUpdateGhrSnapshot = WireDefault(0.U(p(GShareGhrWidth).W))
-  private val bpuUpdateMispredict  = WireDefault(false.B)
-
-  for (w <- 0 until p(IssueWidth)) {
-    val isBruCommit           = rob.io.commit.lanes(w).is_branch
-    val mispredictedNonBranch = !isBruCommit && rob.io.commit.lanes(w).bpu_pred_taken
-
-    when(rob.io.commit.lanes(w).pop && (isBruCommit || mispredictedNonBranch)) {
-      bpuUpdateValid       := true.B
-      bpuUpdatePc          := rob.io.commit.lanes(w).pc
-      bpuUpdateTarget      := rob.io.commit.lanes(w).bpu_actual_target
-      bpuUpdateTaken       := rob.io.commit.lanes(w).bpu_actual_taken
-      bpuUpdatePhtIdx      := rob.io.commit.lanes(w).bpu_pht_index
-      bpuUpdateGhrSnapshot := rob.io.commit.lanes(w).bpu_ghr_snapshot
-      bpuUpdateMispredict  := rob.io.commit.lanes(w).flush_pipeline
-    }
-  }
-
-  bpu.io.update.update.valid        := bpuUpdateValid
-  bpu.io.update.update.pc           := bpuUpdatePc
-  bpu.io.update.update.target       := bpuUpdateTarget
-  bpu.io.update.update.taken        := bpuUpdateTaken
-  bpu.io.update.update.pht_index    := bpuUpdatePhtIdx
-  bpu.io.update.update.ghr_snapshot := bpuUpdateGhrSnapshot
-  bpu.io.update.update.mispredict   := bpuUpdateMispredict
-
   for (w <- 0 until p(IssueWidth)) {
     storeBuffer.io.rob.commit(w).valid         := rob.io.commit.lanes(w).pop
     storeBuffer.io.rob.commit(w).bits.is_store := rob.io.commit.lanes(w).is_store
@@ -212,9 +181,9 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     io.debug.reg_data(w) := commitRegData(w)
   }
 
-  io.debug.branch_taken     := bpuUpdateValid && bpuUpdateTaken
-  io.debug.branch_source    := bpuUpdatePc
-  io.debug.branch_target    := bpuUpdateTarget
+  io.debug.branch_taken     := false.B
+  io.debug.branch_source    := false.B
+  io.debug.branch_target    := false.B
   io.debug.l1_icache_access := l1ICache.upper.resp.fire
   io.debug.l1_icache_miss   := l1ICache.upper.resp.fire && !l1ICache.upper.resp.bits.hit
   io.debug.l1_dcache_access := l1DCache.upper.resp.fire

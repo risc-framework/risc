@@ -4,7 +4,8 @@ import vutils.graph.{ NodePort, NodeType }
 
 object RobMeta {
   val Type      = NodeType("rob")
-  val DISPATCH  = NodePort[RobIO, arch.core.dispatch.DispatchRobIO]("dispatch", _.dispatch)
+  val DISPATCH  = NodePort[RobIO, RobDispatchIO]("dispatch", _.dispatch)
+  val BPU       = NodePort[RobIO, RobBpuIO]("bpu", _.bpu)
   val FLUSH     = NodePort[RobIO, RobFlushIO]("flush", _.flush)
   val EXCEPTION = NodePort[RobIO, RobExceptionIO]("exception", _.exception)
   val WB        = NodePort[RobIO, RobWbPortIO]("wb", _.wb)
