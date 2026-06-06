@@ -56,11 +56,30 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   )
   private val l1DCache      = Module(new NonBlockingCache(UInt(p(XLen).W), p(L1DCacheParams)))
 
+  // IO
   io.imem <> l1ICache.lower
-  ifu.io.bpu <> bpu.io.ifu
-  rob.io.bpu <> bpu.io.rob
+  io.dmem <> l1DCache.lower
+  io.mmio <> memoryArbiter.io.out.mmio
+  io.irq <> interrupt.io.irq
+
+  // bpu
+  bpu.io.ifu <> ifu.io.bpu
+  bpu.io.rob <> rob.io.bpu
+
+  // ifu
   ifu.io.icache.mem <> l1ICache.upper
-  decode.io.ifu <> ifu.io.decode
+  ifu.io.decode <> decode.io.ifu
+  ifu.io.exception <> exception.io.ifu
+
+  // decode
+  decode.io.dispatch <> dispatch.io.decode
+
+  // dispatch
+  dispatch.io.scheduler <> scheduler.io.dispatch
+  dispatch.io.regfile <> regfile.io.dispatch
+  dispatch.io.rob <> rob.io.dispatch
+  dispatch.io.sb <> storeBuffer.io.dispatch
+  dispatch.io.exception <> exception.io.dispatch
 
   scheduler.bind(fuPool)
 
@@ -74,8 +93,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   instretCount   := instretCount + commitPopCount
 
   l1DCache.upper <> memoryArbiter.io.out.mem
-  io.dmem <> l1DCache.lower
-  io.mmio <> memoryArbiter.io.out.mmio
 
   for (i <- 0 until p(NumLDs)) {
     memoryArbiter.io.load.mem(i) <> fuPool.io.ld_mem.ports(i).mem
@@ -117,7 +134,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   if (p(NumCSRs) > 0) {
     interrupt.io.view := fuPool.io.csr.ports(0).view
-    interrupt.io.irq <> io.irq
 
     exception.io.interrupt := interrupt.io.out
     exception.io.csrBusy   := fuPool.io.csr.ports(0).busy
@@ -135,18 +151,10 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     exception.io.csrBusy   := false.B
   }
 
-  ifu.io.exception <> exception.io.ifu
   storeBuffer.io.exception <> exception.io.sb
   scheduler.io.exception <> exception.io.scheduler
   fuPool.io.exception <> exception.io.fu_pool
   rob.io.exception <> exception.io.rob
-
-  decode.io.dispatch <> dispatch.io.decode
-  dispatch.io.scheduler <> scheduler.io.dispatch
-  dispatch.io.regfile <> regfile.io.dispatch
-  dispatch.io.rob <> rob.io.dispatch
-  dispatch.io.sb <> storeBuffer.io.dispatch
-  dispatch.io.exception <> exception.io.dispatch
 
   private val commitRegWe   = Wire(Vec(p(IssueWidth), Bool()))
   private val commitRegAddr = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
