@@ -56,6 +56,12 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   )
   private val l1DCache      = Module(new NonBlockingCache(UInt(p(XLen).W), p(L1DCacheParams)))
 
+  io.imem <> l1ICache.lower
+  ifu.io.bpu <> bpu.io.fetch
+  ifu.io.icache.mem <> l1ICache.upper
+  decode.io.ifu <> ifu.io.decode
+  private val archPc = Mux(rob.io.ctrl.empty, ifu.io.exception.fetch_pc, rob.io.commit.lanes(0).pc)
+
   scheduler.bind(fuPool)
 
   private val cycleCount     = RegInit(0.U(64.W))
@@ -66,14 +72,9 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   cycleCount     := cycleCount + 1.U
   instretCount   := instretCount + commitPopCount
 
-  ifu.io.mem.mem <> l1ICache.upper
-  io.imem <> l1ICache.lower
-
   l1DCache.upper <> memoryArbiter.io.out.mem
   io.dmem <> l1DCache.lower
   io.mmio <> memoryArbiter.io.out.mmio
-
-  ifu.io.bpu <> bpu.io.fetch
 
   for (i <- 0 until p(NumLDs)) {
     memoryArbiter.io.load.mem(i) <> fuPool.io.ld_mem.ports(i).mem
@@ -111,7 +112,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   flush.io.rob <> rob.io.flush
   flush.io.exception <> exception.io.flush
 
-  private val archPc = Mux(rob.io.ctrl.empty, ifu.io.dispatch.fetch_pc, rob.io.commit.lanes(0).pc)
   exception.io.archPc := archPc
 
   if (p(NumCSRs) > 0) {

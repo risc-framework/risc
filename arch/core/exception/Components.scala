@@ -14,8 +14,16 @@ class ExceptionFlushIO(implicit p: Parameters) extends Bundle {
 }
 
 class ExceptionIfuIO(implicit p: Parameters) extends Bundle {
-  val redirect = Output(Bool())
-  val target   = Output(UInt(p(XLen).W))
+  val redirect       = Output(Bool())
+  val target         = Output(UInt(p(XLen).W))
+  val fetch_pc       = Input(UInt(p(XLen).W))
+  val fetch_fire     = Input(Bool())
+  val frontend_flush = Input(Bool())
+  val reset_ibuffer  = Input(Bool())
+}
+
+class ExceptionDispatchIO extends Bundle {
+  val flush = Output(Bool())
 }
 
 class ExceptionStoreBufferIO extends Bundle {

@@ -1,13 +1,13 @@
 package arch.core.decode
 
-import arch.configs._
 import arch.core.dispatch.DispatchDecodeIO
+import arch.core.ifu.IfuDecodeIO
+import arch.configs._
 import chisel3._
-import chisel3.util.Decoupled
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 
 class DecodeIO(implicit p: Parameters) extends Bundle {
-  val ifu      = Flipped(Vec(p(IssueWidth), Decoupled(new DecodePacket)))
+  val ifu      = Flipped(new IfuDecodeIO)
   val dispatch = Flipped(new DispatchDecodeIO)
 }
 
@@ -26,8 +26,17 @@ class Decode(implicit p: Parameters) extends Node(new DecodeIO) {
   private val kindImpl = DecodeKindFactory.select(cfg)
 
   for (w <- 0 until p(IssueWidth)) {
-    io.dispatch.lanes(w).valid := io.ifu(w).valid
-    io.ifu(w).ready            := io.dispatch.lanes(w).ready
-    io.dispatch.lanes(w).bits  := kindImpl.decode(isaImpl, io.ifu(w).bits)
+    val packet = Wire(new DecodePacket)
+
+    packet.pc               := io.ifu.lanes(w).bits.pc
+    packet.instr            := io.ifu.lanes(w).bits.instr
+    packet.bpu_pred_taken   := io.ifu.lanes(w).bits.bpu_pred_taken
+    packet.bpu_pred_target  := io.ifu.lanes(w).bits.bpu_pred_target
+    packet.bpu_pht_index    := io.ifu.lanes(w).bits.bpu_pht_index
+    packet.bpu_ghr_snapshot := io.ifu.lanes(w).bits.bpu_ghr_snapshot
+
+    io.dispatch.lanes(w).valid := io.ifu.lanes(w).valid
+    io.ifu.lanes(w).ready      := io.dispatch.lanes(w).ready
+    io.dispatch.lanes(w).bits  := kindImpl.decode(isaImpl, packet)
   }
 }

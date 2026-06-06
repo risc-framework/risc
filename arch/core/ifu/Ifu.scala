@@ -1,17 +1,15 @@
 package arch.core.ifu
 
 import arch.configs._
-import arch.core.bpu.BpuFetchIO
 import vutils.graph.{ Node, NodeType }
 import chisel3._
-import chisel3.util.{ Decoupled, PriorityEncoder, Queue, log2Ceil }
+import chisel3.util.{ PriorityEncoder, Queue, log2Ceil }
 
 class IfuIO(implicit p: Parameters) extends Bundle {
-  val mem       = new IfuMemIO
-  val decode    = Vec(p(IssueWidth), Decoupled(new IBufferEntry))
+  val icache    = new IfuICacheIO
+  val decode    = new IfuDecodeIO
   val exception = new IfuExceptionIO
-  val bpu       = Flipped(new BpuFetchIO)
-  val dispatch  = new IfuDispatchIO
+  val bpu       = new IfuBpuIO
 }
 
 class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
@@ -36,8 +34,8 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
   private val dropCount   = RegInit(0.U(5.W))
   private val pendingReqs = RegInit(0.U(5.W))
 
-  private val reqFire       = io.mem.mem.req.valid && io.mem.mem.req.ready
-  private val respFire      = io.mem.mem.resp.valid && io.mem.mem.resp.ready
+  private val reqFire       = io.icache.mem.req.valid && io.icache.mem.req.ready
+  private val respFire      = io.icache.mem.resp.valid && io.icache.mem.resp.ready
   private val nextDropCount = dropCount + pendingReqs
   private val isDropping    = respFire && nextDropCount > 0.U
   private val isValidResp   = dropCount === 0.U && !doRedirect
@@ -95,13 +93,15 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
 
   metaQ.io.flush.get := doRedirect
 
-  io.mem.mem.req.valid       := metaQ.io.enq.ready && ibuffer.io.enq_ready && !doRedirect
-  io.mem.mem.req.bits.addr   := alignedPc
-  io.mem.mem.req.bits.source := 0.U
-  io.mem.mem.resp.ready      := ibuffer.io.enq_ready
+  io.icache.mem.req.valid       := metaQ.io.enq.ready && ibuffer.io.enq_ready && !doRedirect
+  io.icache.mem.req.bits.addr   := alignedPc
+  io.icache.mem.req.bits.source := 0.U
+  io.icache.mem.resp.ready      := ibuffer.io.enq_ready
 
-  io.dispatch.fetch_pc   := pc
-  io.dispatch.fetch_fire := reqFire
+  io.exception.fetch_pc       := pc
+  io.exception.fetch_fire     := reqFire
+  io.exception.frontend_flush := doRedirect
+  io.exception.reset_ibuffer  := doRedirect
 
   metaQ.io.enq.valid                 := reqFire
   metaQ.io.enq.bits.pc               := pc
@@ -140,7 +140,7 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
   for (w <- 0 until p(IssueWidth)) {
     ibuffer.io.enq_valid(w)                 := respFire && isValidResp && metaQ.io.deq.valid && respLive(w)
     ibuffer.io.enq_bits(w).pc               := (respPc & alignMask) + (w * p(PCStep)).U
-    ibuffer.io.enq_bits(w).instr            := io.mem.mem.resp.bits.data(w)
+    ibuffer.io.enq_bits(w).instr            := io.icache.mem.resp.bits.data(w)
     ibuffer.io.enq_bits(w).bpu_pred_taken   := metaQ.io.deq.bits.bpu_pred_taken(w)
     ibuffer.io.enq_bits(w).bpu_pred_target  := metaQ.io.deq.bits.bpu_pred_target(w)
     ibuffer.io.enq_bits(w).bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)
@@ -150,11 +150,8 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
   ibuffer.io.flush := doRedirect
 
   for (w <- 0 until p(IssueWidth)) {
-    ibuffer.io.deq(w).ready := io.decode(w).ready
-    io.decode(w).valid      := ibuffer.io.deq(w).valid && !doRedirect
-    io.decode(w).bits       := ibuffer.io.deq(w).bits
+    ibuffer.io.deq(w).ready  := io.decode.lanes(w).ready
+    io.decode.lanes(w).valid := ibuffer.io.deq(w).valid && !doRedirect
+    io.decode.lanes(w).bits  := ibuffer.io.deq(w).bits
   }
-
-  io.dispatch.frontend_flush := doRedirect
-  io.dispatch.reset_ibuffer  := doRedirect
 }

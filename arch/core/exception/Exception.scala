@@ -2,19 +2,19 @@ package arch.core.exception
 
 import arch.core.csr.CsrTrapUpdate
 import arch.core.interrupt.TrapCandidate
-import arch.core.dispatch.DispatchExceptionIO
 import arch.configs._
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
 
 class ExceptionIO(implicit p: Parameters) extends Bundle {
-  val flush         = new ExceptionFlushIO
-  val ifu           = new ExceptionIfuIO
-  val sb            = new ExceptionStoreBufferIO
-  val scheduler     = new ExceptionSchedulerIO
-  val fu_pool       = new ExceptionFuPoolIO
-  val rob           = new ExceptionRobIO
-  val dispatch      = Flipped(new DispatchExceptionIO)
+  val flush     = new ExceptionFlushIO
+  val ifu       = new ExceptionIfuIO
+  val dispatch  = new ExceptionDispatchIO
+  val sb        = new ExceptionStoreBufferIO
+  val scheduler = new ExceptionSchedulerIO
+  val fu_pool   = new ExceptionFuPoolIO
+  val rob       = new ExceptionRobIO
+
   val interrupt     = Input(new TrapCandidate)
   val csrBusy       = Input(Bool())
   val archPc        = Input(UInt(p(XLen).W))
@@ -33,21 +33,26 @@ class Exception(implicit p: Parameters) extends Node(new ExceptionIO) {
   override def desiredName: String = s"exception_${cfg.selector.canonicalName}"
 
   private val isaImpl  = ExceptionIsaFactory.select(cfg)
-  private val selected = isaImpl.select(io.interrupt, io.flush, io.csrBusy, io.archPc)
+  private val selected = isaImpl.select(
+    io.interrupt,
+    io.flush,
+    io.csrBusy,
+    io.archPc
+  )
 
-  io.redirect      := selected._1
-  io.csrTrapUpdate := selected._2
+  private val redirect   = selected._1
+  private val trapUpdate = selected._2
+  private val flush      = redirect.valid
 
-  io.ifu.redirect := selected._1.valid
-  io.ifu.target   := selected._1.target
+  io.redirect      := redirect
+  io.csrTrapUpdate := trapUpdate
 
-  io.sb.flush := selected._1.valid
+  io.ifu.redirect := redirect.valid
+  io.ifu.target   := redirect.target
 
-  io.scheduler.flush := selected._1.valid
-
-  io.fu_pool.flush := selected._1.valid
-
-  io.rob.flush := selected._1.valid
-
-  io.dispatch.flush := selected._1.valid
+  io.dispatch.flush  := flush
+  io.sb.flush        := flush
+  io.scheduler.flush := flush
+  io.fu_pool.flush   := flush
+  io.rob.flush       := flush
 }

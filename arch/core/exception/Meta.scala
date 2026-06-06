@@ -10,6 +10,7 @@ object ExceptionMeta {
   val Type            = NodeType("exception")
   val FLUSH           = NodePort[ExceptionIO, ExceptionFlushIO]("flush", _.flush)
   val IFU             = NodePort[ExceptionIO, ExceptionIfuIO]("ifu", _.ifu)
+  val DISPATCH        = NodePort[ExceptionIO, ExceptionDispatchIO]("dispatch", _.dispatch)
   val SB              = NodePort[ExceptionIO, ExceptionStoreBufferIO]("sb", _.sb)
   val SCHEDULER       = NodePort[ExceptionIO, ExceptionSchedulerIO]("scheduler", _.scheduler)
   val FU_POOL         = NodePort[ExceptionIO, ExceptionFuPoolIO]("fu_pool", _.fu_pool)
