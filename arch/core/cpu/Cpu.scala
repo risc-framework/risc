@@ -62,12 +62,17 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   io.mmio <> memoryArbiter.io.out.mmio
   io.irq <> interrupt.io.irq
 
+  // icache
+  l1ICache.upper <> ifu.io.icache.mem
+
+  // dcache
+  l1DCache.upper <> memoryArbiter.io.out.mem
+
   // bpu
   bpu.io.ifu <> ifu.io.bpu
   bpu.io.rob <> rob.io.bpu
 
   // ifu
-  ifu.io.icache.mem <> l1ICache.upper
   ifu.io.decode <> decode.io.ifu
   ifu.io.exception <> exception.io.ifu
 
@@ -81,6 +86,16 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   dispatch.io.sb <> storeBuffer.io.dispatch
   dispatch.io.exception <> exception.io.dispatch
 
+  // fupool
+
+  // scheduler
+
+  // rob
+
+  // memarb
+
+  // interrupt
+
   scheduler.bind(fuPool)
 
   private val cycleCount     = RegInit(0.U(64.W))
@@ -91,8 +106,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   commitPopCount := PopCount(rob.io.commit.lanes.map(_.pop))
   cycleCount     := cycleCount + 1.U
   instretCount   := instretCount + commitPopCount
-
-  l1DCache.upper <> memoryArbiter.io.out.mem
 
   for (i <- 0 until p(NumLDs)) {
     memoryArbiter.io.load.mem(i) <> fuPool.io.ld_mem.ports(i).mem
