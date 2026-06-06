@@ -8,6 +8,16 @@ import chisel3.util.log2Ceil
 
 class DecodePacket(implicit p: Parameters) extends IBufferEntry
 
+class DecodeIfuLaneIO(implicit p: Parameters) extends Bundle {
+  val valid = Input(Bool())
+  val bits  = Input(new IBufferEntry)
+  val ready = Output(Bool())
+}
+
+class DecodeIfuIO(implicit p: Parameters) extends Bundle {
+  val lanes = Vec(p(IssueWidth), new DecodeIfuLaneIO)
+}
+
 class DecodedPacket(implicit p: Parameters) extends Bundle {
   val pc               = UInt(p(XLen).W)
   val instr            = UInt(p(ILen).W)

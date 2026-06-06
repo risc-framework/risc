@@ -1,13 +1,12 @@
 package arch.core.decode
 
 import arch.core.dispatch.DispatchDecodeIO
-import arch.core.ifu.IfuDecodeIO
 import arch.configs._
 import chisel3._
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 
 class DecodeIO(implicit p: Parameters) extends Bundle {
-  val ifu      = Flipped(new IfuDecodeIO)
+  val ifu      = new DecodeIfuIO
   val dispatch = Flipped(new DispatchDecodeIO)
 }
 

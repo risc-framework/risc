@@ -60,13 +60,13 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   ifu.io.bpu <> bpu.io.fetch
   ifu.io.icache.mem <> l1ICache.upper
   decode.io.ifu <> ifu.io.decode
-  private val archPc = Mux(rob.io.ctrl.empty, ifu.io.exception.fetch_pc, rob.io.commit.lanes(0).pc)
 
   scheduler.bind(fuPool)
 
   private val cycleCount     = RegInit(0.U(64.W))
   private val instretCount   = RegInit(0.U(64.W))
   private val commitPopCount = Wire(UInt(log2Ceil(p(IssueWidth) + 1).W))
+  private val archPc         = Mux(rob.io.ctrl.empty, ifu.io.exception.fetch_pc, rob.io.commit.lanes(0).pc)
 
   commitPopCount := PopCount(rob.io.commit.lanes.map(_.pop))
   cycleCount     := cycleCount + 1.U
@@ -140,7 +140,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   fuPool.io.exception <> exception.io.fu_pool
   rob.io.exception <> exception.io.rob
 
-  decode.io.ifu <> ifu.io.decode
   decode.io.dispatch <> dispatch.io.decode
   dispatch.io.scheduler <> scheduler.io.dispatch
   dispatch.io.regfile <> regfile.io.dispatch
