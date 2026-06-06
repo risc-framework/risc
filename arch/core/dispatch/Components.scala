@@ -7,14 +7,8 @@ import arch.core.sb.StoreBufferTicket
 import chisel3._
 import chisel3.util.{ Decoupled, log2Ceil }
 
-class DispatchDecodeLaneIO(implicit p: Parameters) extends Bundle {
-  val valid = Input(Bool())
-  val bits  = Input(new DecodedPacket)
-  val ready = Output(Bool())
-}
-
 class DispatchDecodeIO(implicit p: Parameters) extends Bundle {
-  val lanes = Vec(p(IssueWidth), new DispatchDecodeLaneIO)
+  val lanes = Vec(p(IssueWidth), Flipped(Decoupled(new DecodedPacket)))
 }
 
 class DispatchRegfileIO(implicit p: Parameters) extends Bundle {

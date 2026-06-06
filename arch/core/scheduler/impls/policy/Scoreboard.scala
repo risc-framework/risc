@@ -48,10 +48,10 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       val cdb_rd      = Wire(Vec(p(NumFUs), UInt(log2Ceil(p(NumArchRegs)).W)))
 
       for (i <- 0 until p(NumFUs)) {
-        cdb_valid(i)   := io.fu.done(i).valid
-        cdb_data(i)    := io.fu.done(i).bits.result
-        cdb_rob_tag(i) := io.fu.done(i).bits.rob_tag
-        cdb_rd(i)      := io.fu.done(i).bits.rd
+        cdb_valid(i)   := io.fu_pool.done(i).valid
+        cdb_data(i)    := io.fu_pool.done(i).bits.result
+        cdb_rob_tag(i) := io.fu_pool.done(i).bits.rob_tag
+        cdb_rd(i)      := io.fu_pool.done(i).bits.rd
       }
 
       val base_pending_valid   = Wire(Vec(numRegs, Bool()))
@@ -116,13 +116,13 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         val entry         = snooped_entries(i)
         val ready_to_exec = entry.valid && entry.q1_ready && entry.q2_ready
 
-        io.fu.reqs(i).valid         := ready_to_exec
-        io.fu.reqs(i).bits          := entry.op
-        io.fu.reqs(i).bits.fu_id    := i.U
-        io.fu.reqs(i).bits.rs1_data := entry.v1
-        io.fu.reqs(i).bits.rs2_data := entry.v2
+        io.fu_pool.reqs(i).valid         := ready_to_exec
+        io.fu_pool.reqs(i).bits          := entry.op
+        io.fu_pool.reqs(i).bits.fu_id    := i.U
+        io.fu_pool.reqs(i).bits.rs1_data := entry.v1
+        io.fu_pool.reqs(i).bits.rs2_data := entry.v2
 
-        when(ready_to_exec && io.fu.reqs(i).ready) {
+        when(ready_to_exec && io.fu_pool.reqs(i).ready) {
           issued_entries(i).valid := false.B
         }
       }

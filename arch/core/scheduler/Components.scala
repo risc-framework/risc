@@ -11,7 +11,7 @@ class SchedulerDispatchIO(implicit p: Parameters) extends Bundle {
   val reqs = Vec(p(IssueWidth), Flipped(Decoupled(new MicroOp)))
 }
 
-class SchedulerFuIO(implicit p: Parameters) extends Bundle {
+class SchedulerFuPoolIO(implicit p: Parameters) extends Bundle {
   val reqs = Vec(p(NumFUs), Decoupled(new MicroOp))
   val done = Flipped(Vec(p(NumFUs), Valid(new FuResp)))
 }
@@ -38,8 +38,8 @@ final class SchedulerContext(val io: SchedulerIO)(implicit p: Parameters) {
 
   def defaultFuReqs(): Unit =
     for (i <- 0 until p(NumFUs)) {
-      io.fu.reqs(i).valid := false.B
-      io.fu.reqs(i).bits  := 0.U.asTypeOf(new MicroOp)
+      io.fu_pool.reqs(i).valid := false.B
+      io.fu_pool.reqs(i).bits  := 0.U.asTypeOf(new MicroOp)
     }
 
   def defaultDispatchReady(): Unit =
@@ -50,7 +50,7 @@ final class SchedulerContext(val io: SchedulerIO)(implicit p: Parameters) {
     val mask = Wire(Vec(p(NumFUs), Bool()))
 
     for (i <- 0 until p(NumFUs))
-      mask(i) := !used(i) && io.fu.reqs(i).ready && fuTypes(i) === op.fu_type
+      mask(i) := !used(i) && io.fu_pool.reqs(i).ready && fuTypes(i) === op.fu_type
 
     mask
   }

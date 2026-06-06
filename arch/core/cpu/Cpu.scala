@@ -86,17 +86,19 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   dispatch.io.sb <> storeBuffer.io.dispatch
   dispatch.io.exception <> exception.io.dispatch
 
+  // scheduler
+  scheduler.io.fu_pool <> fuPool.io.scheduler
+  scheduler.io.exception <> exception.io.scheduler
+
   // fupool
 
-  // scheduler
-
   // rob
+
+  // sb
 
   // memarb
 
   // interrupt
-
-  scheduler.bind(fuPool)
 
   private val cycleCount     = RegInit(0.U(64.W))
   private val instretCount   = RegInit(0.U(64.W))
@@ -126,18 +128,17 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
     rob.io.bru.ports(i) <> fuPool.io.bru.ports(i)
 
   for (i <- 0 until p(NumFUs)) {
-    rob.io.wb.ports(i).valid   := fuPool.io.fu.done(i).valid
-    rob.io.wb.ports(i).rob_tag := fuPool.io.fu.done(i).bits.rob_tag
-    rob.io.wb.ports(i).data    := fuPool.io.fu.done(i).bits.result
+    rob.io.wb.ports(i).valid   := fuPool.io.scheduler.done(i).valid
+    rob.io.wb.ports(i).rob_tag := fuPool.io.scheduler.done(i).bits.rob_tag
+    rob.io.wb.ports(i).data    := fuPool.io.scheduler.done(i).bits.result
 
-    rob.io.trap.ports(i).valid             := fuPool.io.fu
-      .done(i)
-      .valid && (fuPool.io.fu.done(i).bits.trap_req || fuPool.io.fu.done(i).bits.trap_ret)
-    rob.io.trap.ports(i).bits.rob_tag      := fuPool.io.fu.done(i).bits.rob_tag
-    rob.io.trap.ports(i).bits.trap_req     := fuPool.io.fu.done(i).bits.trap_req
-    rob.io.trap.ports(i).bits.trap_target  := fuPool.io.fu.done(i).bits.trap_target
-    rob.io.trap.ports(i).bits.trap_ret     := fuPool.io.fu.done(i).bits.trap_ret
-    rob.io.trap.ports(i).bits.trap_ret_tgt := fuPool.io.fu.done(i).bits.trap_ret_tgt
+    rob.io.trap.ports(i).valid             := fuPool.io.scheduler.done(i).valid &&
+      (fuPool.io.scheduler.done(i).bits.trap_req || fuPool.io.scheduler.done(i).bits.trap_ret)
+    rob.io.trap.ports(i).bits.rob_tag      := fuPool.io.scheduler.done(i).bits.rob_tag
+    rob.io.trap.ports(i).bits.trap_req     := fuPool.io.scheduler.done(i).bits.trap_req
+    rob.io.trap.ports(i).bits.trap_target  := fuPool.io.scheduler.done(i).bits.trap_target
+    rob.io.trap.ports(i).bits.trap_ret     := fuPool.io.scheduler.done(i).bits.trap_ret
+    rob.io.trap.ports(i).bits.trap_ret_tgt := fuPool.io.scheduler.done(i).bits.trap_ret_tgt
   }
 
   flush.io.rob <> rob.io.flush

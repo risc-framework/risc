@@ -7,7 +7,7 @@ object SchedulerMeta {
   val Type      = NodeType("scheduler")
   val EXCEPTION = NodePort[SchedulerIO, SchedulerExceptionIO]("exception", _.exception)
   val DISPATCH  = NodePort[SchedulerIO, SchedulerDispatchIO]("dispatch", _.dispatch)
-  val FU        = NodePort[SchedulerIO, SchedulerFuIO]("fu", _.fu)
+  val FU_POOL   = NodePort[SchedulerIO, SchedulerFuPoolIO]("fu_pool", _.fu_pool)
 }
 
 object SchedulerDims {

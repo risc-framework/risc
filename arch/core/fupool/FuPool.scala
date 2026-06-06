@@ -14,7 +14,7 @@ import chisel3._
 
 class FuPoolIO(implicit p: Parameters) extends Bundle {
   val exception = new FuPoolExceptionIO
-  val fu        = new FuPoolFuIO
+  val scheduler = new FuPoolSchedulerIO
   val ld_mem    = new VecLdMemIO
   val ld_sb     = new VecLdSbFwdIO
   val st_sb     = new VecStSbWriteIO
@@ -42,9 +42,9 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
     }
 
   for (i <- 0 until p(NumFUs)) {
-    io.fu.req(i).ready  := false.B
-    io.fu.done(i).valid := false.B
-    io.fu.done(i).bits  := 0.U.asTypeOf(new FuResp)
+    io.scheduler.reqs(i).ready := false.B
+    io.scheduler.done(i).valid := false.B
+    io.scheduler.done(i).bits  := 0.U.asTypeOf(new FuResp)
   }
 
   for (i <- 0 until io.csr.ports.length) {
@@ -57,12 +57,13 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
   }
 
   private def connectFu(fu: FuIO, idx: Int): Unit = {
-    fu.flush      := io.exception.flush
-    fu.req <> io.fu.req(idx)
-    fu.resp.ready := true.B
-
-    io.fu.done(idx).valid := fu.resp.valid && !io.exception.flush
-    io.fu.done(idx).bits  := fu.resp.bits
+    fu.flush                     := io.exception.flush
+    fu.req.valid                 := io.scheduler.reqs(idx).valid
+    fu.req.bits                  := io.scheduler.reqs(idx).bits
+    io.scheduler.reqs(idx).ready := fu.req.ready
+    fu.resp.ready                := true.B
+    io.scheduler.done(idx).valid := fu.resp.valid && !io.exception.flush
+    io.scheduler.done(idx).bits  := fu.resp.bits
   }
 
   private var ldIdx  = 0

@@ -29,10 +29,10 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
 
       for (r <- 0 until numRegs) {
         for (f <- 0 until p(NumFUs))
-          cdb_hit(r)(f) := io.fu.done(f).valid && io.fu.done(f).bits.rd === r.U
+          cdb_hit(r)(f) := io.fu_pool.done(f).valid && io.fu_pool.done(f).bits.rd === r.U
 
         cdb_valid(r) := cdb_hit(r).asUInt.orR
-        cdb_data(r)  := Mux1H(cdb_hit(r), io.fu.done.map(_.bits.result))
+        cdb_data(r)  := Mux1H(cdb_hit(r), io.fu_pool.done.map(_.bits.result))
       }
 
       val temp_pending         = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, Bool())))
@@ -89,8 +89,8 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
 
           for (f <- 0 until p(NumFUs))
             when(target === f.U) {
-              io.fu.reqs(f).valid := true.B
-              io.fu.reqs(f).bits  := issueOp
+              io.fu_pool.reqs(f).valid := true.B
+              io.fu_pool.reqs(f).bits  := issueOp
             }
 
           temp_fu_used(w + 1)(target) := true.B

@@ -28,8 +28,8 @@ class FuIO(implicit p: Parameters) extends Bundle {
   val flush = Input(Bool())
 }
 
-class FuPoolFuIO(implicit p: Parameters) extends Bundle {
-  val req  = Vec(p(NumFUs), Flipped(Decoupled(new MicroOp)))
+class FuPoolSchedulerIO(implicit p: Parameters) extends Bundle {
+  val reqs = Vec(p(NumFUs), Flipped(Decoupled(new MicroOp)))
   val done = Output(Vec(p(NumFUs), Valid(new FuResp)))
 }
 

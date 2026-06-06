@@ -94,9 +94,7 @@ class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
     if (w == 0) {
       io.decode.lanes(w).ready := consumeThisLane
     } else {
-      io.decode
-        .lanes(w)
-        .ready := io.decode.lanes(w - 1).ready && io.decode.lanes(w - 1).valid && consumeThisLane
+      io.decode.lanes(w).ready := io.decode.lanes(w - 1).fire && consumeThisLane
     }
   }
 }
