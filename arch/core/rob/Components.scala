@@ -37,47 +37,6 @@ class RobEnqIO(implicit p: Parameters) extends Bundle {
   val rob_tag = Input(UInt(p(RobTagWidth).W))
 }
 
-class RobWbIO(implicit p: Parameters) extends Bundle {
-  val valid   = Input(Bool())
-  val rob_tag = Input(UInt(p(RobTagWidth).W))
-  val data    = Input(UInt(p(XLen).W))
-}
-
-class RobTrapBundle(implicit p: Parameters) extends Bundle {
-  val rob_tag      = UInt(p(RobTagWidth).W)
-  val trap_req     = Bool()
-  val trap_target  = UInt(p(XLen).W)
-  val trap_ret     = Bool()
-  val trap_ret_tgt = UInt(p(XLen).W)
-}
-
-class RobTrapIO(implicit p: Parameters) extends Bundle {
-  val valid = Input(Bool())
-  val bits  = Input(new RobTrapBundle)
-}
-
-class RobBruResolvedBundle(implicit p: Parameters) extends Bundle {
-  val pc          = UInt(p(XLen).W)
-  val instr       = UInt(p(ILen).W)
-  val rob_tag     = UInt(p(RobTagWidth).W)
-  val taken       = Bool()
-  val target      = UInt(p(XLen).W)
-  val fallthrough = UInt(p(XLen).W)
-}
-
-class RobBruResolvedIO(implicit p: Parameters) extends Bundle {
-  val valid = Input(Bool())
-  val bits  = Input(new RobBruResolvedBundle)
-}
-
-class RobBruLaneIO(implicit p: Parameters) extends Bundle {
-  val resolved = new RobBruResolvedIO
-}
-
-class RobBruPortIO(implicit p: Parameters) extends Bundle {
-  val ports = Vec(p(NumBRUs), new RobBruLaneIO)
-}
-
 class RobCommitIO(implicit p: Parameters) extends Bundle {
   val valid             = Output(Bool())
   val pop               = Input(Bool())
@@ -106,27 +65,8 @@ class RobBypassResp(implicit p: Parameters) extends Bundle {
   val pending = Output(Bool())
 }
 
-class RobEnqPortIO(implicit p: Parameters) extends Bundle {
-  val lanes = Vec(p(IssueWidth), new RobEnqIO)
-}
-
-class RobWbPortIO(implicit p: Parameters) extends Bundle {
-  val ports = Vec(p(NumFUs), new RobWbIO)
-}
-
-class RobTrapPortIO(implicit p: Parameters) extends Bundle {
-  val ports = Vec(p(NumFUs), new RobTrapIO)
-}
-
 class RobCommitPortIO(implicit p: Parameters) extends Bundle {
   val lanes = Vec(p(IssueWidth), new RobCommitIO)
-}
-
-class RobBypassIO(implicit p: Parameters) extends Bundle {
-  val rs1_addr   = Input(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
-  val rs1_bypass = Vec(p(IssueWidth), new RobBypassResp)
-  val rs2_addr   = Input(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
-  val rs2_bypass = Vec(p(IssueWidth), new RobBypassResp)
 }
 
 class RobBpuIO(implicit p: Parameters) extends Bundle {

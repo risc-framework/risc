@@ -13,13 +13,12 @@ import vutils.graph.{ Node, NodeType }
 import chisel3._
 
 class FuPoolIO(implicit p: Parameters) extends Bundle {
-  val exception = new FuPoolExceptionIO
-  val scheduler = new FuPoolSchedulerIO
-  val ld_mem    = new VecLdMemIO
-  val ld_sb     = new VecLdSbFwdIO
-  val st_sb     = new VecStSbWriteIO
-  val bru       = new VecBruResolveIO
-  val csr       = new VecCsrCtrlIO
+  val exception      = new FuPoolExceptionIO
+  val scheduler      = new FuPoolSchedulerIO
+  val rob            = new FuPoolRobIO
+  val memory_arbiter = new FuPoolMemoryArbiterIO
+  val sb             = new FuPoolSbIO
+  val csr            = new VecCsrCtrlIO
 }
 
 class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
@@ -45,6 +44,29 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
     io.scheduler.reqs(i).ready := false.B
     io.scheduler.done(i).valid := false.B
     io.scheduler.done(i).bits  := 0.U.asTypeOf(new FuResp)
+
+    io.rob.done(i).valid := false.B
+    io.rob.done(i).bits  := 0.U.asTypeOf(new FuResp)
+  }
+
+  for (i <- 0 until p(NumBRUs))
+    io.rob.bru(i).resolved := 0.U.asTypeOf(io.rob.bru(i).resolved)
+
+  for (i <- 0 until p(NumLDs)) {
+    io.memory_arbiter.load_mem(i).req.valid   := false.B
+    io.memory_arbiter.load_mem(i).req.bits    := 0.U.asTypeOf(io.memory_arbiter.load_mem(i).req.bits)
+    io.memory_arbiter.load_mem(i).resp.ready  := false.B
+    io.memory_arbiter.load_mmio(i).req.valid  := false.B
+    io.memory_arbiter.load_mmio(i).req.bits   := 0.U.asTypeOf(io.memory_arbiter.load_mmio(i).req.bits)
+    io.memory_arbiter.load_mmio(i).resp.ready := false.B
+    io.sb.fwd(i).req.valid                    := false.B
+    io.sb.fwd(i).req.bits                     := 0.U.asTypeOf(io.sb.fwd(i).req.bits)
+    io.sb.fwd(i).resp.ready                   := false.B
+  }
+
+  for (i <- 0 until p(NumSTs)) {
+    io.sb.write(i).valid := false.B
+    io.sb.write(i).bits  := 0.U.asTypeOf(io.sb.write(i).bits)
   }
 
   for (i <- 0 until io.csr.ports.length) {
@@ -58,12 +80,12 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
 
   private def connectFu(fu: FuIO, idx: Int): Unit = {
     fu.flush                     := io.exception.flush
-    fu.req.valid                 := io.scheduler.reqs(idx).valid
-    fu.req.bits                  := io.scheduler.reqs(idx).bits
-    io.scheduler.reqs(idx).ready := fu.req.ready
+    fu.req <> io.scheduler.reqs(idx)
     fu.resp.ready                := true.B
     io.scheduler.done(idx).valid := fu.resp.valid && !io.exception.flush
     io.scheduler.done(idx).bits  := fu.resp.bits
+    io.rob.done(idx).valid       := fu.resp.valid && !io.exception.flush
+    io.rob.done(idx).bits        := fu.resp.bits
   }
 
   private var ldIdx  = 0
@@ -84,18 +106,24 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
 
       case ld: Ld =>
         connectFu(ld.io.fu, fuIdx)
-        ld.io.mem <> io.ld_mem.ports(ldIdx)
-        ld.io.sb <> io.ld_sb.ports(ldIdx)
+
+        ld.io.mem.mem <> io.memory_arbiter.load_mem(ldIdx)
+        ld.io.mem.mmio <> io.memory_arbiter.load_mmio(ldIdx)
+
+        ld.io.sb.sb_fwd <> io.sb.fwd(ldIdx)
+        ld.io.sb.oldest_valid := io.sb.oldest_valid
+        ld.io.sb.oldest_seq   := io.sb.oldest_seq
+
         ldIdx += 1
 
       case st: St =>
         connectFu(st.io.fu, fuIdx)
-        st.io.sb <> io.st_sb.ports(stIdx)
+        io.sb.write(stIdx) := st.io.sb.write
         stIdx += 1
 
       case bru: Bru =>
         connectFu(bru.io.fu, fuIdx)
-        io.bru.ports(bruIdx).resolved := bru.io.resolve.resolved
+        io.rob.bru(bruIdx) <> bru.io.resolve
         bruIdx += 1
 
       case csr: Csr =>

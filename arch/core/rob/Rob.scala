@@ -1,5 +1,6 @@
 package arch.core.rob
 
+import arch.core.fupool.FuPoolRobIO
 import arch.configs._
 import vutils.graph.{ Node, NodeType }
 import chisel3._
@@ -7,12 +8,10 @@ import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 
 class RobIO(implicit p: Parameters) extends Bundle {
   val dispatch  = new RobDispatchIO
+  val fu_pool   = Flipped(new FuPoolRobIO)
   val bpu       = new RobBpuIO
   val flush     = new RobFlushIO
   val exception = new RobExceptionIO
-  val wb        = new RobWbPortIO
-  val bru       = new RobBruPortIO
-  val trap      = new RobTrapPortIO
   val commit    = new RobCommitPortIO
   val ctrl      = new RobCtrlIO
 }
@@ -65,14 +64,14 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   io.ctrl.empty := count === 0.U
 
   for (i <- 0 until p(NumFUs))
-    when(io.wb.ports(i).valid) {
-      val idx              = io.wb.ports(i).rob_tag
+    when(io.fu_pool.done(i).valid) {
+      val idx              = io.fu_pool.done(i).bits.rob_tag
       val oldPc            = buffer(idx).pc
       val nonBruMispredict = !buffer(idx).is_branch && buffer(idx).pred_taken
       val nonBruRedirect   = oldPc + p(PCStep).U(p(XLen).W)
 
       buffer(idx).ready := true.B
-      buffer(idx).data  := io.wb.ports(i).data
+      buffer(idx).data  := io.fu_pool.done(i).bits.result
 
       when(nonBruMispredict) {
         buffer(idx).actual_taken   := false.B
@@ -80,16 +79,25 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
         buffer(idx).flush_pipeline := true.B
         buffer(idx).flush_target   := nonBruRedirect
       }
+
+      when(io.fu_pool.done(i).bits.trap_req || io.fu_pool.done(i).bits.trap_ret) {
+        buffer(idx).flush_pipeline := true.B
+        buffer(idx).flush_target   := Mux(
+          io.fu_pool.done(i).bits.trap_req,
+          io.fu_pool.done(i).bits.trap_target,
+          io.fu_pool.done(i).bits.trap_ret_tgt
+        )
+      }
     }
 
-  for (i <- 0 until io.bru.ports.length)
-    when(io.bru.ports(i).resolved.valid) {
-      val resolved        = io.bru.ports(i).resolved.bits
-      val idx             = resolved.rob_tag
-      val oldPredTaken    = buffer(idx).pred_taken
-      val oldPredTarget   = buffer(idx).pred_target
-      val actualTarget    = Mux(resolved.taken, resolved.target, resolved.fallthrough)
-      val bruMispredict   = resolved.taken =/= oldPredTaken || actualTarget =/= oldPredTarget
+  for (i <- 0 until p(NumBRUs))
+    when(io.fu_pool.bru(i).resolved.valid) {
+      val resolved      = io.fu_pool.bru(i).resolved.bits
+      val idx           = resolved.rob_tag
+      val oldPredTaken  = buffer(idx).pred_taken
+      val oldPredTarget = buffer(idx).pred_target
+      val actualTarget  = Mux(resolved.taken, resolved.target, resolved.fallthrough)
+      val bruMispredict = resolved.taken =/= oldPredTaken || actualTarget =/= oldPredTarget
 
       buffer(idx).actual_taken  := resolved.taken
       buffer(idx).actual_target := actualTarget
@@ -98,15 +106,6 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
         buffer(idx).flush_pipeline := true.B
         buffer(idx).flush_target   := actualTarget
       }
-    }
-
-  for (i <- 0 until p(NumFUs))
-    when(io.trap.ports(i).valid && (io.trap.ports(i).bits.trap_req || io.trap.ports(i).bits.trap_ret)) {
-      val trap = io.trap.ports(i).bits
-      val idx  = trap.rob_tag
-
-      buffer(idx).flush_pipeline := true.B
-      buffer(idx).flush_target   := Mux(trap.trap_req, trap.trap_target, trap.trap_ret_tgt)
     }
 
   private val commitCanContinue = Wire(Vec(p(IssueWidth) + 1, Bool()))
@@ -122,7 +121,8 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
 
     val entry       = buffer(commitIdx(w))
     val hasEntry    = count > w.U
-    val committable = hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
+    val committable =
+      hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
 
     io.commit.lanes(w).valid             := committable
     io.commit.lanes(w).pc                := entry.pc

@@ -1,15 +1,16 @@
 package arch.core.memarb
 
 import arch.configs._
-import vcache.CacheReq
+import vcache.{ CachePortIO, CacheReq }
 import vutils.graph.{ Node, NodeType }
 import chisel3._
 import chisel3.util.{ Queue, RRArbiter, UIntToOH, log2Ceil }
 
 class MemoryArbiterIO(implicit p: Parameters) extends Bundle {
-  val load  = new MemoryArbiterLoadIO
-  val store = new MemoryArbiterStoreIO
-  val out   = new MemoryArbiterOutIO
+  val fu_pool = new MemoryArbiterFuPoolIO
+  val sb      = new MemoryArbiterSbIO
+  val dcache  = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
+  val mmio    = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
 }
 
 class MemoryArbiterRoutedReq(targetWidth: Int)(implicit p: Parameters) extends Bundle {
@@ -19,7 +20,7 @@ class MemoryArbiterRoutedReq(targetWidth: Int)(implicit p: Parameters) extends B
 
 class MemoryArbiter(implicit p: Parameters) extends Node(new MemoryArbiterIO) {
   override def nodeType: NodeType  = MemoryArbiterMeta.Type
-  override def desiredName: String = s"memory_arbiter"
+  override def desiredName: String = "memory_arbiter"
 
   private val numLoadPorts = p(NumLDs)
 
@@ -40,19 +41,19 @@ class MemoryArbiter(implicit p: Parameters) extends Node(new MemoryArbiterIO) {
   private val mmioReqBits  = Reg(new MemoryArbiterRoutedReq(TargetW))
 
   for (i <- 0 until numLoadPorts) {
-    memLdArb.io.in(i).valid       := io.load.mem(i).req.valid
-    memLdArb.io.in(i).bits.target := i.U(TargetW.W)
-    memLdArb.io.in(i).bits.req    := io.load.mem(i).req.bits
-    io.load.mem(i).req.ready      := memLdArb.io.in(i).ready
+    memLdArb.io.in(i).valid          := io.fu_pool.load_mem(i).req.valid
+    memLdArb.io.in(i).bits.target    := i.U(TargetW.W)
+    memLdArb.io.in(i).bits.req       := io.fu_pool.load_mem(i).req.bits
+    io.fu_pool.load_mem(i).req.ready := memLdArb.io.in(i).ready
 
-    mmioLdArb.io.in(i).valid       := io.load.mmio(i).req.valid
-    mmioLdArb.io.in(i).bits.target := i.U(TargetW.W)
-    mmioLdArb.io.in(i).bits.req    := io.load.mmio(i).req.bits
-    io.load.mmio(i).req.ready      := mmioLdArb.io.in(i).ready
+    mmioLdArb.io.in(i).valid          := io.fu_pool.load_mmio(i).req.valid
+    mmioLdArb.io.in(i).bits.target    := i.U(TargetW.W)
+    mmioLdArb.io.in(i).bits.req       := io.fu_pool.load_mmio(i).req.bits
+    io.fu_pool.load_mmio(i).req.ready := mmioLdArb.io.in(i).ready
   }
 
   private val memLdSelected    = memLdArb.io.out.valid
-  private val memStoreSelected = !memLdSelected && io.store.mem.req.valid
+  private val memStoreSelected = !memLdSelected && io.sb.mem.req.valid
   private val memChosenValid   = memLdSelected || memStoreSelected
   private val memChosenBits    = Wire(new MemoryArbiterRoutedReq(TargetW))
 
@@ -60,38 +61,34 @@ class MemoryArbiter(implicit p: Parameters) extends Node(new MemoryArbiterIO) {
   memChosenBits.req.addr   := Mux(
     memLdSelected,
     memLdArb.io.out.bits.req.addr,
-    io.store.mem.req.bits.addr
+    io.sb.mem.req.bits.addr
   )
   memChosenBits.req.data   := Mux(
     memLdSelected,
     memLdArb.io.out.bits.req.data,
-    io.store.mem.req.bits.data
+    io.sb.mem.req.bits.data
   )
-  memChosenBits.req.cmd    := Mux(
-    memLdSelected,
-    memLdArb.io.out.bits.req.cmd,
-    io.store.mem.req.bits.cmd
-  )
+  memChosenBits.req.cmd    := Mux(memLdSelected, memLdArb.io.out.bits.req.cmd, io.sb.mem.req.bits.cmd)
   memChosenBits.req.strb   := Mux(
     memLdSelected,
     memLdArb.io.out.bits.req.strb,
-    io.store.mem.req.bits.strb
+    io.sb.mem.req.bits.strb
   )
   memChosenBits.req.source := Mux(
     memLdSelected,
     memLdArb.io.out.bits.req.source,
-    io.store.mem.req.bits.source
+    io.sb.mem.req.bits.source
   )
 
-  io.out.mem.req.valid := memReqValid && memRespQ.io.enq.ready
-  io.out.mem.req.bits  := memReqBits.req
+  io.dcache.req.valid := memReqValid && memRespQ.io.enq.ready
+  io.dcache.req.bits  := memReqBits.req
 
-  private val memIssueFire  = memReqValid && io.out.mem.req.ready && memRespQ.io.enq.ready
+  private val memIssueFire  = memReqValid && io.dcache.req.ready && memRespQ.io.enq.ready
   private val memStageReady = !memReqValid || memIssueFire
   private val memTakeFire   = memChosenValid && memStageReady
 
-  memLdArb.io.out.ready  := memStageReady
-  io.store.mem.req.ready := memStageReady && !memLdSelected
+  memLdArb.io.out.ready := memStageReady
+  io.sb.mem.req.ready   := memStageReady && !memLdSelected
 
   memRespQ.io.enq.valid := memIssueFire
   memRespQ.io.enq.bits  := memReqBits.target
@@ -104,26 +101,26 @@ class MemoryArbiter(implicit p: Parameters) extends Node(new MemoryArbiterIO) {
   }
 
   private val memTarget       = memRespQ.io.deq.bits
-  private val memRespValid    = io.out.mem.resp.valid && memRespQ.io.deq.valid
+  private val memRespValid    = io.dcache.resp.valid && memRespQ.io.deq.valid
   private val memRespReadyVec = Wire(Vec(numReqs, Bool()))
 
   for (i <- 0 until numLoadPorts) {
-    io.load.mem(i).resp.valid := memRespValid && memTarget === i.U
-    io.load.mem(i).resp.bits  := io.out.mem.resp.bits
-    memRespReadyVec(i)        := io.load.mem(i).resp.ready
+    io.fu_pool.load_mem(i).resp.valid := memRespValid && memTarget === i.U
+    io.fu_pool.load_mem(i).resp.bits  := io.dcache.resp.bits
+    memRespReadyVec(i)                := io.fu_pool.load_mem(i).resp.ready
   }
 
-  io.store.mem.resp.valid      := memRespValid && memTarget === storeTarget.U
-  io.store.mem.resp.bits       := io.out.mem.resp.bits
-  memRespReadyVec(storeTarget) := io.store.mem.resp.ready
+  io.sb.mem.resp.valid         := memRespValid && memTarget === storeTarget.U
+  io.sb.mem.resp.bits          := io.dcache.resp.bits
+  memRespReadyVec(storeTarget) := io.sb.mem.resp.ready
 
   private val memTargetReady = (memRespReadyVec.asUInt & UIntToOH(memTarget, numReqs)).orR
 
-  io.out.mem.resp.ready := memRespQ.io.deq.valid && memTargetReady
-  memRespQ.io.deq.ready := io.out.mem.resp.valid && memTargetReady
+  io.dcache.resp.ready  := memRespQ.io.deq.valid && memTargetReady
+  memRespQ.io.deq.ready := io.dcache.resp.valid && memTargetReady
 
   private val mmioLdSelected    = mmioLdArb.io.out.valid
-  private val mmioStoreSelected = !mmioLdSelected && io.store.mmio.req.valid
+  private val mmioStoreSelected = !mmioLdSelected && io.sb.mmio.req.valid
   private val mmioChosenValid   = mmioLdSelected || mmioStoreSelected
   private val mmioChosenBits    = Wire(new MemoryArbiterRoutedReq(TargetW))
 
@@ -135,38 +132,38 @@ class MemoryArbiter(implicit p: Parameters) extends Node(new MemoryArbiterIO) {
   mmioChosenBits.req.addr   := Mux(
     mmioLdSelected,
     mmioLdArb.io.out.bits.req.addr,
-    io.store.mmio.req.bits.addr
+    io.sb.mmio.req.bits.addr
   )
   mmioChosenBits.req.data   := Mux(
     mmioLdSelected,
     mmioLdArb.io.out.bits.req.data,
-    io.store.mmio.req.bits.data
+    io.sb.mmio.req.bits.data
   )
   mmioChosenBits.req.cmd    := Mux(
     mmioLdSelected,
     mmioLdArb.io.out.bits.req.cmd,
-    io.store.mmio.req.bits.cmd
+    io.sb.mmio.req.bits.cmd
   )
   mmioChosenBits.req.strb   := Mux(
     mmioLdSelected,
     mmioLdArb.io.out.bits.req.strb,
-    io.store.mmio.req.bits.strb
+    io.sb.mmio.req.bits.strb
   )
   mmioChosenBits.req.source := Mux(
     mmioLdSelected,
     mmioLdArb.io.out.bits.req.source,
-    io.store.mmio.req.bits.source
+    io.sb.mmio.req.bits.source
   )
 
-  io.out.mmio.req.valid := mmioReqValid && mmioRespQ.io.enq.ready
-  io.out.mmio.req.bits  := mmioReqBits.req
+  io.mmio.req.valid := mmioReqValid && mmioRespQ.io.enq.ready
+  io.mmio.req.bits  := mmioReqBits.req
 
-  private val mmioIssueFire  = mmioReqValid && io.out.mmio.req.ready && mmioRespQ.io.enq.ready
+  private val mmioIssueFire  = mmioReqValid && io.mmio.req.ready && mmioRespQ.io.enq.ready
   private val mmioStageReady = !mmioReqValid || mmioIssueFire
   private val mmioTakeFire   = mmioChosenValid && mmioStageReady
 
-  mmioLdArb.io.out.ready  := mmioStageReady
-  io.store.mmio.req.ready := mmioStageReady && !mmioLdSelected
+  mmioLdArb.io.out.ready := mmioStageReady
+  io.sb.mmio.req.ready   := mmioStageReady && !mmioLdSelected
 
   mmioRespQ.io.enq.valid := mmioIssueFire
   mmioRespQ.io.enq.bits  := mmioReqBits.target
@@ -179,21 +176,21 @@ class MemoryArbiter(implicit p: Parameters) extends Node(new MemoryArbiterIO) {
   }
 
   private val mmioTarget       = mmioRespQ.io.deq.bits
-  private val mmioRespValid    = io.out.mmio.resp.valid && mmioRespQ.io.deq.valid
+  private val mmioRespValid    = io.mmio.resp.valid && mmioRespQ.io.deq.valid
   private val mmioRespReadyVec = Wire(Vec(numReqs, Bool()))
 
   for (i <- 0 until numLoadPorts) {
-    io.load.mmio(i).resp.valid := mmioRespValid && mmioTarget === i.U
-    io.load.mmio(i).resp.bits  := io.out.mmio.resp.bits
-    mmioRespReadyVec(i)        := io.load.mmio(i).resp.ready
+    io.fu_pool.load_mmio(i).resp.valid := mmioRespValid && mmioTarget === i.U
+    io.fu_pool.load_mmio(i).resp.bits  := io.mmio.resp.bits
+    mmioRespReadyVec(i)                := io.fu_pool.load_mmio(i).resp.ready
   }
 
-  io.store.mmio.resp.valid      := mmioRespValid && mmioTarget === storeTarget.U
-  io.store.mmio.resp.bits       := io.out.mmio.resp.bits
-  mmioRespReadyVec(storeTarget) := io.store.mmio.resp.ready
+  io.sb.mmio.resp.valid         := mmioRespValid && mmioTarget === storeTarget.U
+  io.sb.mmio.resp.bits          := io.mmio.resp.bits
+  mmioRespReadyVec(storeTarget) := io.sb.mmio.resp.ready
 
   private val mmioTargetReady = (mmioRespReadyVec.asUInt & UIntToOH(mmioTarget, numReqs)).orR
 
-  io.out.mmio.resp.ready := mmioRespQ.io.deq.valid && mmioTargetReady
-  mmioRespQ.io.deq.ready := io.out.mmio.resp.valid && mmioTargetReady
+  io.mmio.resp.ready     := mmioRespQ.io.deq.valid && mmioTargetReady
+  mmioRespQ.io.deq.ready := io.mmio.resp.valid && mmioTargetReady
 }

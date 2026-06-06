@@ -7,28 +7,20 @@ import vutils.graph.{ Node, NodeType }
 import chisel3._
 import chisel3.util.{ Cat, Mux1H, PopCount, log2Ceil }
 
-object StoreBuffer {
-  def numLoadPorts(implicit p: Parameters): Int  = p(NumLDs)
-  def numStorePorts(implicit p: Parameters): Int = p(NumSTs)
+class StoreBufferIO(implicit p: Parameters) extends Bundle {
+  val exception      = new StoreBufferExceptionIO
+  val dispatch       = Flipped(new DispatchStoreBufferIO)
+  val rob            = new StoreBufferRobIO
+  val fu_pool        = new StoreBufferFuPoolIO
+  val memory_arbiter = new StoreBufferMemoryArbiterIO
 }
 
-class StoreBufferIO(numLoadPorts: Int, numStorePorts: Int)(implicit p: Parameters) extends Bundle {
-  val exception = new StoreBufferExceptionIO
-  val dispatch  = Flipped(new DispatchStoreBufferIO)
-  val rob       = new StoreBufferRobIO
-  val write     = new StoreBufferWriteIO(numStorePorts)
-  val fwd       = new StoreBufferForwardIO(numLoadPorts)
-  val state     = new StoreBufferStateIO
-  val mem       = new StoreBufferMemIO
-}
-
-class StoreBuffer(implicit p: Parameters)
-    extends Node(new StoreBufferIO(StoreBuffer.numLoadPorts, StoreBuffer.numStorePorts)) {
+class StoreBuffer(implicit p: Parameters) extends Node(new StoreBufferIO) {
   override def nodeType: NodeType  = StoreBufferMeta.Type
   override def desiredName: String = "store_buffer"
 
-  private val numLoadPorts  = StoreBuffer.numLoadPorts
-  private val numStorePorts = StoreBuffer.numStorePorts
+  private val numLoadPorts  = p(NumLDs)
+  private val numStorePorts = p(NumSTs)
   private val idxW          = log2Ceil(p(StoreBufferSize))
   private val cntW          = log2Ceil(p(StoreBufferSize) + 1)
 
@@ -50,18 +42,15 @@ class StoreBuffer(implicit p: Parameters)
 
   private val freeCount = p(StoreBufferSize).U(cntW.W) - count
 
-  io.state.tail        := tail
-  io.state.tailSeq     := tailSeq
-  io.state.freeCount   := freeCount
-  io.state.empty       := count === 0.U && !drainOutstanding
-  io.state.busy        := count =/= 0.U || drainOutstanding
-  io.state.oldestValid := count =/= 0.U
-  io.state.oldestSeq   := entries(head).seq
+  io.fu_pool.oldest_valid := count =/= 0.U
+  io.fu_pool.oldest_seq   := entries(head).seq
 
   private val laneIsStore = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth))
-    laneIsStore(w) := io.dispatch.lanes(w).valid && io.dispatch.lanes(w).bits.isStore && !io.exception.flush
+    laneIsStore(w) := io.dispatch
+      .lanes(w)
+      .valid && io.dispatch.lanes(w).bits.isStore && !io.exception.flush
 
   private val possibleStoreBeforeOrAt = Wire(
     Vec(p(IssueWidth), UInt(log2Ceil(p(IssueWidth) + 1).W))
@@ -81,7 +70,8 @@ class StoreBuffer(implicit p: Parameters)
 
   for (w <- 0 until p(IssueWidth)) {
     val canReserve = !laneIsStore(w) || possibleStoreBeforeOrAt(w) <= freeCount
-    val allocStore = io.dispatch.lanes(w).fire && io.dispatch.lanes(w).bits.isStore && !io.exception.flush
+    val allocStore =
+      io.dispatch.lanes(w).fire && io.dispatch.lanes(w).bits.isStore && !io.exception.flush
 
     io.dispatch.lanes(w).ready         := canReserve
     io.dispatch.lanes(w).ticket.sq_idx := sqTailAfter(w)
@@ -99,12 +89,15 @@ class StoreBuffer(implicit p: Parameters)
     val fwdRespValid = RegInit(false.B)
     val fwdRespBits  = RegInit(0.U.asTypeOf(new StoreForwardResp))
 
-    io.fwd.ports(q).req.ready  := (!fwdRespValid || io.fwd.ports(q).resp.ready) && !io.exception.flush
-    io.fwd.ports(q).resp.valid := fwdRespValid && !io.exception.flush
-    io.fwd.ports(q).resp.bits  := fwdRespBits
+    io.fu_pool
+      .fwd(q)
+      .req
+      .ready                     := (!fwdRespValid || io.fu_pool.fwd(q).resp.ready) && !io.exception.flush
+    io.fu_pool.fwd(q).resp.valid := fwdRespValid && !io.exception.flush
+    io.fu_pool.fwd(q).resp.bits  := fwdRespBits
 
-    val req       = io.fwd.ports(q).req.bits
-    val reqFire   = io.fwd.ports(q).req.fire
+    val req       = io.fu_pool.fwd(q).req.bits
+    val reqFire   = io.fu_pool.fwd(q).req.fire
     val dataStage = Wire(Vec(p(StoreBufferSize) + 1, Vec(p(BytesPerWord), UInt(8.W))))
     val maskStage = Wire(Vec(p(StoreBufferSize) + 1, Vec(p(BytesPerWord), Bool())))
     val olderVec  = Wire(Vec(p(StoreBufferSize), Bool()))
@@ -138,7 +131,9 @@ class StoreBuffer(implicit p: Parameters)
     val sameCycleAllocOlder = Wire(Vec(p(IssueWidth), Bool()))
 
     for (a <- 0 until p(IssueWidth))
-      sameCycleAllocOlder(a) := reqFire && req.valid && allocValid(a) && sqSeqForLane(a) < req.sq_seq
+      sameCycleAllocOlder(a) := reqFire && req.valid && allocValid(a) && sqSeqForLane(
+        a
+      ) < req.sq_seq
 
     val sameCycleUnknownOlder = sameCycleAllocOlder.asUInt.orR
     val finalMaskVec          = maskStage(p(StoreBufferSize))
@@ -163,7 +158,7 @@ class StoreBuffer(implicit p: Parameters)
       when(reqFire) {
         fwdRespValid := true.B
         fwdRespBits  := nextResp
-      }.elsewhen(io.fwd.ports(q).resp.fire) {
+      }.elsewhen(io.fu_pool.fwd(q).resp.fire) {
         fwdRespValid := false.B
       }
     }
@@ -173,25 +168,25 @@ class StoreBuffer(implicit p: Parameters)
   private val canDrain  =
     headEntry.valid && headEntry.committed && headEntry.addrValid && !drainOutstanding
 
-  io.mem.mem.req.valid       := canDrain && headEntry.cacheable
-  io.mem.mem.req.bits.cmd    := CacheCommand.Write
-  io.mem.mem.req.bits.addr   := headEntry.addr
-  io.mem.mem.req.bits.data   := headEntry.data
-  io.mem.mem.req.bits.strb   := headEntry.mask
-  io.mem.mem.req.bits.source := 0.U
+  io.memory_arbiter.mem.req.valid       := canDrain && headEntry.cacheable
+  io.memory_arbiter.mem.req.bits.cmd    := CacheCommand.Write
+  io.memory_arbiter.mem.req.bits.addr   := headEntry.addr
+  io.memory_arbiter.mem.req.bits.data   := headEntry.data
+  io.memory_arbiter.mem.req.bits.strb   := headEntry.mask
+  io.memory_arbiter.mem.req.bits.source := 0.U
 
-  io.mem.mmio.req.valid       := canDrain && !headEntry.cacheable
-  io.mem.mmio.req.bits.cmd    := CacheCommand.Write
-  io.mem.mmio.req.bits.addr   := headEntry.addr
-  io.mem.mmio.req.bits.data   := headEntry.data
-  io.mem.mmio.req.bits.strb   := headEntry.mask
-  io.mem.mmio.req.bits.source := 0.U
+  io.memory_arbiter.mmio.req.valid       := canDrain && !headEntry.cacheable
+  io.memory_arbiter.mmio.req.bits.cmd    := CacheCommand.Write
+  io.memory_arbiter.mmio.req.bits.addr   := headEntry.addr
+  io.memory_arbiter.mmio.req.bits.data   := headEntry.data
+  io.memory_arbiter.mmio.req.bits.strb   := headEntry.mask
+  io.memory_arbiter.mmio.req.bits.source := 0.U
 
-  io.mem.mem.resp.ready  := drainOutstanding && drainIsCacheable
-  io.mem.mmio.resp.ready := drainOutstanding && !drainIsCacheable
+  io.memory_arbiter.mem.resp.ready  := drainOutstanding && drainIsCacheable
+  io.memory_arbiter.mmio.resp.ready := drainOutstanding && !drainIsCacheable
 
-  private val drainReqFire  = io.mem.mem.req.fire || io.mem.mmio.req.fire
-  private val drainRespFire = io.mem.mem.resp.fire || io.mem.mmio.resp.fire
+  private val drainReqFire  = io.memory_arbiter.mem.req.fire || io.memory_arbiter.mmio.req.fire
+  private val drainRespFire = io.memory_arbiter.mem.resp.fire || io.memory_arbiter.mmio.resp.fire
 
   private val allocCount      = PopCount(allocValid)
   private val afterDrainHead  = Mux(drainRespFire, wrapAdd(head, 1.U), head)
@@ -209,10 +204,10 @@ class StoreBuffer(implicit p: Parameters)
     val allocHit    = Wire(Vec(p(IssueWidth), Bool()))
 
     for (s <- 0 until numStorePorts)
-      writeHit(s) := io.write.ports(s).valid &&
-        io.write.ports(s).bits.sq_idx === i.U &&
+      writeHit(s) := io.fu_pool.write(s).valid &&
+        io.fu_pool.write(s).bits.sq_idx === i.U &&
         entries(i).valid &&
-        entries(i).rob_tag === io.write.ports(s).bits.rob_tag &&
+        entries(i).rob_tag === io.fu_pool.write(s).bits.rob_tag &&
         !drainedThis
 
     for (c <- 0 until p(IssueWidth))
@@ -229,16 +224,16 @@ class StoreBuffer(implicit p: Parameters)
     val anyCommit      = commitHit.asUInt.orR
     val anyAlloc       = allocHit.asUInt.orR
     val writeAddr      = Mux1H(
-      (0 until numStorePorts).map(s => writeHit(s) -> io.write.ports(s).bits.addr)
+      (0 until numStorePorts).map(s => writeHit(s) -> io.fu_pool.write(s).bits.addr)
     )
     val writeData      = Mux1H(
-      (0 until numStorePorts).map(s => writeHit(s) -> io.write.ports(s).bits.data)
+      (0 until numStorePorts).map(s => writeHit(s) -> io.fu_pool.write(s).bits.data)
     )
     val writeMask      = Mux1H(
-      (0 until numStorePorts).map(s => writeHit(s) -> io.write.ports(s).bits.mask)
+      (0 until numStorePorts).map(s => writeHit(s) -> io.fu_pool.write(s).bits.mask)
     )
     val writeCacheable = Mux1H(
-      (0 until numStorePorts).map(s => writeHit(s) -> io.write.ports(s).bits.cacheable)
+      (0 until numStorePorts).map(s => writeHit(s) -> io.fu_pool.write(s).bits.cacheable)
     )
     val allocSeq       = Mux1H(
       (0 until p(IssueWidth)).map(a => allocHit(a) -> sqSeqForLane(a))

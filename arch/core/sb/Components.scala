@@ -62,25 +62,14 @@ class StoreBufferEntry(implicit p: Parameters) extends Bundle {
   val cacheable = Bool()
 }
 
-class StoreBufferWriteIO(numStorePorts: Int)(implicit p: Parameters) extends Bundle {
-  val ports = Flipped(Vec(numStorePorts, Valid(new StoreWriteBundle)))
+class StoreBufferFuPoolIO(implicit p: Parameters) extends Bundle {
+  val fwd          = Vec(p(NumLDs), new StoreForwardIO)
+  val oldest_valid = Output(Bool())
+  val oldest_seq   = Output(UInt(64.W))
+  val write        = Flipped(Vec(p(NumSTs), Valid(new StoreWriteBundle)))
 }
 
-class StoreBufferForwardIO(numLoadPorts: Int)(implicit p: Parameters) extends Bundle {
-  val ports = Vec(numLoadPorts, new StoreForwardIO)
-}
-
-class StoreBufferStateIO(implicit p: Parameters) extends Bundle {
-  val tail        = Output(UInt(log2Ceil(p(StoreBufferSize)).W))
-  val tailSeq     = Output(UInt(64.W))
-  val freeCount   = Output(UInt(log2Ceil(p(StoreBufferSize) + 1).W))
-  val empty       = Output(Bool())
-  val busy        = Output(Bool())
-  val oldestValid = Output(Bool())
-  val oldestSeq   = Output(UInt(64.W))
-}
-
-class StoreBufferMemIO(implicit p: Parameters) extends Bundle {
+class StoreBufferMemoryArbiterIO(implicit p: Parameters) extends Bundle {
   val mem  = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
   val mmio = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
 }

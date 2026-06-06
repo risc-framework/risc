@@ -59,14 +59,14 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   // IO
   io.imem <> l1ICache.lower
   io.dmem <> l1DCache.lower
-  io.mmio <> memoryArbiter.io.out.mmio
+  io.mmio <> memoryArbiter.io.mmio
   io.irq <> interrupt.io.irq
 
   // icache
   l1ICache.upper <> ifu.io.icache.mem
 
   // dcache
-  l1DCache.upper <> memoryArbiter.io.out.mem
+  l1DCache.upper <> memoryArbiter.io.dcache
 
   // bpu
   bpu.io.ifu <> ifu.io.bpu
@@ -91,10 +91,14 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   scheduler.io.exception <> exception.io.scheduler
 
   // fupool
+  fuPool.io.rob <> rob.io.fu_pool
+  fuPool.io.memory_arbiter <> memoryArbiter.io.fu_pool
+  fuPool.io.sb <> storeBuffer.io.fu_pool
 
   // rob
 
   // sb
+  storeBuffer.io.memory_arbiter <> memoryArbiter.io.sb
 
   // memarb
 
@@ -108,38 +112,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   commitPopCount := PopCount(rob.io.commit.lanes.map(_.pop))
   cycleCount     := cycleCount + 1.U
   instretCount   := instretCount + commitPopCount
-
-  for (i <- 0 until p(NumLDs)) {
-    memoryArbiter.io.load.mem(i) <> fuPool.io.ld_mem.ports(i).mem
-    memoryArbiter.io.load.mmio(i) <> fuPool.io.ld_mem.ports(i).mmio
-
-    fuPool.io.ld_sb.ports(i).sb_fwd <> storeBuffer.io.fwd.ports(i)
-    fuPool.io.ld_sb.ports(i).oldest_valid := storeBuffer.io.state.oldestValid
-    fuPool.io.ld_sb.ports(i).oldest_seq   := storeBuffer.io.state.oldestSeq
-  }
-
-  for (i <- 0 until p(NumSTs))
-    storeBuffer.io.write.ports(i) := fuPool.io.st_sb.ports(i).write
-
-  memoryArbiter.io.store.mem <> storeBuffer.io.mem.mem
-  memoryArbiter.io.store.mmio <> storeBuffer.io.mem.mmio
-
-  for (i <- 0 until p(NumBRUs))
-    rob.io.bru.ports(i) <> fuPool.io.bru.ports(i)
-
-  for (i <- 0 until p(NumFUs)) {
-    rob.io.wb.ports(i).valid   := fuPool.io.scheduler.done(i).valid
-    rob.io.wb.ports(i).rob_tag := fuPool.io.scheduler.done(i).bits.rob_tag
-    rob.io.wb.ports(i).data    := fuPool.io.scheduler.done(i).bits.result
-
-    rob.io.trap.ports(i).valid             := fuPool.io.scheduler.done(i).valid &&
-      (fuPool.io.scheduler.done(i).bits.trap_req || fuPool.io.scheduler.done(i).bits.trap_ret)
-    rob.io.trap.ports(i).bits.rob_tag      := fuPool.io.scheduler.done(i).bits.rob_tag
-    rob.io.trap.ports(i).bits.trap_req     := fuPool.io.scheduler.done(i).bits.trap_req
-    rob.io.trap.ports(i).bits.trap_target  := fuPool.io.scheduler.done(i).bits.trap_target
-    rob.io.trap.ports(i).bits.trap_ret     := fuPool.io.scheduler.done(i).bits.trap_ret
-    rob.io.trap.ports(i).bits.trap_ret_tgt := fuPool.io.scheduler.done(i).bits.trap_ret_tgt
-  }
 
   flush.io.rob <> rob.io.flush
   flush.io.exception <> exception.io.flush

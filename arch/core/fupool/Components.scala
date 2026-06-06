@@ -2,10 +2,10 @@ package arch.core.fupool
 
 import arch.core.uop.MicroOp
 import arch.core.bru.BruResolveIO
-import arch.core.st.StSbWriteIO
-import arch.core.ld.{ LdMemIO, LdSbFwdIO }
 import arch.core.csr.CsrCtrlIO
+import arch.core.sb.{ StoreForwardIO, StoreWriteBundle }
 import arch.configs._
+import vcache.CachePortIO
 import chisel3._
 import chisel3.util.{ Decoupled, Valid, log2Ceil }
 
@@ -33,24 +33,25 @@ class FuPoolSchedulerIO(implicit p: Parameters) extends Bundle {
   val done = Output(Vec(p(NumFUs), Valid(new FuResp)))
 }
 
+class FuPoolRobIO(implicit p: Parameters) extends Bundle {
+  val done = Output(Vec(p(NumFUs), Valid(new FuResp)))
+  val bru  = Vec(p(NumBRUs), new BruResolveIO)
+}
+
+class FuPoolMemoryArbiterIO(implicit p: Parameters) extends Bundle {
+  val load_mem  = Vec(p(NumLDs), new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams)))
+  val load_mmio = Vec(p(NumLDs), new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams)))
+}
+
+class FuPoolSbIO(implicit p: Parameters) extends Bundle {
+  val fwd          = Vec(p(NumLDs), Flipped(new StoreForwardIO))
+  val oldest_valid = Input(Bool())
+  val oldest_seq   = Input(UInt(64.W))
+  val write        = Output(Vec(p(NumSTs), Valid(new StoreWriteBundle)))
+}
+
 class FuPoolExceptionIO extends Bundle {
   val flush = Input(Bool())
-}
-
-class VecLdMemIO(implicit p: Parameters) extends Bundle {
-  val ports = Vec(p(NumLDs), new LdMemIO)
-}
-
-class VecLdSbFwdIO(implicit p: Parameters) extends Bundle {
-  val ports = Vec(p(NumLDs), new LdSbFwdIO)
-}
-
-class VecStSbWriteIO(implicit p: Parameters) extends Bundle {
-  val ports = Vec(p(NumSTs), new StSbWriteIO)
-}
-
-class VecBruResolveIO(implicit p: Parameters) extends Bundle {
-  val ports = Vec(p(NumBRUs), new BruResolveIO)
 }
 
 class VecCsrCtrlIO(implicit p: Parameters) extends Bundle {
