@@ -9,11 +9,12 @@ import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 class RobIO(implicit p: Parameters) extends Bundle {
   val dispatch  = new RobDispatchIO
   val fu_pool   = Flipped(new FuPoolRobIO)
+  val regfile   = new RobRegfileIO
+  val sb        = new RobSbIO
   val bpu       = new RobBpuIO
   val flush     = new RobFlushIO
   val exception = new RobExceptionIO
-  val commit    = new RobCommitPortIO
-  val ctrl      = new RobCtrlIO
+  val debug     = new RobDebugIO
 }
 
 class Rob(implicit p: Parameters) extends Node(new RobIO) {
@@ -60,8 +61,6 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
 
     (newestReady, newestData, pending)
   }
-
-  io.ctrl.empty := count === 0.U
 
   for (i <- 0 until p(NumFUs))
     when(io.fu_pool.done(i).valid) {
@@ -111,6 +110,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   private val commitCanContinue = Wire(Vec(p(IssueWidth) + 1, Bool()))
   private val commitBlocked     = Wire(Vec(p(IssueWidth) + 1, Bool()))
   private val commitIdx         = Wire(Vec(p(IssueWidth), UInt(p(RobTagWidth).W)))
+  private val commitInfo        = Wire(Vec(p(IssueWidth), new RobCommitInfo))
   private val commitPops        = Wire(Vec(p(IssueWidth), Bool()))
 
   commitCanContinue(0) := true.B
@@ -124,26 +124,27 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
     val committable =
       hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
 
-    io.commit.lanes(w).valid             := committable
-    io.commit.lanes(w).pc                := entry.pc
-    io.commit.lanes(w).instr             := entry.instr
-    io.commit.lanes(w).rd                := entry.rd
-    io.commit.lanes(w).rd_write          := entry.rd_write
-    io.commit.lanes(w).data              := entry.data
-    io.commit.lanes(w).flush_pipeline    := entry.flush_pipeline
-    io.commit.lanes(w).flush_target      := entry.flush_target
-    io.commit.lanes(w).is_branch         := entry.is_branch
-    io.commit.lanes(w).is_store          := entry.is_store
-    io.commit.lanes(w).commit_barrier    := entry.commit_barrier
-    io.commit.lanes(w).bpu_pred_taken    := entry.pred_taken
-    io.commit.lanes(w).bpu_pred_target   := entry.pred_target
-    io.commit.lanes(w).bpu_actual_taken  := entry.actual_taken
-    io.commit.lanes(w).bpu_actual_target := entry.actual_target
-    io.commit.lanes(w).bpu_pht_index     := entry.pht_index
-    io.commit.lanes(w).bpu_ghr_snapshot  := entry.ghr_snapshot
-    io.commit.lanes(w).sq_idx            := entry.sq_idx
+    commitInfo(w).valid             := committable
+    commitInfo(w).pop               := committable
+    commitInfo(w).pc                := entry.pc
+    commitInfo(w).instr             := entry.instr
+    commitInfo(w).rd                := entry.rd
+    commitInfo(w).rd_write          := entry.rd_write
+    commitInfo(w).data              := entry.data
+    commitInfo(w).flush_pipeline    := entry.flush_pipeline
+    commitInfo(w).flush_target      := entry.flush_target
+    commitInfo(w).is_branch         := entry.is_branch
+    commitInfo(w).is_store          := entry.is_store
+    commitInfo(w).commit_barrier    := entry.commit_barrier
+    commitInfo(w).bpu_pred_taken    := entry.pred_taken
+    commitInfo(w).bpu_pred_target   := entry.pred_target
+    commitInfo(w).bpu_actual_taken  := entry.actual_taken
+    commitInfo(w).bpu_actual_target := entry.actual_target
+    commitInfo(w).bpu_pht_index     := entry.pht_index
+    commitInfo(w).bpu_ghr_snapshot  := entry.ghr_snapshot
+    commitInfo(w).sq_idx            := entry.sq_idx
 
-    commitPops(w) := io.commit.lanes(w).valid && io.commit.lanes(w).pop
+    commitPops(w) := commitInfo(w).pop
 
     val stopYoungerCommit = entry.flush_pipeline || entry.commit_barrier
 
@@ -237,10 +238,20 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
     io.dispatch.lanes(w).rs2_bypass_pending := rs2Pending
   }
 
+  for (w <- 0 until p(IssueWidth)) {
+    io.regfile.write(w).valid     := commitInfo(w).pop && commitInfo(w).rd_write
+    io.regfile.write(w).bits.addr := commitInfo(w).rd
+    io.regfile.write(w).bits.data := commitInfo(w).data
+
+    io.sb.commit(w).valid         := commitInfo(w).pop
+    io.sb.commit(w).bits.is_store := commitInfo(w).is_store
+    io.sb.commit(w).bits.sq_idx   := commitInfo(w).sq_idx
+  }
+
   private val bpuUpdate = WireDefault(0.U.asTypeOf(new arch.core.bpu.BpuUpdate))
 
   for (w <- 0 until p(IssueWidth)) {
-    val lane               = io.commit.lanes(w)
+    val lane               = commitInfo(w)
     val isBruCommit        = lane.is_branch
     val predTakenNonBranch = !isBruCommit && lane.bpu_pred_taken
     val shouldUpdateBranch = lane.pop && (isBruCommit || predTakenNonBranch)
@@ -259,10 +270,35 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   io.bpu.update := bpuUpdate
 
   io.flush.flushes := VecInit(
-    io.commit.lanes.map(lane => lane.flush_pipeline && lane.pop)
+    commitInfo.map(lane => lane.flush_pipeline && lane.pop)
   )
 
   io.flush.targets := VecInit(
-    io.commit.lanes.map(_.flush_target)
+    commitInfo.map(_.flush_target)
   )
+
+  io.exception.empty     := count === 0.U
+  io.exception.commit_pc := commitInfo(0).pc
+
+  io.debug.commit_count := commitCount
+  io.debug.branch_commit := PopCount(
+    commitInfo.map(lane => lane.pop && lane.is_branch)
+  )
+  io.debug.bpu_mispredict := commitInfo
+    .map(lane =>
+      lane.pop &&
+        (lane.is_branch || (!lane.is_branch && lane.bpu_pred_taken)) &&
+        lane.flush_pipeline
+    )
+    .reduce(_ || _)
+  io.debug.empty := count === 0.U
+
+  for (w <- 0 until p(IssueWidth)) {
+    io.debug.instret(w)  := commitInfo(w).pop
+    io.debug.pc(w)       := commitInfo(w).pc
+    io.debug.instr(w)    := commitInfo(w).instr
+    io.debug.reg_we(w)   := io.regfile.write(w).valid
+    io.debug.reg_addr(w) := io.regfile.write(w).bits.addr
+    io.debug.reg_data(w) := io.regfile.write(w).bits.data
+  }
 }

@@ -19,7 +19,7 @@ import vcache.CachePortIO
 import vcache.nonblocking.{ NonBlockingCache, ReadOnlyNonBlockingCache }
 import vutils.graph.{ Node, NodeType }
 import chisel3._
-import chisel3.util.{ PopCount, log2Ceil }
+import chisel3.util.PopCount
 
 class CpuIO(implicit p: Parameters) extends Bundle {
   val imem  = new CachePortIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))
@@ -94,29 +94,33 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   fuPool.io.rob <> rob.io.fu_pool
   fuPool.io.memory_arbiter <> memoryArbiter.io.fu_pool
   fuPool.io.sb <> storeBuffer.io.fu_pool
+  fuPool.io.exception <> exception.io.fu_pool
 
   // rob
+  rob.io.regfile <> regfile.io.rob
+  rob.io.sb <> storeBuffer.io.rob
+  rob.io.exception <> exception.io.rob
+  rob.io.flush <> flush.io.rob
 
   // sb
   storeBuffer.io.memory_arbiter <> memoryArbiter.io.sb
+  storeBuffer.io.exception <> exception.io.sb
 
   // memarb
 
-  // interrupt
-
-  private val cycleCount     = RegInit(0.U(64.W))
-  private val instretCount   = RegInit(0.U(64.W))
-  private val commitPopCount = Wire(UInt(log2Ceil(p(IssueWidth) + 1).W))
-  private val archPc         = Mux(rob.io.ctrl.empty, ifu.io.exception.fetch_pc, rob.io.commit.lanes(0).pc)
-
-  commitPopCount := PopCount(rob.io.commit.lanes.map(_.pop))
-  cycleCount     := cycleCount + 1.U
-  instretCount   := instretCount + commitPopCount
-
-  flush.io.rob <> rob.io.flush
+  // flush
   flush.io.exception <> exception.io.flush
 
-  exception.io.archPc := archPc
+  // exception
+
+  // interrupt
+
+  private val cycleCount   = RegInit(0.U(64.W))
+  private val instretCount = RegInit(0.U(64.W))
+  private val archPc       = exception.io.archPc
+
+  cycleCount   := cycleCount + 1.U
+  instretCount := instretCount + rob.io.debug.commit_count
 
   if (p(NumCSRs) > 0) {
     interrupt.io.view := fuPool.io.csr.ports(0).view
@@ -126,79 +130,44 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
     fuPool.io.csr.ports(0).cycle       := cycleCount
     fuPool.io.csr.ports(0).instret     := instretCount
-    fuPool.io.csr.ports(0).irq <> io.irq
+    fuPool.io.csr.ports(0).irq         := io.irq
     fuPool.io.csr.ports(0).arch_pc     := archPc
     fuPool.io.csr.ports(0).trap_update := exception.io.csrTrapUpdate
   } else {
     interrupt.io.view := 0.U.asTypeOf(new CsrTrapView)
-    interrupt.io.irq  := 0.U.asTypeOf(new InterruptLines)
 
     exception.io.interrupt := 0.U.asTypeOf(new TrapCandidate)
     exception.io.csrBusy   := false.B
   }
 
-  storeBuffer.io.exception <> exception.io.sb
-  scheduler.io.exception <> exception.io.scheduler
-  fuPool.io.exception <> exception.io.fu_pool
-  rob.io.exception <> exception.io.rob
-
-  private val commitRegWe   = Wire(Vec(p(IssueWidth), Bool()))
-  private val commitRegAddr = Wire(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
-  private val commitRegData = Wire(Vec(p(IssueWidth), UInt(p(XLen).W)))
-
-  for (w <- 0 until p(IssueWidth)) {
-    rob.io.commit.lanes(w).pop := rob.io.commit.lanes(w).valid
-
-    commitRegWe(w)   := rob.io.commit.lanes(w).pop && rob.io.commit.lanes(w).rd_write
-    commitRegAddr(w) := rob.io.commit.lanes(w).rd
-    commitRegData(w) := rob.io.commit.lanes(w).data
-
-    regfile.io.write.en(w)   := commitRegWe(w)
-    regfile.io.write.addr(w) := commitRegAddr(w)
-    regfile.io.write.data(w) := commitRegData(w)
-  }
-
-  for (w <- 0 until p(IssueWidth)) {
-    storeBuffer.io.rob.commit(w).valid         := rob.io.commit.lanes(w).pop
-    storeBuffer.io.rob.commit(w).bits.is_store := rob.io.commit.lanes(w).is_store
-    storeBuffer.io.rob.commit(w).bits.sq_idx   := rob.io.commit.lanes(w).sq_idx
-  }
-
+  // debug
   io.debug.cycle_count   := cycleCount
   io.debug.instret_count := instretCount
 
   for (w <- 0 until p(IssueWidth)) {
-    io.debug.instret(w)  := rob.io.commit.lanes(w).pop
-    io.debug.pc(w)       := rob.io.commit.lanes(w).pc
-    io.debug.instr(w)    := rob.io.commit.lanes(w).instr
-    io.debug.reg_we(w)   := commitRegWe(w)
-    io.debug.reg_addr(w) := commitRegAddr(w)
-    io.debug.reg_data(w) := commitRegData(w)
+    io.debug.instret(w)  := rob.io.debug.instret(w)
+    io.debug.pc(w)       := rob.io.debug.pc(w)
+    io.debug.instr(w)    := rob.io.debug.instr(w)
+    io.debug.reg_we(w)   := rob.io.debug.reg_we(w)
+    io.debug.reg_addr(w) := rob.io.debug.reg_addr(w)
+    io.debug.reg_data(w) := rob.io.debug.reg_data(w)
   }
 
-  io.debug.branch_taken     := false.B
-  io.debug.branch_source    := false.B
-  io.debug.branch_target    := false.B
+  io.debug.branch_taken     := rob.io.bpu.update.valid && rob.io.bpu.update.taken
+  io.debug.branch_source    := rob.io.bpu.update.valid
+  io.debug.branch_target    := rob.io.bpu.update.valid && rob.io.bpu.update.taken
   io.debug.l1_icache_access := l1ICache.upper.resp.fire
   io.debug.l1_icache_miss   := l1ICache.upper.resp.fire && !l1ICache.upper.resp.bits.hit
   io.debug.l1_dcache_access := l1DCache.upper.resp.fire
   io.debug.l1_dcache_miss   := l1DCache.upper.resp.fire && !l1DCache.upper.resp.bits.hit
-  io.debug.bpu_mispredict   := (0 until p(IssueWidth))
-    .map(w =>
-      rob.io.commit.lanes(w).pop &&
-        (rob.io.commit.lanes(w).is_branch || (!rob.io.commit
-          .lanes(w)
-          .is_branch && rob.io.commit.lanes(w).bpu_pred_taken)) &&
-        rob.io.commit.lanes(w).flush_pipeline
-    )
-    .reduce(_ || _)
-  io.debug.branch_commit    := PopCount(
-    (0 until p(IssueWidth)).map(w => rob.io.commit.lanes(w).pop && rob.io.commit.lanes(w).is_branch)
-  )
+  io.debug.bpu_mispredict   := rob.io.debug.bpu_mispredict
+  io.debug.branch_commit    := rob.io.debug.branch_commit
   io.debug.flush_cycle      := exception.io.redirect.valid
-  io.debug.rob_empty        := rob.io.ctrl.empty
+  io.debug.rob_empty        := rob.io.debug.empty
   io.debug.issue_count      := PopCount(scheduler.io.dispatch.reqs.map(_.fire))
-  io.debug.commit_count     := commitPopCount
-  io.debug.frontend_stall   := false.B
-  io.debug.backend_stall    := !rob.io.ctrl.empty && commitPopCount === 0.U
+  io.debug.commit_count     := rob.io.debug.commit_count
+  io.debug.frontend_stall   := decode.io.dispatch.lanes
+    .map(lane => lane.valid && !lane.ready)
+    .reduce(_ || _)
+  io.debug.backend_stall    := !rob.io.debug.empty && rob.io.debug.commit_count === 0.U
 }

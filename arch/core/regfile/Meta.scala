@@ -1,13 +1,13 @@
 package arch.core.regfile
 
 import arch.core.dispatch.DispatchRegfileIO
+import arch.core.rob.RobRegfileIO
 import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
 
 object RegfileMeta {
   val Type     = NodeType("regfile")
   val DISPATCH = NodePort[RegfileIO, DispatchRegfileIO]("dispatch", _.dispatch)
-  val WRITE    = NodePort[RegfileIO, RegfileWriteIO]("write", _.write)
-  val DEBUG    = NodePort[RegfileIO, RegfileDebugIO]("debug", _.debug)
+  val ROB      = NodePort[RegfileIO, RobRegfileIO]("rob", _.rob)
 }
 
 object RegfileDims {

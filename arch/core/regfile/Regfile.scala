@@ -1,14 +1,14 @@
 package arch.core.regfile
 
 import arch.core.dispatch.DispatchRegfileIO
+import arch.core.rob.RobRegfileIO
 import arch.configs._
 import chisel3._
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 
 class RegfileIO(implicit p: Parameters) extends Bundle {
   val dispatch = Flipped(new DispatchRegfileIO)
-  val write    = new RegfileWriteIO
-  val debug    = new RegfileDebugIO
+  val rob      = Flipped(new RobRegfileIO)
 }
 
 class Regfile(implicit p: Parameters) extends Node(new RegfileIO) {
@@ -33,8 +33,8 @@ class Regfile(implicit p: Parameters) extends Node(new RegfileIO) {
 
   for (addr <- 0 until p(NumArchRegs))
     for (w <- 0 until p(IssueWidth))
-      when(io.write.en(w) && io.write.addr(w) === addr.U) {
-        regsSeq(addr) := io.write.data(w)
+      when(io.rob.write(w).valid && io.rob.write(w).bits.addr === addr.U) {
+        regsSeq(addr) := io.rob.write(w).bits.data
       }
 
   for (w <- 0 until p(IssueWidth)) {
@@ -46,11 +46,13 @@ class Regfile(implicit p: Parameters) extends Node(new RegfileIO) {
       var rs2Bypassed = rs2Raw
 
       for (i <- 0 until p(IssueWidth)) {
-        val matchRs1 = io.write.en(i) && io.dispatch.rs1_addr(w) === io.write.addr(i)
-        val matchRs2 = io.write.en(i) && io.dispatch.rs2_addr(w) === io.write.addr(i)
+        val matchRs1 =
+          io.rob.write(i).valid && io.dispatch.rs1_addr(w) === io.rob.write(i).bits.addr
+        val matchRs2 =
+          io.rob.write(i).valid && io.dispatch.rs2_addr(w) === io.rob.write(i).bits.addr
 
-        rs1Bypassed = Mux(matchRs1, io.write.data(i), rs1Bypassed)
-        rs2Bypassed = Mux(matchRs2, io.write.data(i), rs2Bypassed)
+        rs1Bypassed = Mux(matchRs1, io.rob.write(i).bits.data, rs1Bypassed)
+        rs2Bypassed = Mux(matchRs2, io.rob.write(i).bits.data, rs2Bypassed)
       }
 
       io.dispatch.rs1_data(w) := rs1Bypassed
@@ -59,11 +61,5 @@ class Regfile(implicit p: Parameters) extends Node(new RegfileIO) {
       io.dispatch.rs1_data(w) := rs1Raw
       io.dispatch.rs2_data(w) := rs2Raw
     }
-  }
-
-  for (w <- 0 until p(IssueWidth)) {
-    io.debug.reg_we(w)   := io.write.en(w)
-    io.debug.reg_addr(w) := io.write.addr(w)
-    io.debug.reg_data(w) := io.write.data(w)
   }
 }

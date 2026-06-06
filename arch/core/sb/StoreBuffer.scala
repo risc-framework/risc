@@ -1,6 +1,7 @@
 package arch.core.sb
 
 import arch.core.dispatch.DispatchStoreBufferIO
+import arch.core.rob.RobSbIO
 import arch.configs._
 import vcache.CacheCommand
 import vutils.graph.{ Node, NodeType }
@@ -10,7 +11,7 @@ import chisel3.util.{ Cat, Mux1H, PopCount, log2Ceil }
 class StoreBufferIO(implicit p: Parameters) extends Bundle {
   val exception      = new StoreBufferExceptionIO
   val dispatch       = Flipped(new DispatchStoreBufferIO)
-  val rob            = new StoreBufferRobIO
+  val rob            = Flipped(new RobSbIO)
   val fu_pool        = new StoreBufferFuPoolIO
   val memory_arbiter = new StoreBufferMemoryArbiterIO
 }
@@ -48,9 +49,7 @@ class StoreBuffer(implicit p: Parameters) extends Node(new StoreBufferIO) {
   private val laneIsStore = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth))
-    laneIsStore(w) := io.dispatch
-      .lanes(w)
-      .valid && io.dispatch.lanes(w).bits.isStore && !io.exception.flush
+    laneIsStore(w) := io.dispatch.lanes(w).valid && io.dispatch.lanes(w).bits.isStore && !io.exception.flush
 
   private val possibleStoreBeforeOrAt = Wire(
     Vec(p(IssueWidth), UInt(log2Ceil(p(IssueWidth) + 1).W))
@@ -70,8 +69,7 @@ class StoreBuffer(implicit p: Parameters) extends Node(new StoreBufferIO) {
 
   for (w <- 0 until p(IssueWidth)) {
     val canReserve = !laneIsStore(w) || possibleStoreBeforeOrAt(w) <= freeCount
-    val allocStore =
-      io.dispatch.lanes(w).fire && io.dispatch.lanes(w).bits.isStore && !io.exception.flush
+    val allocStore = io.dispatch.lanes(w).fire && io.dispatch.lanes(w).bits.isStore && !io.exception.flush
 
     io.dispatch.lanes(w).ready         := canReserve
     io.dispatch.lanes(w).ticket.sq_idx := sqTailAfter(w)
@@ -89,10 +87,7 @@ class StoreBuffer(implicit p: Parameters) extends Node(new StoreBufferIO) {
     val fwdRespValid = RegInit(false.B)
     val fwdRespBits  = RegInit(0.U.asTypeOf(new StoreForwardResp))
 
-    io.fu_pool
-      .fwd(q)
-      .req
-      .ready                     := (!fwdRespValid || io.fu_pool.fwd(q).resp.ready) && !io.exception.flush
+    io.fu_pool.fwd(q).req.ready  := (!fwdRespValid || io.fu_pool.fwd(q).resp.ready) && !io.exception.flush
     io.fu_pool.fwd(q).resp.valid := fwdRespValid && !io.exception.flush
     io.fu_pool.fwd(q).resp.bits  := fwdRespBits
 
@@ -131,9 +126,7 @@ class StoreBuffer(implicit p: Parameters) extends Node(new StoreBufferIO) {
     val sameCycleAllocOlder = Wire(Vec(p(IssueWidth), Bool()))
 
     for (a <- 0 until p(IssueWidth))
-      sameCycleAllocOlder(a) := reqFire && req.valid && allocValid(a) && sqSeqForLane(
-        a
-      ) < req.sq_seq
+      sameCycleAllocOlder(a) := reqFire && req.valid && allocValid(a) && sqSeqForLane(a) < req.sq_seq
 
     val sameCycleUnknownOlder = sameCycleAllocOlder.asUInt.orR
     val finalMaskVec          = maskStage(p(StoreBufferSize))

@@ -10,15 +10,6 @@ class StoreBufferTicket(implicit p: Parameters) extends Bundle {
   val sq_seq = UInt(64.W)
 }
 
-class StoreBufferRobCommitBundle(implicit p: Parameters) extends Bundle {
-  val is_store = Bool()
-  val sq_idx   = UInt(log2Ceil(p(StoreBufferSize)).W)
-}
-
-class StoreBufferRobIO(implicit p: Parameters) extends Bundle {
-  val commit = Flipped(Vec(p(IssueWidth), Valid(new StoreBufferRobCommitBundle)))
-}
-
 class StoreWriteBundle(implicit p: Parameters) extends Bundle {
   val sq_idx    = UInt(log2Ceil(p(StoreBufferSize)).W)
   val rob_tag   = UInt(p(RobTagWidth).W)
