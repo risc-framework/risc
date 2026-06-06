@@ -58,6 +58,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
 
   io.imem <> l1ICache.lower
   ifu.io.bpu <> bpu.io.ifu
+  rob.io.bpu <> bpu.io.rob
   ifu.io.icache.mem <> l1ICache.upper
   decode.io.ifu <> ifu.io.decode
 
