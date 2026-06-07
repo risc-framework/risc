@@ -18,9 +18,9 @@ class BpuUpdate(implicit p: Parameters) extends Bundle {
   val pc           = UInt(p(XLen).W)
   val target       = UInt(p(XLen).W)
   val taken        = Bool()
+  val mispredict   = Bool()
   val pht_index    = UInt(p(GShareGhrWidth).W)
   val ghr_snapshot = UInt(p(GShareGhrWidth).W)
-  val mispredict   = Bool()
 }
 
 class BpuIfuIO(implicit p: Parameters) extends Bundle {

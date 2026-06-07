@@ -1,12 +1,13 @@
 package arch.core.ifu
 
 import arch.configs._
+import vcache.CacheReadOnlyPortIO
 import vutils.graph.{ Node, NodeType }
 import chisel3._
 import chisel3.util.{ PriorityEncoder, Queue, log2Ceil }
 
 class IfuIO(implicit p: Parameters) extends Bundle {
-  val icache    = new IfuICacheIO
+  val icache    = new CacheReadOnlyPortIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))
   val decode    = new IfuDecodeIO
   val exception = new IfuExceptionIO
   val bpu       = new IfuBpuIO
@@ -34,8 +35,8 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
   private val dropCount   = RegInit(0.U(5.W))
   private val pendingReqs = RegInit(0.U(5.W))
 
-  private val reqFire       = io.icache.mem.req.valid && io.icache.mem.req.ready
-  private val respFire      = io.icache.mem.resp.valid && io.icache.mem.resp.ready
+  private val reqFire       = io.icache.req.valid && io.icache.req.ready
+  private val respFire      = io.icache.resp.valid && io.icache.resp.ready
   private val nextDropCount = dropCount + pendingReqs
   private val isDropping    = respFire && nextDropCount > 0.U
   private val isValidResp   = dropCount === 0.U && !doRedirect
@@ -93,15 +94,12 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
 
   metaQ.io.flush.get := doRedirect
 
-  io.icache.mem.req.valid       := metaQ.io.enq.ready && ibuffer.io.enq_ready && !doRedirect
-  io.icache.mem.req.bits.addr   := alignedPc
-  io.icache.mem.req.bits.source := 0.U
-  io.icache.mem.resp.ready      := ibuffer.io.enq_ready
+  io.icache.req.valid       := metaQ.io.enq.ready && ibuffer.io.enq_ready && !doRedirect
+  io.icache.req.bits.addr   := alignedPc
+  io.icache.req.bits.source := 0.U
+  io.icache.resp.ready      := ibuffer.io.enq_ready
 
-  io.exception.fetch_pc       := pc
-  io.exception.fetch_fire     := reqFire
-  io.exception.frontend_flush := doRedirect
-  io.exception.reset_ibuffer  := doRedirect
+  io.exception.fetch_pc := pc
 
   metaQ.io.enq.valid                 := reqFire
   metaQ.io.enq.bits.pc               := pc
@@ -140,7 +138,7 @@ class Ifu(implicit p: Parameters) extends Node(new IfuIO) {
   for (w <- 0 until p(IssueWidth)) {
     ibuffer.io.enq_valid(w)                 := respFire && isValidResp && metaQ.io.deq.valid && respLive(w)
     ibuffer.io.enq_bits(w).pc               := (respPc & alignMask) + (w * p(PCStep)).U
-    ibuffer.io.enq_bits(w).instr            := io.icache.mem.resp.bits.data(w)
+    ibuffer.io.enq_bits(w).instr            := io.icache.resp.bits.data(w)
     ibuffer.io.enq_bits(w).bpu_pred_taken   := metaQ.io.deq.bits.bpu_pred_taken(w)
     ibuffer.io.enq_bits(w).bpu_pred_target  := metaQ.io.deq.bits.bpu_pred_target(w)
     ibuffer.io.enq_bits(w).bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)

@@ -68,7 +68,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   io.mmio <> memoryArbiter.io.mmio
 
   // icache
-  l1ICache.upper <> ifu.io.icache.mem
+  l1ICache.upper <> ifu.io.icache
 
   // dcache
   l1DCache.upper <> memoryArbiter.io.dcache

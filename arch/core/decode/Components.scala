@@ -4,18 +4,12 @@ import arch.core.ifu.IBufferEntry
 import arch.core.fupool.FunctionalUnitType
 import arch.configs._
 import chisel3._
-import chisel3.util.log2Ceil
+import chisel3.util.{ log2Ceil, Decoupled }
 
 class DecodePacket(implicit p: Parameters) extends IBufferEntry
 
-class DecodeIfuLaneIO(implicit p: Parameters) extends Bundle {
-  val valid = Input(Bool())
-  val bits  = Input(new IBufferEntry)
-  val ready = Output(Bool())
-}
-
 class DecodeIfuIO(implicit p: Parameters) extends Bundle {
-  val lanes = Vec(p(IssueWidth), new DecodeIfuLaneIO)
+  val lanes = Vec(p(IssueWidth), Flipped(Decoupled(new DecodePacket)))
 }
 
 class DecodedPacket(implicit p: Parameters) extends Bundle {
