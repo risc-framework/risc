@@ -5,7 +5,7 @@ import arch.core.alu.impls.isa.rv32i.Rv32iAluUopConsts
 import arch.core.bru.impls.isa.rv32i.Rv32iBruUopConsts
 import arch.core.csr.impls.isa.rv32i.Rv32iCsrUOpConsts
 import arch.core.decode._
-import arch.core.fu.FunctionalUnitType
+import arch.core.fupool.FunctionalUnitType
 import arch.core.ld.impls.isa.rv32i.Rv32iMemUopConsts
 import arch.isa._
 import chisel3._

@@ -2,14 +2,14 @@ package arch.core.scheduler.impls.policy.scoreboard
 
 import arch.configs._
 import arch.core.scheduler._
-import arch.core.uop.MicroOp
+import arch.core.fupool.FuReq
 import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.{ Mux1H, PriorityEncoder, log2Ceil }
 
 class ScoreboardEntry(implicit p: Parameters) extends Bundle {
   val valid = Bool()
-  val op    = new MicroOp
+  val op    = new FuReq
 
   val q1_ready = Bool()
   val q1_tag   = UInt(p(RobTagWidth).W)
@@ -182,7 +182,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
             temp_completed_data(w + 1)(op.rd)  := 0.U
           }
 
-          val entryOp = Wire(new MicroOp)
+          val entryOp = Wire(new FuReq)
           entryOp       := op
           entryOp.fu_id := target_fu_idx
 

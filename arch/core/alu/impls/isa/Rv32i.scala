@@ -1,6 +1,6 @@
 package arch.core.alu.impls.isa.rv32i
 
-import arch.core.uop.MicroOp
+import arch.core.fupool.FuReq
 import arch.core.alu._
 import arch.configs._
 import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
@@ -65,7 +65,7 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
       ctrl
     }
 
-    override def execute(uop: MicroOp)(implicit p: Parameters): UInt = {
+    override def execute(uop: FuReq)(implicit p: Parameters): UInt = {
       val ctrl = decode(uop.uop)
 
       val src1 = MuxLookup(ctrl.sel1, 0.U(p(XLen).W))(

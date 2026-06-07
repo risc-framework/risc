@@ -1,7 +1,7 @@
 package arch.cpp
 
 import arch.system.device.DeviceType
-import arch.core.fu.FunctionalUnitType
+import arch.core.fupool.FunctionalUnitType
 import vcache.repl.ReplPolicy
 
 private[cpp] object CppEnumMapping {

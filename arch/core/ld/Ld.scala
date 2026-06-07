@@ -2,7 +2,7 @@ package arch.core.ld
 
 import arch.core.pma.PmaModeFactory
 import arch.core.fupool.FuResp
-import arch.core.uop.MicroOp
+import arch.core.fupool.FuReq
 import arch.core.fupool.FuIO
 import arch.configs._
 import vcache.CacheCommand
@@ -34,7 +34,7 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
   private val pma     = PmaModeFactory.select("default")
 
   private val state           = RegInit(LdState.IDLE)
-  private val uopReg          = Reg(new MicroOp)
+  private val uopReg          = Reg(new FuReq)
   private val ctrlReg         = RegInit(0.U.asTypeOf(new LoadCtrl))
   private val addrReg         = RegInit(0.U(p(XLen).W))
   private val alignedAddrReg  = RegInit(0.U(p(XLen).W))

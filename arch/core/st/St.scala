@@ -1,9 +1,7 @@
 package arch.core.st
 
 import arch.core.pma.PmaModeFactory
-import arch.core.fupool.FuResp
-import arch.core.uop.MicroOp
-import arch.core.fupool.FuIO
+import arch.core.fupool.{ FuResp, FuReq, FuIO }
 import arch.configs._
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
@@ -31,7 +29,7 @@ class St(implicit p: Parameters) extends Node(new StIO) {
   private val isaImpl = StIsaFactory.select(cfg)
   private val pma     = PmaModeFactory.select("default")
   private val state   = RegInit(StState.IDLE)
-  private val uopReg  = Reg(new MicroOp)
+  private val uopReg  = Reg(new FuReq)
 
   private val ctrl        = isaImpl.decodeStore(uopReg.uop)
   private val addr        = uopReg.rs1_data + uopReg.imm

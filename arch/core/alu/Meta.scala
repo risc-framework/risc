@@ -1,6 +1,6 @@
 package arch.core.alu
 
-import arch.core.uop.MicroOp
+import arch.core.fupool.FuReq
 import arch.core.fupool.FuIO
 import arch.configs._
 import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort }
@@ -22,7 +22,7 @@ trait AluIsaImpl extends NodeDimensionImpl {
 
   def fnTypeWidth: Int
   def decode(uop: UInt): AluCtrl
-  def execute(uop: MicroOp)(implicit p: Parameters): UInt
+  def execute(uop: FuReq)(implicit p: Parameters): UInt
 }
 
 object AluIsaFactory extends NodeDimensionRegistry[AluIsaImpl](AluMeta.Type, AluDims.ISA)

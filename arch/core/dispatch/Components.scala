@@ -2,7 +2,7 @@ package arch.core.dispatch
 
 import arch.configs._
 import arch.core.decode.DecodedPacket
-import arch.core.uop.MicroOp
+import arch.core.fupool.FuReq
 import arch.core.sb.StoreBufferTicket
 import chisel3._
 import chisel3.util.{ Decoupled, log2Ceil }
@@ -57,7 +57,7 @@ class DispatchStoreBufferIO(implicit p: Parameters) extends Bundle {
 }
 
 class DispatchSchedulerIO(implicit p: Parameters) extends Bundle {
-  val reqs = Vec(p(IssueWidth), Decoupled(new MicroOp))
+  val reqs = Vec(p(IssueWidth), Decoupled(new FuReq))
 }
 
 class DispatchExceptionIO extends Bundle {

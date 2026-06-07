@@ -1,7 +1,7 @@
 package arch.core.decode
 
 import arch.core.ifu.IBufferEntry
-import arch.core.fu.FunctionalUnitType
+import arch.core.fupool.FunctionalUnitType
 import arch.configs._
 import chisel3._
 import chisel3.util.log2Ceil

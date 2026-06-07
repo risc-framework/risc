@@ -1,7 +1,7 @@
 package arch.core.dispatch
 
 import arch.configs._
-import arch.core.uop.MicroOp
+import arch.core.fupool.FuReq
 import vutils.graph.{ Node, NodeType }
 import chisel3._
 
@@ -61,7 +61,7 @@ class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
     val rs2Bypassed =
       Mux(io.rob.lanes(w).rs2_bypass_valid, io.rob.lanes(w).rs2_bypass_data, io.regfile.rs2_data(w))
     val dis         = io.scheduler.reqs(w)
-    val issueOp     = Wire(new MicroOp)
+    val issueOp     = Wire(new FuReq)
 
     issueOp.pc       := dec.pc
     issueOp.instr    := dec.instr

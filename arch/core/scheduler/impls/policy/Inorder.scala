@@ -2,7 +2,7 @@ package arch.core.scheduler.impls.policy.inorder
 
 import arch.configs._
 import arch.core.scheduler._
-import arch.core.uop.MicroOp
+import arch.core.fupool.FuReq
 import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.Mux1H
@@ -81,7 +81,7 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
         temp_fu_used(w + 1)         := temp_fu_used(w)
 
         when(accepted(w)) {
-          val issueOp = Wire(new MicroOp)
+          val issueOp = Wire(new FuReq)
           issueOp          := op
           issueOp.fu_id    := target
           issueOp.rs1_data := rs1_value

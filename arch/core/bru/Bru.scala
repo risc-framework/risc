@@ -1,7 +1,7 @@
 package arch.core.bru
 
 import arch.core.fupool.{ FuIO, FuResp }
-import arch.core.uop.MicroOp
+import arch.core.fupool.FuReq
 import arch.configs._
 import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import chisel3._
@@ -23,7 +23,7 @@ class Bru(implicit p: Parameters) extends Node(new BruIO) {
 
   private val isaImpl  = BruIsaFactory.select(cfg)
   private val validReg = RegInit(false.B)
-  private val uopReg   = Reg(new MicroOp)
+  private val uopReg   = Reg(new FuReq)
 
   io.fu.req.ready  := !io.fu.flush && (!validReg || io.fu.resp.fire)
   io.fu.resp.valid := validReg && !io.fu.flush

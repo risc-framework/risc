@@ -5,7 +5,6 @@ import arch.core.alu.Alu
 import arch.core.bru.Bru
 import arch.core.csr.{ Csr, CsrTrapView }
 import arch.core.div.Div
-import arch.core.fu.FunctionalUnitType
 import arch.core.ld.Ld
 import arch.core.mult.Mult
 import arch.core.st.St
@@ -27,7 +26,7 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
   override def nodeType: NodeType  = FuPoolMeta.Type
   override def desiredName: String = "fu_pool"
 
-  private def build(desc: arch.core.fu.FunctionalUnitDescriptor): Node[_ <: Bundle] =
+  private def build(desc: FunctionalUnitDescriptor): Node[_ <: Bundle] =
     desc.`type` match {
       case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ALU  => Module(new Alu)
       case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_MULT => Module(new Mult)

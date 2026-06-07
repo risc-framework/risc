@@ -3,11 +3,37 @@ package arch.core.fupool
 import arch.core.bru.BruResolveIO
 import arch.core.csr.{ CsrTrapUpdate, CsrTrapView, InterruptLines }
 import arch.core.sb.{ StoreForwardIO, StoreWriteBundle }
-import arch.core.uop.MicroOp
 import arch.configs._
 import chisel3._
 import chisel3.util.{ Decoupled, Valid, log2Ceil }
 import vcache.CachePortIO
+
+class FuReq(implicit p: Parameters) extends Bundle {
+  val pc    = UInt(p(XLen).W)
+  val instr = UInt(p(ILen).W)
+
+  val fu_type = UInt(log2Ceil(FunctionalUnitType.values.size).W)
+  val fu_id   = UInt(log2Ceil(p(NumFUs)).W)
+
+  val uop = UInt(p(MicroOpWidth).W)
+  val imm = UInt(p(XLen).W)
+
+  val rs1 = UInt(log2Ceil(p(NumArchRegs)).W)
+  val rs2 = UInt(log2Ceil(p(NumArchRegs)).W)
+  val rd  = UInt(log2Ceil(p(NumArchRegs)).W)
+
+  val rs1_read = Bool()
+  val rs2_read = Bool()
+  val rd_write = Bool()
+
+  val rs1_data = UInt(p(XLen).W)
+  val rs2_data = UInt(p(XLen).W)
+
+  val rob_tag = UInt(p(RobTagWidth).W)
+
+  val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
+  val sq_seq = UInt(64.W)
+}
 
 class FuResp(implicit p: Parameters) extends Bundle {
   val result  = UInt(p(XLen).W)
@@ -23,7 +49,7 @@ class FuResp(implicit p: Parameters) extends Bundle {
 }
 
 class FuIO(implicit p: Parameters) extends Bundle {
-  val req   = Flipped(Decoupled(new MicroOp))
+  val req   = Flipped(Decoupled(new FuReq))
   val resp  = Decoupled(new FuResp)
   val flush = Input(Bool())
 }
@@ -35,7 +61,7 @@ class FuPoolCpuIO extends Bundle {
 }
 
 class FuPoolSchedulerIO(implicit p: Parameters) extends Bundle {
-  val reqs = Vec(p(NumFUs), Flipped(Decoupled(new MicroOp)))
+  val reqs = Vec(p(NumFUs), Flipped(Decoupled(new FuReq)))
   val done = Output(Vec(p(NumFUs), Valid(new FuResp)))
 }
 

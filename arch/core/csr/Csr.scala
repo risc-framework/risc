@@ -2,7 +2,7 @@ package arch.core.csr
 
 import arch.configs._
 import arch.core.fupool.{ FuIO, FuResp }
-import arch.core.uop.MicroOp
+import arch.core.fupool.FuReq
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
 
@@ -24,7 +24,7 @@ class Csr(implicit p: Parameters) extends Node(new CsrIO) {
   private val isaImpl = CsrIsaFactory.select(cfg)
 
   private val busy   = RegInit(false.B)
-  private val uopReg = Reg(new MicroOp)
+  private val uopReg = Reg(new FuReq)
 
   private val csrTable = isaImpl.table
   private val csrRegs  = csrTable.map { case (reg, _) =>

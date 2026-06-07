@@ -1,4 +1,4 @@
-package arch.core.fu
+package arch.core.fupool
 
 sealed abstract class FunctionalUnitType(
   val index: Int,

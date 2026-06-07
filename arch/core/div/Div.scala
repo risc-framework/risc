@@ -1,8 +1,7 @@
 package arch.core.div
 
 import arch.configs._
-import arch.core.fupool.{ FuIO, FuResp }
-import arch.core.uop.MicroOp
+import arch.core.fupool.{ FuIO, FuResp, FuReq }
 import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import vutils.math.div.RestoringDivider
 import chisel3._
@@ -29,7 +28,7 @@ class Div(implicit p: Parameters) extends Node(new DivIO) {
   private val isaImpl   = DivIsaFactory.select(cfg)
   private val divider   = Module(new RestoringDivider(p(XLen)))
   private val state     = RegInit(DivState.IDLE)
-  private val uopReg    = Reg(new MicroOp)
+  private val uopReg    = Reg(new FuReq)
   private val resultReg = RegInit(0.U(p(XLen).W))
 
   private val ctrl = isaImpl.decode(io.fu.req.bits.uop)

@@ -1,8 +1,7 @@
 package arch.core.alu
 
 import arch.configs._
-import arch.core.fupool.{ FuIO, FuResp }
-import arch.core.uop.MicroOp
+import arch.core.fupool.{ FuIO, FuResp, FuReq }
 import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
 import chisel3._
 
@@ -22,7 +21,7 @@ class Alu(implicit p: Parameters) extends Node(new AluIO) {
 
   private val isaImpl  = AluIsaFactory.select(cfg)
   private val validReg = RegInit(false.B)
-  private val uopReg   = Reg(new MicroOp)
+  private val uopReg   = Reg(new FuReq)
 
   io.fu.req.ready  := !io.fu.flush && (!validReg || io.fu.resp.fire)
   io.fu.resp.valid := validReg && !io.fu.flush
