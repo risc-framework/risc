@@ -3,8 +3,6 @@ package arch.core.bpu
 import arch.configs._
 import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
 
-case object BpuPredictorKinds extends Field[Seq[String]](Seq("gshare"))
-
 object BtbMeta {
   val Type   = NodeType("btb")
   val QUERY  = NodePort[BtbIO, BtbQueryIO]("query", _.query)

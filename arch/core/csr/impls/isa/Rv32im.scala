@@ -36,19 +36,21 @@ object CsrRv32imIsa extends RegisteredNodeUtils[CsrIsaImpl] {
       regs: Map[String, UInt],
       pc: UInt,
       cause: UInt
-    ): Map[String, UInt] =
+    )(implicit p: Parameters): Map[String, UInt] =
       rv32i.trapEntryUpdates(regs, pc, cause)
 
     override def trapReturnTarget(regs: Map[String, UInt])(implicit p: Parameters): UInt =
       rv32i.trapReturnTarget(regs)
 
-    override def trapReturnUpdates(regs: Map[String, UInt]): Map[String, UInt] =
+    override def trapReturnUpdates(regs: Map[String, UInt])(implicit
+      p: Parameters
+    ): Map[String, UInt] =
       rv32i.trapReturnUpdates(regs)
 
-    override def isTrapReturn(instr: UInt, uop: UInt): Bool =
+    override def isTrapReturn(instr: UInt, uop: UInt)(implicit p: Parameters): Bool =
       rv32i.isTrapReturn(instr, uop)
 
-    override def hasSyncException(instr: UInt, uop: UInt): Bool =
+    override def hasSyncException(instr: UInt, uop: UInt)(implicit p: Parameters): Bool =
       rv32i.hasSyncException(instr, uop)
 
     override def syncExceptionCause(instr: UInt, uop: UInt)(implicit p: Parameters): UInt =

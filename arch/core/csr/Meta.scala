@@ -36,19 +36,21 @@ trait CsrIsaImpl extends NodeDimensionImpl {
     out
   }
 
-  def trapEntryUpdates(regs: Map[String, UInt], pc: UInt, cause: UInt): Map[String, UInt] =
+  def trapEntryUpdates(regs: Map[String, UInt], pc: UInt, cause: UInt)(implicit
+    p: Parameters
+  ): Map[String, UInt] =
     Map.empty[String, UInt]
 
   def trapReturnTarget(regs: Map[String, UInt])(implicit p: Parameters): UInt =
     0.U(p(XLen).W)
 
-  def trapReturnUpdates(regs: Map[String, UInt]): Map[String, UInt] =
+  def trapReturnUpdates(regs: Map[String, UInt])(implicit p: Parameters): Map[String, UInt] =
     Map.empty[String, UInt]
 
-  def isTrapReturn(instr: UInt, uop: UInt): Bool =
+  def isTrapReturn(instr: UInt, uop: UInt)(implicit p: Parameters): Bool =
     false.B
 
-  def hasSyncException(instr: UInt, uop: UInt): Bool =
+  def hasSyncException(instr: UInt, uop: UInt)(implicit p: Parameters): Bool =
     false.B
 
   def syncExceptionCause(instr: UInt, uop: UInt)(implicit p: Parameters): UInt =

@@ -1,12 +1,15 @@
 package arch.configs
 
 abstract class Field[T] private (
-  val default: Option[T],
+  private val deriveFn: Option[Parameters => T]
 ) {
   def this() = this(None)
-  def this(default: T) = this(Some(default))
+  def this(derive: Parameters => T) = this(Some(derive))
 
-  def apply(): T = default.getOrElse(
-    throw new IllegalArgumentException(s"Field ${this} has no default value")
-  )
+  def hasDerive: Boolean = deriveFn.nonEmpty
+
+  def derive(params: Parameters): Option[T] = deriveFn.map(_(params))
+
+  override def toString: String =
+    getClass.getSimpleName.stripSuffix("$")
 }

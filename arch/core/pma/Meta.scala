@@ -18,7 +18,7 @@ trait PmaModeImpl extends NodeDimensionImpl {
   override def dim: NodeDim       = PmaDims.MODE
   override def name: String       = value
 
-  def check(addr: UInt): PmaCheckResult = {
+  def check(addr: UInt)(implicit p: Parameters): PmaCheckResult = {
     val result = Wire(new PmaCheckResult)
 
     val hits = p(BusAddressMap).map { d =>

@@ -6,8 +6,6 @@ import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePor
 import chisel3._
 import chisel3.util.BitPat
 
-case object DecodeKind extends Field[String]("table")
-
 object DecodeMeta {
   val Type     = NodeType("decode")
   val IFU      = NodePort[DecodeIO, DecodeIfuIO]("ifu", _.ifu)
