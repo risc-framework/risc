@@ -1,24 +1,26 @@
 package arch.core.fupool
 
+import arch.configs._
 import arch.core.alu.Alu
-import arch.core.div.Div
-import arch.core.mult.Mult
-import arch.core.ld.Ld
-import arch.core.st.St
 import arch.core.bru.Bru
 import arch.core.csr.{ Csr, CsrTrapView }
+import arch.core.div.Div
 import arch.core.fu.FunctionalUnitType
-import arch.configs._
-import vutils.graph.{ Node, NodeType }
+import arch.core.ld.Ld
+import arch.core.mult.Mult
+import arch.core.st.St
 import chisel3._
+import chisel3.util.Valid
+import vutils.graph.{ Node, NodeType }
 
 class FuPoolIO(implicit p: Parameters) extends Bundle {
+  val cpu            = new FuPoolCpuIO
   val exception      = new FuPoolExceptionIO
+  val interrupt      = new FuPoolInterruptIO
   val scheduler      = new FuPoolSchedulerIO
   val rob            = new FuPoolRobIO
   val memory_arbiter = new FuPoolMemoryArbiterIO
   val sb             = new FuPoolSbIO
-  val csr            = new VecCsrCtrlIO
 }
 
 class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
@@ -50,42 +52,32 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
   }
 
   for (i <- 0 until p(NumBRUs))
-    io.rob.bru(i).resolved := 0.U.asTypeOf(io.rob.bru(i).resolved)
+    io.rob.bru(i) := 0.U.asTypeOf(new arch.core.bru.BruResolveIO)
 
-  for (i <- 0 until p(NumLDs)) {
-    io.memory_arbiter.load_mem(i).req.valid   := false.B
-    io.memory_arbiter.load_mem(i).req.bits    := 0.U.asTypeOf(io.memory_arbiter.load_mem(i).req.bits)
-    io.memory_arbiter.load_mem(i).resp.ready  := false.B
-    io.memory_arbiter.load_mmio(i).req.valid  := false.B
-    io.memory_arbiter.load_mmio(i).req.bits   := 0.U.asTypeOf(io.memory_arbiter.load_mmio(i).req.bits)
-    io.memory_arbiter.load_mmio(i).resp.ready := false.B
-    io.sb.fwd(i).req.valid                    := false.B
-    io.sb.fwd(i).req.bits                     := 0.U.asTypeOf(io.sb.fwd(i).req.bits)
-    io.sb.fwd(i).resp.ready                   := false.B
-  }
+  for (i <- 0 until p(NumSTs))
+    io.sb.write(i) := 0.U.asTypeOf(Valid(new arch.core.sb.StoreWriteBundle))
 
-  for (i <- 0 until p(NumSTs)) {
-    io.sb.write(i).valid := false.B
-    io.sb.write(i).bits  := 0.U.asTypeOf(io.sb.write(i).bits)
-  }
-
-  for (i <- 0 until io.csr.ports.length) {
-    io.csr.ports(i).view := 0.U.asTypeOf(new CsrTrapView)
-    io.csr.ports(i).busy := false.B
-  }
+  io.interrupt.view     := 0.U.asTypeOf(new CsrTrapView)
+  io.exception.csr_busy := false.B
 
   private val units = p(FunctionalUnits).zipWithIndex.map { case (desc, idx) =>
     build(desc) -> idx
   }
 
   private def connectFu(fu: FuIO, idx: Int): Unit = {
-    fu.flush                     := io.exception.flush
-    fu.req <> io.scheduler.reqs(idx)
-    fu.resp.ready                := true.B
+    fu.flush := io.exception.flush
+
+    fu.req.valid                 := io.scheduler.reqs(idx).valid
+    fu.req.bits                  := io.scheduler.reqs(idx).bits
+    io.scheduler.reqs(idx).ready := fu.req.ready
+
+    fu.resp.ready := true.B
+
     io.scheduler.done(idx).valid := fu.resp.valid && !io.exception.flush
     io.scheduler.done(idx).bits  := fu.resp.bits
-    io.rob.done(idx).valid       := fu.resp.valid && !io.exception.flush
-    io.rob.done(idx).bits        := fu.resp.bits
+
+    io.rob.done(idx).valid := fu.resp.valid && !io.exception.flush
+    io.rob.done(idx).bits  := fu.resp.bits
   }
 
   private var ldIdx  = 0
@@ -118,17 +110,30 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
 
       case st: St =>
         connectFu(st.io.fu, fuIdx)
+
         io.sb.write(stIdx) := st.io.sb.write
+
         stIdx += 1
 
       case bru: Bru =>
         connectFu(bru.io.fu, fuIdx)
-        io.rob.bru(bruIdx) <> bru.io.resolve
+
+        io.rob.bru(bruIdx).resolved := bru.io.resolve.resolved
+
         bruIdx += 1
 
       case csr: Csr =>
         connectFu(csr.io.fu, fuIdx)
-        csr.io.ctrl <> io.csr.ports(csrIdx)
+
+        csr.io.ctrl.cycle       := io.cpu.cycle
+        csr.io.ctrl.instret     := io.cpu.instret
+        csr.io.ctrl.irq         := io.cpu.irq
+        csr.io.ctrl.arch_pc     := io.exception.arch_pc
+        csr.io.ctrl.trap_update := io.exception.trap_update
+
+        io.interrupt.view     := csr.io.ctrl.view
+        io.exception.csr_busy := csr.io.ctrl.busy
+
         csrIdx += 1
 
       case _ =>

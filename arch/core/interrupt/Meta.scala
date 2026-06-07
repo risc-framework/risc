@@ -1,14 +1,13 @@
 package arch.core.interrupt
 
-import arch.configs._
-import arch.core.csr.{ CsrTrapView, InterruptLines }
+import arch.core.fupool.FuPoolInterruptIO
 import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
 
 object InterruptMeta {
-  val Type = NodeType("interrupt")
-  val VIEW = NodePort[InterruptIO, CsrTrapView]("view", _.view)
-  val IRQ  = NodePort[InterruptIO, InterruptLines]("irq", _.irq)
-  val OUT  = NodePort[InterruptIO, TrapCandidate]("out", _.out)
+  val Type      = NodeType("interrupt")
+  val CPU       = NodePort[InterruptIO, InterruptCpuIO]("cpu", _.cpu)
+  val FU_POOL   = NodePort[InterruptIO, FuPoolInterruptIO]("fu_pool", _.fu_pool)
+  val EXCEPTION = NodePort[InterruptIO, InterruptExceptionIO]("exception", _.exception)
 }
 
 object InterruptDims {
@@ -20,7 +19,10 @@ trait InterruptIsaImpl extends NodeDimensionImpl {
   override def dim: NodeDim       = InterruptDims.ISA
   override def name: String       = value
 
-  def detect(view: CsrTrapView, irq: InterruptLines)(implicit p: Parameters): TrapCandidate
+  def detect(
+    view: arch.core.csr.CsrTrapView,
+    irq: arch.core.csr.InterruptLines
+  )(implicit p: arch.configs.Parameters): TrapCandidate
 }
 
 object InterruptIsaFactory

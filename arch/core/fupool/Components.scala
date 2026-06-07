@@ -1,13 +1,13 @@
 package arch.core.fupool
 
-import arch.core.uop.MicroOp
 import arch.core.bru.BruResolveIO
-import arch.core.csr.CsrCtrlIO
+import arch.core.csr.{ CsrTrapUpdate, CsrTrapView, InterruptLines }
 import arch.core.sb.{ StoreForwardIO, StoreWriteBundle }
+import arch.core.uop.MicroOp
 import arch.configs._
-import vcache.CachePortIO
 import chisel3._
 import chisel3.util.{ Decoupled, Valid, log2Ceil }
+import vcache.CachePortIO
 
 class FuResp(implicit p: Parameters) extends Bundle {
   val result  = UInt(p(XLen).W)
@@ -28,6 +28,12 @@ class FuIO(implicit p: Parameters) extends Bundle {
   val flush = Input(Bool())
 }
 
+class FuPoolCpuIO extends Bundle {
+  val cycle   = Input(UInt(64.W))
+  val instret = Input(UInt(64.W))
+  val irq     = Input(new InterruptLines)
+}
+
 class FuPoolSchedulerIO(implicit p: Parameters) extends Bundle {
   val reqs = Vec(p(NumFUs), Flipped(Decoupled(new MicroOp)))
   val done = Output(Vec(p(NumFUs), Valid(new FuResp)))
@@ -35,7 +41,7 @@ class FuPoolSchedulerIO(implicit p: Parameters) extends Bundle {
 
 class FuPoolRobIO(implicit p: Parameters) extends Bundle {
   val done = Output(Vec(p(NumFUs), Valid(new FuResp)))
-  val bru  = Vec(p(NumBRUs), new BruResolveIO)
+  val bru  = Output(Vec(p(NumBRUs), new BruResolveIO))
 }
 
 class FuPoolMemoryArbiterIO(implicit p: Parameters) extends Bundle {
@@ -50,10 +56,13 @@ class FuPoolSbIO(implicit p: Parameters) extends Bundle {
   val write        = Output(Vec(p(NumSTs), Valid(new StoreWriteBundle)))
 }
 
-class FuPoolExceptionIO extends Bundle {
-  val flush = Input(Bool())
+class FuPoolExceptionIO(implicit p: Parameters) extends Bundle {
+  val flush       = Input(Bool())
+  val arch_pc     = Input(UInt(p(XLen).W))
+  val trap_update = Input(new CsrTrapUpdate)
+  val csr_busy    = Output(Bool())
 }
 
-class VecCsrCtrlIO(implicit p: Parameters) extends Bundle {
-  val ports = Vec(p(NumCSRs), new CsrCtrlIO)
+class FuPoolInterruptIO(implicit p: Parameters) extends Bundle {
+  val view = Output(new CsrTrapView)
 }

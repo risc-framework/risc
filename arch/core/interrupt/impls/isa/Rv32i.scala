@@ -27,13 +27,15 @@ object InterruptRv32iIsa extends RegisteredNodeUtils[InterruptIsaImpl] {
 
       val asyncBit = 1.U(p(XLen).W) << (p(XLen) - 1)
 
-      out.valid  := takeExt || takeSft || takeTim
-      out.target := view.trapVector
-      out.cause  := Mux(
+      out.valid             := takeExt || takeSft || takeTim
+      out.target            := view.trapVector
+      out.cause             := Mux(
         takeExt,
         asyncBit | 11.U,
         Mux(takeSft, asyncBit | 3.U, Mux(takeTim, asyncBit | 7.U, 0.U))
       )
+      out.write_csr         := true.B
+      out.requires_csr_idle := true.B
 
       out
     }

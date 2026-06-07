@@ -1,6 +1,7 @@
 package arch.core.flush
 
 import arch.configs._
+import arch.core.exception.ExceptionRequest
 import chisel3._
 
 class FlushRobIO(implicit p: Parameters) extends Bundle {
@@ -9,6 +10,5 @@ class FlushRobIO(implicit p: Parameters) extends Bundle {
 }
 
 class FlushExceptionIO(implicit p: Parameters) extends Bundle {
-  val redirect = Output(Bool())
-  val target   = Output(UInt(p(XLen).W))
+  val request = Output(new ExceptionRequest)
 }

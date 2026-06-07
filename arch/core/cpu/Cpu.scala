@@ -1,12 +1,12 @@
 package arch.core.cpu
 
 import arch.core.bpu.Bpu
-import arch.core.csr.{ CsrTrapView, InterruptLines }
+import arch.core.csr.InterruptLines
 import arch.core.decode.Decode
 import arch.core.exception.Exception
 import arch.core.fupool.FuPool
 import arch.core.ifu.Ifu
-import arch.core.interrupt.{ Interrupt, TrapCandidate }
+import arch.core.interrupt.Interrupt
 import arch.core.memarb.MemoryArbiter
 import arch.core.regfile.Regfile
 import arch.core.rob.Rob
@@ -56,11 +56,16 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   )
   private val l1DCache      = Module(new NonBlockingCache(UInt(p(XLen).W), p(L1DCacheParams)))
 
+  private val cycleCount   = RegInit(0.U(64.W))
+  private val instretCount = RegInit(0.U(64.W))
+
+  cycleCount   := cycleCount + 1.U
+  instretCount := instretCount + rob.io.debug.commit_count
+
   // IO
   io.imem <> l1ICache.lower
   io.dmem <> l1DCache.lower
   io.mmio <> memoryArbiter.io.mmio
-  io.irq <> interrupt.io.irq
 
   // icache
   l1ICache.upper <> ifu.io.icache.mem
@@ -95,6 +100,11 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   fuPool.io.memory_arbiter <> memoryArbiter.io.fu_pool
   fuPool.io.sb <> storeBuffer.io.fu_pool
   fuPool.io.exception <> exception.io.fu_pool
+  fuPool.io.interrupt <> interrupt.io.fu_pool
+
+  fuPool.io.cpu.cycle   := cycleCount
+  fuPool.io.cpu.instret := instretCount
+  fuPool.io.cpu.irq     := io.irq
 
   // rob
   rob.io.regfile <> regfile.io.rob
@@ -114,31 +124,8 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   // exception
 
   // interrupt
-
-  private val cycleCount   = RegInit(0.U(64.W))
-  private val instretCount = RegInit(0.U(64.W))
-  private val archPc       = exception.io.archPc
-
-  cycleCount   := cycleCount + 1.U
-  instretCount := instretCount + rob.io.debug.commit_count
-
-  if (p(NumCSRs) > 0) {
-    interrupt.io.view := fuPool.io.csr.ports(0).view
-
-    exception.io.interrupt := interrupt.io.out
-    exception.io.csrBusy   := fuPool.io.csr.ports(0).busy
-
-    fuPool.io.csr.ports(0).cycle       := cycleCount
-    fuPool.io.csr.ports(0).instret     := instretCount
-    fuPool.io.csr.ports(0).irq         := io.irq
-    fuPool.io.csr.ports(0).arch_pc     := archPc
-    fuPool.io.csr.ports(0).trap_update := exception.io.csrTrapUpdate
-  } else {
-    interrupt.io.view := 0.U.asTypeOf(new CsrTrapView)
-
-    exception.io.interrupt := 0.U.asTypeOf(new TrapCandidate)
-    exception.io.csrBusy   := false.B
-  }
+  interrupt.io.cpu.irq := io.irq
+  interrupt.io.exception <> exception.io.interrupt
 
   // debug
   io.debug.cycle_count   := cycleCount
@@ -162,7 +149,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   io.debug.l1_dcache_miss   := l1DCache.upper.resp.fire && !l1DCache.upper.resp.bits.hit
   io.debug.bpu_mispredict   := rob.io.debug.bpu_mispredict
   io.debug.branch_commit    := rob.io.debug.branch_commit
-  io.debug.flush_cycle      := exception.io.redirect.valid
+  io.debug.flush_cycle      := exception.io.debug.redirect.valid
   io.debug.rob_empty        := rob.io.debug.empty
   io.debug.issue_count      := PopCount(scheduler.io.dispatch.reqs.map(_.fire))
   io.debug.commit_count     := rob.io.debug.commit_count

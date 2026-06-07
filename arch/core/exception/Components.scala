@@ -8,9 +8,12 @@ class RedirectBundle(implicit p: Parameters) extends Bundle {
   val target = UInt(p(XLen).W)
 }
 
-class ExceptionFlushIO(implicit p: Parameters) extends Bundle {
-  val redirect = Input(Bool())
-  val target   = Input(UInt(p(XLen).W))
+class ExceptionRequest(implicit p: Parameters) extends Bundle {
+  val valid             = Bool()
+  val target            = UInt(p(XLen).W)
+  val cause             = UInt(p(XLen).W)
+  val write_csr         = Bool()
+  val requires_csr_idle = Bool()
 }
 
 class ExceptionDispatchIO extends Bundle {
@@ -25,6 +28,7 @@ class ExceptionSchedulerIO extends Bundle {
   val flush = Output(Bool())
 }
 
-class ExceptionFuPoolIO extends Bundle {
-  val flush = Output(Bool())
+class ExceptionDebugIO(implicit p: Parameters) extends Bundle {
+  val redirect = Output(new RedirectBundle)
+  val arch_pc  = Output(UInt(p(XLen).W))
 }
