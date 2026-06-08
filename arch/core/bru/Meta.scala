@@ -1,14 +1,11 @@
 package arch.core.bru
 
-import arch.core.fupool.FuIO
 import arch.configs._
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort }
+import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
 import chisel3._
 
 object BruMeta {
-  val Type    = NodeType("bru")
-  val FU      = NodePort[BruIO, FuIO]("fu", _.fu)
-  val RESOLVE = NodePort[BruIO, BruResolveIO]("resolve", _.resolve)
+  val Type = NodeType("bru")
 }
 
 object BruDims {

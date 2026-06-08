@@ -33,7 +33,7 @@ class BusBridge(implicit p: Parameters) extends Node(new BusBridgeIO) {
   )
 
   override def nodeType: NodeType  = BusBridgeMeta.Type
-  override def desiredName: String = s"${p(BusType)}_bus_bridge"
+  override def desiredName: String = s"bus_bridge_${cfg.selector.canonicalName}"
 
   private val impl = BusBridgeTypeFactory.select(cfg)
 

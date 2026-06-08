@@ -1,24 +1,18 @@
 package arch.core.bpu
 
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
 
 object BtbMeta {
-  val Type   = NodeType("btb")
-  val QUERY  = NodePort[BtbIO, BtbQueryIO]("query", _.query)
-  val UPDATE = NodePort[BtbIO, BpuUpdateIO]("update", _.update)
+  val Type = NodeType("btb")
 }
 
 object PredictorMeta {
-  val Type   = NodeType("predictor")
-  val QUERY  = NodePort[PredictorIO, PredictorQueryIO]("query", _.query)
-  val UPDATE = NodePort[PredictorIO, BpuUpdateIO]("update", _.update)
+  val Type = NodeType("predictor")
 }
 
 object BpuMeta {
   val Type = NodeType("bpu")
-  val IFU  = NodePort[BpuIO, BpuIfuIO]("ifu", _.ifu)
-  val ROB  = NodePort[BpuIO, BpuRobIO]("rob", _.rob)
 }
 
 object PredictorDims {

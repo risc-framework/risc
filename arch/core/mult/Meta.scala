@@ -1,12 +1,10 @@
 package arch.core.mult
 
-import arch.core.fupool.FuIO
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort }
+import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
 import chisel3._
 
 object MultMeta {
   val Type = NodeType("mult")
-  val FU   = NodePort[MultIO, FuIO]("fu", _.fu)
 }
 
 object MultDims {

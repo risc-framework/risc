@@ -27,7 +27,7 @@ class BusCrossbar(implicit p: Parameters) extends Node(new BusCrossbarIO) {
   )
 
   override def nodeType: NodeType  = BusCrossbarMeta.Type
-  override def desiredName: String = s"${p(BusType)}_bus_crossbar"
+  override def desiredName: String = s"bus_crossbar_${cfg.selector.canonicalName}"
 
   private val impl = BusCrossbarTypeFactory.select(cfg)
 

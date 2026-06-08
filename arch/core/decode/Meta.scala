@@ -1,15 +1,12 @@
 package arch.core.decode
 
-import arch.core.dispatch.DispatchDecodeIO
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
 import chisel3._
 import chisel3.util.BitPat
 
 object DecodeMeta {
-  val Type     = NodeType("decode")
-  val IFU      = NodePort[DecodeIO, DecodeIfuIO]("ifu", _.ifu)
-  val DISPATCH = NodePort[DecodeIO, DispatchDecodeIO]("dispatch", _.dispatch)
+  val Type = NodeType("decode")
 }
 
 object DecodeDims {

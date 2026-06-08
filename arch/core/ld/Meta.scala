@@ -1,15 +1,11 @@
 package arch.core.ld
 
-import arch.core.fupool.FuIO
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
 import chisel3._
 
 object LdMeta {
   val Type = NodeType("ld")
-  val FU   = NodePort[LdIO, FuIO]("fu", _.fu)
-  val MEM  = NodePort[LdIO, LdMemIO]("mem", _.mem)
-  val SB   = NodePort[LdIO, LdSbFwdIO]("sb", _.sb)
 }
 
 object LdDims {

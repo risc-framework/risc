@@ -1,13 +1,10 @@
 package arch.core.scheduler
 
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
 
 object SchedulerMeta {
-  val Type      = NodeType("scheduler")
-  val EXCEPTION = NodePort[SchedulerIO, SchedulerExceptionIO]("exception", _.exception)
-  val DISPATCH  = NodePort[SchedulerIO, SchedulerDispatchIO]("dispatch", _.dispatch)
-  val FU_POOL   = NodePort[SchedulerIO, SchedulerFuPoolIO]("fu_pool", _.fu_pool)
+  val Type = NodeType("scheduler")
 }
 
 object SchedulerDims {

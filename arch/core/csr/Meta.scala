@@ -1,13 +1,11 @@
 package arch.core.csr
 
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
 import chisel3._
 
 object CsrMeta {
   val Type = NodeType("csr")
-  val FU   = NodePort[CsrIO, arch.core.fupool.FuIO]("fu", _.fu)
-  val CTRL = NodePort[CsrIO, CsrCtrlIO]("ctrl", _.ctrl)
 }
 
 object CsrDims {

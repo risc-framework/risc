@@ -2,14 +2,10 @@ package arch.system.crossbar
 
 import arch.configs._
 import chisel3._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
 
 object BusCrossbarMeta {
-  val Type    = NodeType("bus_crossbar")
-  val IBUS    = NodePort[BusCrossbarIO, Bundle]("ibus", _.ibus)
-  val DBUS    = NodePort[BusCrossbarIO, Bundle]("dbus", _.dbus)
-  val MBUS    = NodePort[BusCrossbarIO, Bundle]("mbus", _.mbus)
-  val DEVICES = NodePort[BusCrossbarIO, Vec[Bundle]]("devices", _.devices)
+  val Type = NodeType("bus_crossbar")
 }
 
 object BusCrossbarDims {

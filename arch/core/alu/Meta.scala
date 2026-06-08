@@ -1,14 +1,12 @@
 package arch.core.alu
 
 import arch.core.fupool.FuReq
-import arch.core.fupool.FuIO
 import arch.configs._
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort }
+import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
 import chisel3._
 
 object AluMeta {
   val Type = NodeType("alu")
-  val FU   = NodePort[AluIO, FuIO]("fu", _.fu)
 }
 
 object AluDims {

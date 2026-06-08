@@ -1,14 +1,11 @@
 package arch.core.st
 
-import arch.core.fupool.FuIO
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
 import chisel3._
 
 object StMeta {
   val Type = NodeType("st")
-  val FU   = NodePort[StIO, FuIO]("fu", _.fu)
-  val SB   = NodePort[StIO, StSbWriteIO]("sb", _.sb)
 }
 
 object StDims {

@@ -1,12 +1,10 @@
 package arch.core.div
 
-import arch.core.fupool.FuIO
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort }
+import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
 import chisel3._
 
 object DivMeta {
   val Type = NodeType("div")
-  val FU   = NodePort[DivIO, FuIO]("fu", _.fu)
 }
 
 object DivDims {

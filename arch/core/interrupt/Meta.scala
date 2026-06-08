@@ -1,13 +1,9 @@
 package arch.core.interrupt
 
-import arch.core.fupool.FuPoolInterruptIO
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
 
 object InterruptMeta {
-  val Type      = NodeType("interrupt")
-  val CPU       = NodePort[InterruptIO, InterruptCpuIO]("cpu", _.cpu)
-  val FU_POOL   = NodePort[InterruptIO, FuPoolInterruptIO]("fu_pool", _.fu_pool)
-  val EXCEPTION = NodePort[InterruptIO, InterruptExceptionIO]("exception", _.exception)
+  val Type = NodeType("interrupt")
 }
 
 object InterruptDims {

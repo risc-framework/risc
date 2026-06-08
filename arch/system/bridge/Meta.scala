@@ -3,16 +3,10 @@ package arch.system.bridge
 import arch.configs._
 import vcache.CachePortIO
 import chisel3._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodePort, NodeType }
+import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
 
 object BusBridgeMeta {
   val Type = NodeType("bus_bridge")
-  val IMEM = NodePort[BusBridgeIO, CachePortIO[Vec[UInt]]]("imem", _.imem)
-  val DMEM = NodePort[BusBridgeIO, CachePortIO[UInt]]("dmem", _.dmem)
-  val MMIO = NodePort[BusBridgeIO, CachePortIO[UInt]]("mmio", _.mmio)
-  val IBUS = NodePort[BusBridgeIO, Bundle]("ibus", _.ibus)
-  val DBUS = NodePort[BusBridgeIO, Bundle]("dbus", _.dbus)
-  val MBUS = NodePort[BusBridgeIO, Bundle]("mbus", _.mbus)
 }
 
 object BusBridgeDims {
