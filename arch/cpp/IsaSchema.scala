@@ -48,7 +48,6 @@ private[cpp] object CppIsaSchema {
       u32("ILEN", p => p(ISA).ilen),
       u32("NUM_ARCH_REGS", p => p(ISA).numArchRegs),
       bool("IS_BIG_ENDIAN", p => p(ISA).isBigEndian),
-      u32("MICRO_OP_WIDTH", p => p(ISA).microOpWidth),
       u32("NUM_INSTR_ENCODINGS", p => p(ISA).instrSet.encodings.size),
     )
 

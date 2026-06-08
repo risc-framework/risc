@@ -1,22 +1,9 @@
 package arch.cpp
 
 import arch.system.device.DeviceType
-import arch.core.fupool.FunctionalUnitType
 import vcache.repl.ReplPolicy
 
 private[cpp] object CppEnumMapping {
-  def fuType(t: FunctionalUnitType): String =
-    t match {
-      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ALU     => "FUNCTIONAL_UNIT_TYPE_ALU"
-      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_MULT    => "FUNCTIONAL_UNIT_TYPE_MULT"
-      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV     => "FUNCTIONAL_UNIT_TYPE_DIV"
-      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD      => "FUNCTIONAL_UNIT_TYPE_LD"
-      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST      => "FUNCTIONAL_UNIT_TYPE_ST"
-      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU     => "FUNCTIONAL_UNIT_TYPE_BRU"
-      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR     => "FUNCTIONAL_UNIT_TYPE_CSR"
-      case FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_UNKNOWN => "FUNCTIONAL_UNIT_TYPE_UNKNOWN"
-    }
-
   def deviceType(t: DeviceType): String =
     t match {
       case DeviceType.DEVICE_TYPE_SRAM    => "DEVICE_TYPE_SRAM"

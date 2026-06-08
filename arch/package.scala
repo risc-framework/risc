@@ -12,9 +12,8 @@ package object configs {
 
   // --------------------------------------------
   // Architecture Parameters
-  object ISA         extends Field[Isa]
-  object Frequency   extends Field[Long]
-  object EnableDebug extends Field[Boolean]
+  object ISA       extends Field[Isa]
+  object Frequency extends Field[Long]
 
   // Ifu Parameters
   object IBufferSize extends Field[Int]
@@ -139,7 +138,6 @@ package object configs {
     val user: Seq[Field[_]] = Seq(
       ISA,
       Frequency,
-      EnableDebug,
       IBufferSize,
       ResetVector,
       IsRegfileUseBypass,

@@ -115,10 +115,10 @@ void DemuSimulator::init() {
   DEMU_INFO("DEMU Simulator Initializing...");
 
   hal::register_generated_devices<soc_t>(*device_manager_, dut_.get(),
-                                            hal::GeneratedDeviceContext{
-                                                .timer_irq = timer_irq_.get(),
-                                                .soft_irq = soft_irq_.get(),
-                                            });
+                                         hal::GeneratedDeviceContext{
+                                             .timer_irq = timer_irq_.get(),
+                                             .soft_irq = soft_irq_.get(),
+                                         });
 
   device_manager_->dump_device_map();
 
@@ -128,9 +128,9 @@ void DemuSimulator::init() {
     vcd_ = std::make_unique<VerilatedVcdC>();
     dut_->trace(vcd_.get(), 99);
     vcd_->open(
-        ("logs/demu_" + std::string(sys_def::ISA_NAME) + "_trace.vcd").c_str());
+        ("logs/demu_" + std::string(isa_def::ISA_NAME) + "_trace.vcd").c_str());
     DEMU_DEBUG("VCD tracing enabled: logs/demu_{}_trace.vcd",
-               sys_def::ISA_NAME);
+               isa_def::ISA_NAME);
   }
 #endif
 }

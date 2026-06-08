@@ -1,6 +1,5 @@
 package arch.cpp
 
-import arch.core.fupool.FunctionalUnitDescriptor
 import arch.system.device.DeviceDescriptor
 import arch.configs._
 import CppEnumMapping._
@@ -9,20 +8,6 @@ import CppValueDsl._
 
 private[cpp] object CppSysSchema {
   private val typeDecls: Seq[CppDecl] = Seq(
-    EnumDecl(
-      "FunctionalUnitType",
-      "uint8_t",
-      Seq(
-        "FUNCTIONAL_UNIT_TYPE_UNKNOWN" -> 0,
-        "FUNCTIONAL_UNIT_TYPE_ALU"     -> 1,
-        "FUNCTIONAL_UNIT_TYPE_MULT"    -> 2,
-        "FUNCTIONAL_UNIT_TYPE_DIV"     -> 3,
-        "FUNCTIONAL_UNIT_TYPE_LD"      -> 4,
-        "FUNCTIONAL_UNIT_TYPE_ST"      -> 5,
-        "FUNCTIONAL_UNIT_TYPE_BRU"     -> 6,
-        "FUNCTIONAL_UNIT_TYPE_CSR"     -> 7,
-      )
-    ),
     EnumDecl(
       "DeviceType",
       "uint8_t",
@@ -55,13 +40,6 @@ private[cpp] object CppSysSchema {
       )
     ),
     StructDecl(
-      "FunctionalUnitDescriptor",
-      Seq(
-        "std::string_view"   -> "name",
-        "FunctionalUnitType" -> "type",
-      )
-    ),
-    StructDecl(
       "DeviceDescriptor",
       Seq(
         "std::string_view" -> "name",
@@ -84,34 +62,14 @@ private[cpp] object CppSysSchema {
   private def scalarFields(options: CppCodegenOptions): Seq[CppValue] =
     Seq(
       u64("FREQ", Frequency),
-      bool("ENABLE_DEBUG", EnableDebug),
-      alias("std::string_view", "ISA_NAME", s"::${options.isaNamespace}::ISA_NAME"),
-      alias("uint32_t", "XLEN", s"::${options.isaNamespace}::XLEN"),
-      alias("uint32_t", "ILEN", s"::${options.isaNamespace}::ILEN"),
-      alias("uint32_t", "NUM_ARCH_REGS", s"::${options.isaNamespace}::NUM_ARCH_REGS"),
-      alias("uint32_t", "MICRO_OP_WIDTH", s"::${options.isaNamespace}::MICRO_OP_WIDTH"),
       u32("BYTES_PER_WORD", BytesPerWord),
       u32("BYTES_PER_INSTR", BytesPerInstr),
       u32("PC_STEP", PCStep),
       u64("RESET_VECTOR", ResetVector),
-      u32("IBUFFER_SIZE", IBufferSize),
       u32("ISSUE_WIDTH", IssueWidth),
-      bool("REGFILE_USE_BYPASS", IsRegfileUseBypass),
-      u32("NUM_PHY_REGS", NumPhyRegs),
       u32("NUM_FUS", NumFUs),
-      u32("NUM_LDS", NumLDs),
-      u32("FU_TYPE_WIDTH", FuTypeWidth),
-      u32("FU_ID_WIDTH", FuIdWidth),
-      u32("MULT_PIPELINE_STAGES", MultPipelineStages),
-      u32("ROB_SIZE", RobSize),
-      u32("ROB_TAG_WIDTH", RobTagWidth),
-      u32("STORE_BUFFER_SIZE", StoreBufferSize),
-      u32("BTB_SETS", BTBSets),
-      u32("BTB_WAYS", BTBWays),
       cppEnum("ReplPolicy", "BTB_REPL_POLICY", p => repl(p(BTBReplPolicy))),
-      u32("GSHARE_GHR_WIDTH", GShareGhrWidth),
       cppEnum("BusType", "BUS_TYPE", p => bus(p(BusType))),
-      u32("BUS_CROSSBAR_FIFO_DEPTH_PER_CLIENT", BusCrossbarFifoDepthPerClient),
       u32("NUM_BUS_DEVICES", p => p(BusAddressMap).size),
     )
 
@@ -137,12 +95,6 @@ private[cpp] object CppSysSchema {
           u32Lit(p(L1DCacheLineSize)),
           enumLit("ReplPolicy", repl(p(L1DCacheReplPolicy))),
         )
-    ),
-    array(
-      name = "FUNCTIONAL_UNITS",
-      elemType = "FunctionalUnitDescriptor",
-      sizeName = "NUM_FUS",
-      values = p => p(FunctionalUnits).map(renderFu)
     ),
     array(
       name = "BUS_ADDRESS_MAP",
@@ -171,14 +123,6 @@ private[cpp] object CppSysSchema {
       w.line()
     }
   }
-
-  private def renderFu(fu: FunctionalUnitDescriptor): String =
-    braced(
-      Seq(
-        cstrLit(fu.name),
-        enumLit("FunctionalUnitType", fuType(fu.`type`)),
-      )
-    )
 
   private def renderDevice(dev: DeviceDescriptor): String =
     braced(

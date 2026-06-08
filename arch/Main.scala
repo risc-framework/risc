@@ -48,7 +48,6 @@ object MainSystem extends App {
     Map(
       ISA                           -> RV32IM.isa,
       Frequency                     -> 50_000_000L,
-      EnableDebug                   -> true,
       IBufferSize                   -> 16,
       ResetVector                   -> 0x80000000L,
       IsRegfileUseBypass            -> true,
