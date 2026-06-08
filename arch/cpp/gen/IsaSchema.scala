@@ -1,9 +1,11 @@
-package arch.cpp
+package arch.cpp.gen
 
 import arch.configs.{ ISA, Parameters }
 import arch.isa.InstructionEncoding
-import CppLiteral._
-import CppValueDsl._
+import arch.cpp.CppCodegenOptions
+import arch.cpp.dsl.{ CppWriter, TypeAliasValue, StructDecl, CppDecl, CppValue }
+import arch.cpp.dsl.CppLiteral._
+import arch.cpp.dsl.CppValueDsl._
 
 private[cpp] object CppIsaSchema {
   private val typeDecls: Seq[CppDecl] = Seq(
@@ -57,7 +59,6 @@ private[cpp] object CppIsaSchema {
       TypeAliasValue("instr_t", p => intType(p(ISA).ilen)),
       TypeAliasValue("addr_t", p => intType(p(ISA).xlen)),
       TypeAliasValue("word_t", p => intType(p(ISA).xlen)),
-      TypeAliasValue("half_t", _ => "uint16_t"),
       TypeAliasValue("byte_t", _ => "uint8_t"),
     )
 

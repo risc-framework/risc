@@ -1,4 +1,4 @@
-package arch.cpp
+package arch.cpp.dsl
 
 import CppTypeDsl._
 

@@ -8,7 +8,6 @@
 namespace demu::hal {
 using isa_def::addr_t;
 using isa_def::byte_t;
-using isa_def::half_t;
 using isa_def::word_t;
 
 class MemoryAllocator final {
@@ -29,9 +28,6 @@ public:
   [[nodiscard]] inline auto read_word(addr_t addr) const noexcept -> word_t {
     return read<word_t>(addr);
   }
-  [[nodiscard]] inline auto read_half(addr_t addr) const noexcept -> half_t {
-    return read<half_t>(addr);
-  }
   [[nodiscard]] inline auto read_byte(addr_t addr) const noexcept -> byte_t {
     return read<byte_t>(addr);
   }
@@ -45,9 +41,6 @@ public:
   }
   inline void write_word(addr_t addr, word_t data) {
     write<word_t>(addr, data);
-  }
-  inline void write_half(addr_t addr, half_t data) {
-    write<half_t>(addr, data);
   }
   inline void write_byte(addr_t addr, byte_t data) {
     write<byte_t>(addr, data);

@@ -1,6 +1,8 @@
 package arch.cpp
 
 import arch.configs.Parameters
+import dsl.CppWriter
+import gen.{ CppIsaSchema, CppSysSchema, CppBusBindingsSchema, CppRetireBindingsSchema }
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Path, Paths }
 
