@@ -2,12 +2,13 @@ package arch.core.fupool
 
 import arch.configs._
 import arch.core.alu.Alu
-import arch.core.bru.Bru
+import arch.core.bru.{ Bru, BruResolveIO }
 import arch.core.csr.{ Csr, CsrTrapView }
 import arch.core.div.Div
 import arch.core.ld.Ld
 import arch.core.mult.Mult
 import arch.core.st.St
+import arch.core.sb.StoreWriteBundle
 import chisel3._
 import chisel3.util.Valid
 import vutils.graph.{ Node, NodeType }
@@ -51,10 +52,10 @@ class FuPool(implicit p: Parameters) extends Node(new FuPoolIO) {
   }
 
   for (i <- 0 until p(NumBRUs))
-    io.rob.bru(i) := 0.U.asTypeOf(new arch.core.bru.BruResolveIO)
+    io.rob.bru(i) := 0.U.asTypeOf(new BruResolveIO)
 
   for (i <- 0 until p(NumSTs))
-    io.sb.write(i) := 0.U.asTypeOf(Valid(new arch.core.sb.StoreWriteBundle))
+    io.sb.write(i) := 0.U.asTypeOf(Valid(new StoreWriteBundle))
 
   io.interrupt.view     := 0.U.asTypeOf(new CsrTrapView)
   io.exception.csr_busy := false.B

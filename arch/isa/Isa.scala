@@ -9,7 +9,6 @@ final case class Isa(
   ilen: Int,
   numArchRegs: Int,
   isBigEndian: Boolean,
-  microOpWidth: Int,
   instrSet: InstructionSet
 ) {
   def bubble: BitPat =
@@ -60,9 +59,6 @@ object IsaFactory {
 
   def isBigEndian(isa: String): Boolean =
     get(isa).isBigEndian
-
-  def microOpWidth(isa: String): Int =
-    get(isa).microOpWidth
 
   def bubble(isa: String): BitPat =
     get(isa).bubble

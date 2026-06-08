@@ -1,8 +1,9 @@
 package arch.core.csr
 
-import arch.configs._
 import arch.core.fupool.{ FuIO, FuResp }
 import arch.core.fupool.FuReq
+import arch.core.decode.DecodeIsaFactory
+import arch.configs._
 import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
 import chisel3._
 
@@ -21,7 +22,8 @@ class Csr(implicit p: Parameters) extends Node(new CsrIO) {
   override def nodeType: NodeType  = CsrMeta.Type
   override def desiredName: String = s"csr_${cfg.selector.canonicalName}"
 
-  private val isaImpl = CsrIsaFactory.select(cfg)
+  private val isaImpl       = CsrIsaFactory.select(cfg)
+  private val isaDecodeImpl = DecodeIsaFactory.select(cfg)
 
   private val busy   = RegInit(false.B)
   private val uopReg = Reg(new FuReq)
@@ -58,7 +60,7 @@ class Csr(implicit p: Parameters) extends Node(new CsrIO) {
   }
 
   private val activeInstr = Mux(busy, uopReg.instr, 0.U(p(ILen).W))
-  private val activeUop   = Mux(busy, uopReg.uop, 0.U(p(MicroOpWidth).W))
+  private val activeUop   = Mux(busy, uopReg.uop, 0.U(isaDecodeImpl.uopWidth.W))
   private val ctrl        = isaImpl.decode(activeUop)
 
   private val trapRet       = busy && isaImpl.isTrapReturn(activeInstr, activeUop)

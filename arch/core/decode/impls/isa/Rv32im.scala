@@ -28,6 +28,8 @@ object DecodeRv32imIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32imDec
 
     override def value: String = "rv32im"
 
+    override def uopWidth: Int = rv32i.uopWidth
+
     override def default(implicit p: Parameters): List[BitPat] =
       rv32i.default
 

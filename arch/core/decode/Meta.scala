@@ -19,6 +19,7 @@ trait DecodeIsaImpl extends NodeDimensionImpl {
   override def dim: NodeDim       = DecodeDims.ISA
   override def name: String       = value
 
+  def uopWidth: Int
   def default(implicit p: Parameters): List[BitPat]
   def table(implicit p: Parameters): Array[(BitPat, List[BitPat])]
   def reg(sel: UInt, instr: UInt)(implicit p: Parameters): UInt

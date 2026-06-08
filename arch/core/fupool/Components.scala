@@ -1,21 +1,31 @@
 package arch.core.fupool
 
+import arch.core.decode.{ DecodeIsaFactory, DecodeDims }
 import arch.core.bru.BruResolveIO
 import arch.core.csr.{ CsrTrapUpdate, CsrTrapView, InterruptLines }
 import arch.core.sb.{ StoreForwardIO, StoreWriteBundle }
 import arch.configs._
+import vutils.graph.{ NodeConfig, NodeSelector }
+import vcache.CachePortIO
 import chisel3._
 import chisel3.util.{ Decoupled, Valid, log2Ceil }
-import vcache.CachePortIO
 
 class FuReq(implicit p: Parameters) extends Bundle {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      DecodeDims.ISA -> p(ISA).name,
+    )
+  )
+
+  private val isa = DecodeIsaFactory.select(cfg)
+
   val pc    = UInt(p(XLen).W)
   val instr = UInt(p(ILen).W)
 
   val fu_type = UInt(log2Ceil(FunctionalUnitType.values.size).W)
   val fu_id   = UInt(log2Ceil(p(NumFUs)).W)
 
-  val uop = UInt(p(MicroOpWidth).W)
+  val uop = UInt(isa.uopWidth.W)
   val imm = UInt(p(XLen).W)
 
   val rs1 = UInt(log2Ceil(p(NumArchRegs)).W)

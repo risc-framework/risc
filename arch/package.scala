@@ -70,7 +70,6 @@ package object configs {
   object ILen             extends Field[Int](p => p(ISA).ilen)
   object NumArchRegs      extends Field[Int](p => p(ISA).numArchRegs)
   object IsBigEndian      extends Field[Boolean](p => p(ISA).isBigEndian)
-  object MicroOpWidth     extends Field[Int](p => p(ISA).microOpWidth)
   object Bubble           extends Field[BitPat](p => p(ISA).bubble)
   object BytesPerWord     extends Field[Int](p => p(XLen) / 8)
   object BytesOffsetWidth extends Field[Int](p => log2Ceil(p(BytesPerWord)))
@@ -172,7 +171,6 @@ package object configs {
       ILen,
       NumArchRegs,
       IsBigEndian,
-      MicroOpWidth,
       Bubble,
       BytesPerWord,
       BytesOffsetWidth,

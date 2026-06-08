@@ -58,6 +58,8 @@ object DecodeRv32iIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32iDecod
   override def utils: DecodeIsaImpl = new DecodeIsaImpl {
     override def value: String = "rv32i"
 
+    override def uopWidth: Int = SZ_UOP
+
     override def default(implicit p: Parameters): List[BitPat] =
       List(
         N,       // legal

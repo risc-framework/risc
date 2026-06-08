@@ -12,7 +12,6 @@ object RV32IM {
       xlen = RV32I.isa.xlen,
       ilen = RV32I.isa.ilen,
       numArchRegs = RV32I.isa.numArchRegs,
-      microOpWidth = RV32I.isa.microOpWidth,
       isBigEndian = RV32I.isa.isBigEndian,
       instrSet = InstructionSet(
         nop = RV32I.isa.instrSet.nop,

@@ -3,6 +3,7 @@ package arch.core.decode
 import arch.core.ifu.IBufferEntry
 import arch.core.fupool.FunctionalUnitType
 import arch.configs._
+import vutils.graph.{ NodeConfig, NodeSelector }
 import chisel3._
 import chisel3.util.{ log2Ceil, Decoupled }
 
@@ -13,6 +14,14 @@ class DecodeIfuIO(implicit p: Parameters) extends Bundle {
 }
 
 class DecodedPacket(implicit p: Parameters) extends Bundle {
+  private val cfg = NodeConfig(
+    selector = NodeSelector(
+      DecodeDims.ISA -> p(ISA).name,
+    )
+  )
+
+  private val isa = DecodeIsaFactory.select(cfg)
+
   val pc               = UInt(p(XLen).W)
   val instr            = UInt(p(ILen).W)
   val bpu_pred_taken   = Bool()
@@ -33,7 +42,7 @@ class DecodedPacket(implicit p: Parameters) extends Bundle {
 
   val imm     = UInt(p(XLen).W)
   val fu_type = UInt(p(FuTypeWidth).W)
-  val uop     = UInt(p(MicroOpWidth).W)
+  val uop     = UInt(isa.uopWidth.W)
 
   def isFu(t: FunctionalUnitType): Bool =
     fu_type === t.index.U(p(FuTypeWidth).W)

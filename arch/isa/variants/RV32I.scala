@@ -13,7 +13,6 @@ object RV32I {
       ilen = 32,
       numArchRegs = 32,
       isBigEndian = false,
-      microOpWidth = 8,
       instrSet = InstructionSet(
         nop = Some(enc("NOP", BitPat("b0000000_00000_00000_000_00000_0010011"))),
         encodings = Seq(
