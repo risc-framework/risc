@@ -41,11 +41,11 @@ package object configs {
   object StoreBufferSize extends Field[Int]
 
   // Branch Prediction
-  object BpuPredictorKinds extends Field[Seq[String]]
-  object BTBWays           extends Field[Int]
-  object BTBSets           extends Field[Int]
-  object BTBReplPolicy     extends Field[ReplPolicy]
-  object GShareGhrWidth    extends Field[Int]
+  object BpuPredictorKind extends Field[String]
+  object BTBWays          extends Field[Int]
+  object BTBSets          extends Field[Int]
+  object BTBReplPolicy    extends Field[ReplPolicy]
+  object GShareGhrWidth   extends Field[Int]
 
   // Cache Parameters
   object L1ICacheWays       extends Field[Int]
@@ -149,7 +149,7 @@ package object configs {
       MultPipelineStages,
       RobSize,
       StoreBufferSize,
-      BpuPredictorKinds,
+      BpuPredictorKind,
       BTBWays,
       BTBSets,
       BTBReplPolicy,

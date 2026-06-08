@@ -100,7 +100,7 @@ object MainSystem extends App {
       MultPipelineStages            -> 2,
       RobSize                       -> 16,
       StoreBufferSize               -> 8,
-      BpuPredictorKinds             -> Seq("gshare"),
+      BpuPredictorKind              -> "gshare",
       BTBWays                       -> 2,
       BTBSets                       -> 128,
       BTBReplPolicy                 -> ReplPolicy.PseudoLRU,
