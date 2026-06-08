@@ -35,9 +35,9 @@ class Soc(implicit p: Parameters) extends Module {
   cpu.io.mmio <> bridge.io.mmio
   cpu.io.irq := irq
 
-  crossbarImpl.connect(crossbar.io.ibus, bridge.io.ibus)
-  crossbarImpl.connect(crossbar.io.dbus, bridge.io.dbus)
-  crossbarImpl.connect(crossbar.io.mbus, bridge.io.mbus)
+  crossbar.io.ibus <> bridge.io.ibus
+  crossbar.io.dbus <> bridge.io.dbus
+  crossbar.io.mbus <> bridge.io.mbus
 
   for (i <- 0 until p(BusAddressMap).length)
     devices(i) <> crossbar.io.devices(i)

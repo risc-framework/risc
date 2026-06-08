@@ -25,7 +25,6 @@ trait BusCrossbarTypeImpl extends NodeDimensionImpl {
   def slaveType(implicit p: Parameters): Bundle
   def addressMap(implicit p: Parameters): Seq[(Long, Long)]
   def createInterface(ibus: Bundle, dbus: Bundle, mbus: Bundle)(implicit p: Parameters): Vec[Bundle]
-  def connect(ext: Bundle, inner: Bundle)(implicit p: Parameters): Unit
 }
 
 object BusCrossbarTypeFactory

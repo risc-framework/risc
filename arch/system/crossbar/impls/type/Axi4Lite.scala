@@ -64,12 +64,6 @@ object BusCrossbarAxilType extends RegisteredNodeUtils[BusCrossbarTypeImpl] {
 
       interface.asInstanceOf[Vec[Bundle]]
     }
-
-    override def connect(ext: Bundle, inner: Bundle)(implicit p: Parameters): Unit =
-      Axi4Lite.connect(
-        inner.asInstanceOf[Axi4LiteMasterPort],
-        ext.asInstanceOf[Axi4LiteSlavePort]
-      )
   }
 
   override def registry: NodeRegistry[BusCrossbarTypeImpl] = BusCrossbarTypeFactory
