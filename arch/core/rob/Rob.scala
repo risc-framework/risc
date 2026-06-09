@@ -1,5 +1,6 @@
 package arch.core.rob
 
+import arch.core.bpu.BpuUpdate
 import arch.core.fupool.FuPoolRobIO
 import arch.configs._
 import vutils.graph.{ Node, NodeType }
@@ -248,13 +249,12 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
     io.sb.commit(w).bits.sq_idx   := commitInfo(w).sq_idx
   }
 
-  private val bpuUpdate = WireDefault(0.U.asTypeOf(new arch.core.bpu.BpuUpdate))
+  private val bpuUpdate = WireDefault(0.U.asTypeOf(new BpuUpdate))
 
   for (w <- 0 until p(IssueWidth)) {
     val lane               = commitInfo(w)
-    val isBruCommit        = lane.is_branch
-    val predTakenNonBranch = !isBruCommit && lane.bpu_pred_taken
-    val shouldUpdateBranch = lane.pop && (isBruCommit || predTakenNonBranch)
+    val predTakenNonBranch = !lane.is_branch && lane.bpu_pred_taken
+    val shouldUpdateBranch = lane.pop && (lane.is_branch || predTakenNonBranch)
 
     when(shouldUpdateBranch) {
       bpuUpdate.valid        := true.B
