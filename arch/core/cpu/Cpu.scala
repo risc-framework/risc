@@ -66,6 +66,7 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   io.imem <> l1ICache.lower
   io.dmem <> l1DCache.lower
   io.mmio <> memoryArbiter.io.mmio
+  io.irq <> interrupt.io.cpu.irq
 
   // icache
   l1ICache.upper <> ifu.io.icache
@@ -124,7 +125,6 @@ class Cpu(implicit p: Parameters) extends Node(new CpuIO) {
   // exception
 
   // interrupt
-  interrupt.io.cpu.irq := io.irq
   interrupt.io.exception <> exception.io.interrupt
 
   // debug

@@ -280,8 +280,8 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   io.exception.empty     := count === 0.U
   io.exception.commit_pc := commitInfo(0).pc
 
-  io.debug.commit_count := commitCount
-  io.debug.branch_commit := PopCount(
+  io.debug.commit_count   := commitCount
+  io.debug.branch_commit  := PopCount(
     commitInfo.map(lane => lane.pop && lane.is_branch)
   )
   io.debug.bpu_mispredict := commitInfo
@@ -291,7 +291,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
         lane.flush_pipeline
     )
     .reduce(_ || _)
-  io.debug.empty := count === 0.U
+  io.debug.empty          := count === 0.U
 
   for (w <- 0 until p(IssueWidth)) {
     io.debug.instret(w)  := commitInfo(w).pop
