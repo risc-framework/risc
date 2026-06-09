@@ -2,31 +2,22 @@ package arch.system.crossbar
 
 import arch.configs._
 import chisel3._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
+import vutils.graph.NodeDims
 
-object BusCrossbarMeta {
-  val Type = NodeType("bus_crossbar")
+object BusCrossbarDims extends NodeDims("bus_crossbar") {
+  val TYPE = dim("type")
 }
 
-object BusCrossbarDims {
-  val TYPE = NodeDim("type")
-}
-
-trait BusCrossbarTypeImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = BusCrossbarMeta.Type
-  override def dim: NodeDim       = BusCrossbarDims.TYPE
-  override def name: String       = value
-
+trait BusCrossbarTypeImpl extends BusCrossbarDims.TYPE.Impl {
   def masterType(implicit p: Parameters): Bundle
   def slaveType(implicit p: Parameters): Bundle
   def addressMap(implicit p: Parameters): Seq[(Long, Long)]
   def createInterface(ibus: Bundle, dbus: Bundle, mbus: Bundle)(implicit p: Parameters): Vec[Bundle]
 }
 
-object BusCrossbarTypeFactory
-    extends NodeDimensionRegistry[BusCrossbarTypeImpl](BusCrossbarMeta.Type, BusCrossbarDims.TYPE)
+object BusCrossbarTypeFactory extends BusCrossbarDims.TYPE.Registry[BusCrossbarTypeImpl]
 
 object BusCrossbarInit {
-  val axil = impls.bus.axil.BusCrossbarAxilType
-  val axif = impls.bus.axif.BusCrossbarAxifType
+  val axil = impls.bus.axil.BusCrossbarAxilType.registered
+  val axif = impls.bus.axif.BusCrossbarAxifType.registered
 }

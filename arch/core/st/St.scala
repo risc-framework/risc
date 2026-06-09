@@ -1,33 +1,31 @@
 package arch.core.st
 
 import arch.core.pma.PmaModeFactory
-import arch.core.fupool.{ FuResp, FuReq, FuIO }
+import arch.core.fupool.{ FuResp, FuReq, FuFlushReq }
+import arch.core.sb.StoreWriteBundle
 import arch.configs._
-import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
 import chisel3.util.{ is, switch }
-
-class StIO(implicit p: Parameters) extends Bundle {
-  val fu = new FuIO
-  val sb = new StSbWriteIO
-}
 
 object StState extends ChiselEnum {
   val IDLE, WRITE_SB, DONE = Value
 }
 
-class St(implicit p: Parameters) extends Node(new StIO) {
-  private val cfg = NodeConfig(
+class St(implicit p: Parameters) extends Node[Parameters]("st") {
+  override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       StDims.ISA -> p(ISA).name
     )
   )
 
-  override def nodeType: NodeType  = StMeta.Type
-  override def desiredName: String = s"st_${cfg.selector.canonicalName}"
+  val fuReq      = inD[FuReq]
+  val fuResp     = outD[FuResp]
+  val flush      = in[FuFlushReq]
+  val storeWrite = outV[StoreWriteBundle]
 
   private val isaImpl = StIsaFactory.select(cfg)
-  private val pma     = PmaModeFactory.select("default")
+  private val pma     = PmaModeFactory.getOrThrow("default")
   private val state   = RegInit(StState.IDLE)
   private val uopReg  = Reg(new FuReq)
 
@@ -38,17 +36,17 @@ class St(implicit p: Parameters) extends Node(new StIO) {
   private val storeMask   = isaImpl.shiftedStoreMask(ctrl, addr)
   private val pmaResult   = pma.check(addr)
 
-  io.fu.req.ready := !io.fu.flush && (state === StState.IDLE || (state === StState.DONE && io.fu.resp.ready))
+  fuReq.in.ready := !flush.in.flush && (state === StState.IDLE || (state === StState.DONE && fuResp.out.ready))
 
-  private val acceptFire = io.fu.req.fire && !io.fu.flush
+  private val acceptFire = fuReq.in.fire && !flush.in.flush
 
-  io.sb.write.valid          := state === StState.WRITE_SB && !io.fu.flush
-  io.sb.write.bits.sq_idx    := uopReg.sq_idx
-  io.sb.write.bits.rob_tag   := uopReg.rob_tag
-  io.sb.write.bits.addr      := alignedAddr
-  io.sb.write.bits.data      := storeData
-  io.sb.write.bits.mask      := storeMask
-  io.sb.write.bits.cacheable := pmaResult.cacheable
+  storeWrite.out.valid          := state === StState.WRITE_SB && !flush.in.flush
+  storeWrite.out.bits.sq_idx    := uopReg.sq_idx
+  storeWrite.out.bits.rob_tag   := uopReg.rob_tag
+  storeWrite.out.bits.addr      := alignedAddr
+  storeWrite.out.bits.data      := storeData
+  storeWrite.out.bits.mask      := storeMask
+  storeWrite.out.bits.cacheable := pmaResult.cacheable
 
   private val resp = Wire(new FuResp)
 
@@ -62,10 +60,10 @@ class St(implicit p: Parameters) extends Node(new StIO) {
   resp.trap_ret     := false.B
   resp.trap_ret_tgt := 0.U
 
-  io.fu.resp.valid := state === StState.DONE && !io.fu.flush
-  io.fu.resp.bits  := resp
+  fuResp.out.valid := state === StState.DONE && !flush.in.flush
+  fuResp.out.bits  := resp
 
-  when(io.fu.flush) {
+  when(flush.in.flush) {
     state := StState.IDLE
   }.otherwise {
     switch(state) {
@@ -76,14 +74,14 @@ class St(implicit p: Parameters) extends Node(new StIO) {
       }
 
       is(StState.DONE) {
-        when(io.fu.resp.fire) {
+        when(fuResp.out.fire) {
           state := StState.IDLE
         }
       }
     }
 
     when(acceptFire) {
-      uopReg := io.fu.req.bits
+      uopReg := fuReq.in.bits
       state  := StState.WRITE_SB
     }
   }

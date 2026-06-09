@@ -23,22 +23,17 @@ class BpuUpdate(implicit p: Parameters) extends Bundle {
   val ghr_snapshot = UInt(p(GShareGhrWidth).W)
 }
 
-class BpuIfuIO(implicit p: Parameters) extends Bundle {
-  val query_pc      = Input(Vec(p(IssueWidth), UInt(p(XLen).W)))
-  val advance_valid = Input(Bool())
-  val flush         = Input(Bool())
-  val taken         = Output(Vec(p(IssueWidth), Bool()))
-  val target        = Output(Vec(p(IssueWidth), UInt(p(XLen).W)))
-  val pht_index     = Output(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W)))
-  val ghr_snapshot  = Output(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W)))
+class BpuIfuReq(implicit p: Parameters) extends Bundle {
+  val query_pc      = Vec(p(IssueWidth), UInt(p(XLen).W))
+  val advance_valid = Bool()
+  val flush         = Bool()
 }
 
-class BpuRobIO(implicit p: Parameters) extends Bundle {
-  val update = Input(new BpuUpdate)
-}
-
-class BpuUpdateIO(implicit p: Parameters) extends Bundle {
-  val update = Input(new BpuUpdate)
+class BpuIfuResp(implicit p: Parameters) extends Bundle {
+  val taken        = Vec(p(IssueWidth), Bool())
+  val target       = Vec(p(IssueWidth), UInt(p(XLen).W))
+  val pht_index    = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
+  val ghr_snapshot = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
 }
 
 class BtbEntry(tagWidth: Int)(implicit p: Parameters) extends Bundle with BHTConsts {
@@ -48,25 +43,27 @@ class BtbEntry(tagWidth: Int)(implicit p: Parameters) extends Bundle with BHTCon
   val ctrl   = UInt(SZ_BHT.W)
 }
 
-class BtbQueryIO(implicit p: Parameters) extends Bundle with BHTConsts {
+class BtbQueryReq(implicit p: Parameters) extends Bundle {
+  val pc = Vec(p(IssueWidth), UInt(p(XLen).W))
+}
+
+class BtbQueryResp(implicit p: Parameters) extends Bundle with BHTConsts {
   private val rawIndexWidth = log2Ceil(p(BTBSets))
   private val tagWidth      = p(XLen) - rawIndexWidth - p(PCAlign)
 
-  val pc        = Input(Vec(p(IssueWidth), UInt(p(XLen).W)))
-  val hit       = Output(Vec(p(IssueWidth), Bool()))
-  val entry_out = Output(Vec(p(IssueWidth), new BtbEntry(tagWidth)))
+  val hit       = Vec(p(IssueWidth), Bool())
+  val entry_out = Vec(p(IssueWidth), new BtbEntry(tagWidth))
 }
 
-class PredictorQueryIO(implicit p: Parameters) extends Bundle {
-  val pc           = Input(Vec(p(IssueWidth), UInt(p(XLen).W)))
-  val is_branch    = Input(Vec(p(IssueWidth), Bool()))
-  val accept       = Input(Bool())
-  val flush        = Input(Bool())
-  val taken        = Output(Vec(p(IssueWidth), Bool()))
-  val pht_index    = Output(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W)))
-  val ghr_snapshot = Output(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W)))
+class PredictorQueryReq(implicit p: Parameters) extends Bundle {
+  val pc        = Vec(p(IssueWidth), UInt(p(XLen).W))
+  val is_branch = Vec(p(IssueWidth), Bool())
+  val accept    = Bool()
+  val flush     = Bool()
 }
 
-class PredictorUpdateIO(implicit p: Parameters) extends Bundle {
-  val update = Input(new BpuUpdate)
+class PredictorQueryResp(implicit p: Parameters) extends Bundle {
+  val taken        = Vec(p(IssueWidth), Bool())
+  val pht_index    = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
+  val ghr_snapshot = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
 }

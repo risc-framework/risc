@@ -1,50 +1,64 @@
 package arch.system.bridge
 
 import arch.configs._
-import vcache.CachePortIO
+import arch.core.cpu.{ CpuDmemReq, CpuDmemResp, CpuImemReq, CpuImemResp }
 import chisel3._
-import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 
-class BusBridgeIO(implicit p: Parameters) extends Bundle {
-  private val cfg = NodeConfig(
+class BusBridge(implicit p: Parameters) extends Node[Parameters]("bus_bridge") {
+  override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       BusBridgeDims.TYPE -> p(BusType)
     )
   )
 
-  private val impl = BusBridgeTypeFactory.select(cfg)
+  val imemReq  = inD[CpuImemReq]
+  val imemResp = outD[CpuImemResp]
 
-  val imem = Flipped(
-    new CachePortIO(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))
-  )
-  val dmem = Flipped(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams)))
-  val mmio = Flipped(new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams)))
+  val dmemReq  = inD[CpuDmemReq]
+  val dmemResp = outD[CpuDmemResp]
 
-  val ibus = impl.busType
-  val dbus = impl.busType
-  val mbus = impl.busType
-}
-
-class BusBridge(implicit p: Parameters) extends Node(new BusBridgeIO) {
-  private val cfg = NodeConfig(
-    selector = NodeSelector(
-      BusBridgeDims.TYPE -> p(BusType)
-    )
-  )
-
-  override def nodeType: NodeType  = BusBridgeMeta.Type
-  override def desiredName: String = s"bus_bridge_${cfg.selector.canonicalName}"
+  val mmioReq  = inD[CpuDmemReq]
+  val mmioResp = outD[CpuDmemResp]
 
   private val impl = BusBridgeTypeFactory.select(cfg)
 
-  dontTouch(io.imem)
-  dontTouch(io.dmem)
-  dontTouch(io.mmio)
-  dontTouch(io.ibus)
-  dontTouch(io.dbus)
-  dontTouch(io.mbus)
+  val ibus = IO(impl.busType)
+  val dbus = IO(impl.busType)
+  val mbus = IO(impl.busType)
 
-  io.ibus <> impl.createBridgeReadOnly(Vec(p(IssueWidth), UInt(p(ILen).W)), io.imem, isMmio = false)
-  io.dbus <> impl.createBridge(UInt(p(XLen).W), io.dmem, isMmio = false)
-  io.mbus <> impl.createBridge(UInt(p(XLen).W), io.mmio, isMmio = true)
+  override def desiredName: String =
+    s"bus_bridge_${cfg.selector.canonicalName}"
+
+  dontTouch(imemReq.in)
+  dontTouch(imemResp.out)
+  dontTouch(dmemReq.in)
+  dontTouch(dmemResp.out)
+  dontTouch(mmioReq.in)
+  dontTouch(mmioResp.out)
+
+  dontTouch(ibus)
+  dontTouch(dbus)
+  dontTouch(mbus)
+
+  ibus <> impl.createBridgeReadOnly(
+    Vec(p(IssueWidth), UInt(p(ILen).W)),
+    imemReq.in,
+    imemResp.out,
+    isMmio = false
+  )
+
+  dbus <> impl.createBridge(
+    UInt(p(XLen).W),
+    dmemReq.in,
+    dmemResp.out,
+    isMmio = false
+  )
+
+  mbus <> impl.createBridge(
+    UInt(p(XLen).W),
+    mmioReq.in,
+    mmioResp.out,
+    isMmio = true
+  )
 }

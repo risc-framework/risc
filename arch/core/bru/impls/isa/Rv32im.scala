@@ -3,7 +3,7 @@ package arch.core.bru.impls.isa.rv32im
 import arch.core.bru._
 import arch.core.bru.impls.isa.rv32i.BruRv32iIsa
 import arch.configs._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 
 object BruRv32imIsa extends RegisteredNodeUtils[BruIsaImpl] {
@@ -19,5 +19,6 @@ object BruRv32imIsa extends RegisteredNodeUtils[BruIsaImpl] {
       rv32i.taken(src1, src2, op)
   }
 
-  override def registry: NodeRegistry[BruIsaImpl] = BruIsaFactory
+  override def registry: NodeDimensionRegistry[BruIsaImpl] =
+    BruIsaFactory
 }

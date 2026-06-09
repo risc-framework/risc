@@ -1,15 +1,15 @@
 package arch.system.soc
 
 import arch.configs._
-import arch.core.cpu.{ Cpu, DebugIO }
+import arch.core.cpu.{ Cpu, CpuDebugInfo }
 import arch.core.csr.InterruptLines
 import arch.system.bridge.BusBridge
-import arch.system.crossbar.{ BusCrossbar, BusCrossbarTypeFactory, BusCrossbarDims }
-import vutils.graph.{ NodeConfig, NodeSelector }
+import arch.system.crossbar.{ BusCrossbar, BusCrossbarDims, BusCrossbarTypeFactory }
 import chisel3._
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 
-class Soc(implicit p: Parameters) extends Module {
-  private val cfg = NodeConfig(
+class Soc(implicit p: Parameters) extends Node[Parameters]("soc") {
+  override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       BusCrossbarDims.TYPE -> p(BusType)
     )
@@ -19,28 +19,34 @@ class Soc(implicit p: Parameters) extends Module {
 
   private val crossbarImpl = BusCrossbarTypeFactory.select(cfg)
 
+  val irq   = in[InterruptLines]
+  val debug = out[CpuDebugInfo]
+
   val devices = IO(Vec(p(BusAddressMap).length, crossbarImpl.slaveType))
     .suggestName(s"M_${p(BusType)}".toUpperCase)
-  val irq     = IO(Input(new InterruptLines))
-  val debug   = IO(Output(new DebugIO))
 
-  private val cpu      = Module(new Cpu)
-  private val bridge   = Module(new BusBridge)
-  private val crossbar = Module(new BusCrossbar)
+  private val cpu      = subnode(new Cpu)
+  private val bridge   = subnode(new BusBridge)
+  private val crossbar = subnode(new BusCrossbar)
 
   dontTouch(devices)
 
-  cpu.io.imem <> bridge.io.imem
-  cpu.io.dmem <> bridge.io.dmem
-  cpu.io.mmio <> bridge.io.mmio
-  cpu.io.irq := irq
+  link(
+    cpu.imemReq     -> bridge.imemReq,
+    bridge.imemResp -> cpu.imemResp,
+    cpu.dmemReq     -> bridge.dmemReq,
+    bridge.dmemResp -> cpu.dmemResp,
+    cpu.mmioReq     -> bridge.mmioReq,
+    bridge.mmioResp -> cpu.mmioResp
+  )
 
-  crossbar.io.ibus <> bridge.io.ibus
-  crossbar.io.dbus <> bridge.io.dbus
-  crossbar.io.mbus <> bridge.io.mbus
+  bridge.ibus <> crossbar.ibus
+  bridge.dbus <> crossbar.dbus
+  bridge.mbus <> crossbar.mbus
 
   for (i <- 0 until p(BusAddressMap).length)
-    devices(i) <> crossbar.io.devices(i)
+    devices(i) <> crossbar.devices(i)
 
-  debug <> cpu.io.debug
+  cpu.irq.in := irq.in
+  debug.out  := cpu.debug.out
 }

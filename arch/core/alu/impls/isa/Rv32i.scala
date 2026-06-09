@@ -3,7 +3,7 @@ package arch.core.alu.impls.isa.rv32i
 import arch.core.fupool.FuReq
 import arch.core.alu._
 import arch.configs._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.{ BitPat, MuxLookup }
 
@@ -58,10 +58,12 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
 
     override def decode(uop: UInt): AluCtrl = {
       val ctrl = Wire(new AluCtrl(fnTypeWidth))
+
       ctrl.sel1 := uop(7, 6)
       ctrl.sel2 := uop(5, 4)
       ctrl.mode := uop(3)
       ctrl.fn   := uop(2, 0)
+
       ctrl
     }
 
@@ -108,5 +110,6 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
     }
   }
 
-  override def registry: NodeRegistry[AluIsaImpl] = AluIsaFactory
+  override def registry: NodeDimensionRegistry[AluIsaImpl] =
+    AluIsaFactory
 }

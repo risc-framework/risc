@@ -1,37 +1,34 @@
 package arch.core.alu
 
 import arch.configs._
-import arch.core.fupool.{ FuIO, FuResp, FuReq }
-import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
+import arch.core.fupool.{ FuFlushReq, FuResp, FuReq }
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
 
-class AluIO(implicit p: Parameters) extends Bundle {
-  val fu = new FuIO
-}
-
-class Alu(implicit p: Parameters) extends Node(new AluIO) {
-  private val cfg = NodeConfig(
+class Alu(implicit p: Parameters) extends Node[Parameters]("alu") {
+  override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       AluDims.ISA -> p(ISA).name
     )
   )
 
-  override def nodeType: NodeType  = AluMeta.Type
-  override def desiredName: String = s"alu_${cfg.selector.canonicalName}"
+  val fuReq  = inD[FuReq]
+  val fuResp = outD[FuResp]
+  val flush  = in[FuFlushReq]
 
   private val isaImpl  = AluIsaFactory.select(cfg)
   private val validReg = RegInit(false.B)
   private val uopReg   = Reg(new FuReq)
 
-  io.fu.req.ready  := !io.fu.flush && (!validReg || io.fu.resp.fire)
-  io.fu.resp.valid := validReg && !io.fu.flush
+  fuReq.in.ready   := !flush.in.flush && (!validReg || fuResp.out.fire)
+  fuResp.out.valid := validReg && !flush.in.flush
 
-  when(io.fu.flush) {
+  when(flush.in.flush) {
     validReg := false.B
-  }.elsewhen(io.fu.req.fire) {
+  }.elsewhen(fuReq.in.fire) {
     validReg := true.B
-    uopReg   := io.fu.req.bits
-  }.elsewhen(io.fu.resp.fire) {
+    uopReg   := fuReq.in.bits
+  }.elsewhen(fuResp.out.fire) {
     validReg := false.B
   }
 
@@ -48,5 +45,5 @@ class Alu(implicit p: Parameters) extends Node(new AluIO) {
   resp.trap_ret     := false.B
   resp.trap_ret_tgt := 0.U
 
-  io.fu.resp.bits := resp
+  fuResp.out.bits := resp
 }

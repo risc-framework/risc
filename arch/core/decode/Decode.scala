@@ -1,25 +1,20 @@
 package arch.core.decode
 
-import arch.core.dispatch.DispatchDecodeIO
+import arch.core.ifu.IBufferEntry
 import arch.configs._
 import chisel3._
-import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 
-class DecodeIO(implicit p: Parameters) extends Bundle {
-  val ifu      = new DecodeIfuIO
-  val dispatch = Flipped(new DispatchDecodeIO)
-}
-
-class Decode(implicit p: Parameters) extends Node(new DecodeIO) {
-  private val cfg = NodeConfig(
+class Decode(implicit p: Parameters) extends Node[Parameters]("decode") {
+  override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       DecodeDims.ISA  -> p(ISA).name,
       DecodeDims.KIND -> p(DecodeKind)
     )
   )
 
-  override def nodeType: NodeType  = DecodeMeta.Type
-  override def desiredName: String = s"decode_${cfg.selector.canonicalName}"
+  val ifu      = inDVec[IBufferEntry](p => p(IssueWidth))
+  val dispatch = outDVec[DecodedPacket](p => p(IssueWidth))
 
   private val isaImpl  = DecodeIsaFactory.select(cfg)
   private val kindImpl = DecodeKindFactory.select(cfg)
@@ -27,15 +22,15 @@ class Decode(implicit p: Parameters) extends Node(new DecodeIO) {
   for (w <- 0 until p(IssueWidth)) {
     val packet = Wire(new DecodePacket)
 
-    packet.pc               := io.ifu.lanes(w).bits.pc
-    packet.instr            := io.ifu.lanes(w).bits.instr
-    packet.bpu_pred_taken   := io.ifu.lanes(w).bits.bpu_pred_taken
-    packet.bpu_pred_target  := io.ifu.lanes(w).bits.bpu_pred_target
-    packet.bpu_pht_index    := io.ifu.lanes(w).bits.bpu_pht_index
-    packet.bpu_ghr_snapshot := io.ifu.lanes(w).bits.bpu_ghr_snapshot
+    packet.pc               := ifu.in.lanes(w).bits.pc
+    packet.instr            := ifu.in.lanes(w).bits.instr
+    packet.bpu_pred_taken   := ifu.in.lanes(w).bits.bpu_pred_taken
+    packet.bpu_pred_target  := ifu.in.lanes(w).bits.bpu_pred_target
+    packet.bpu_pht_index    := ifu.in.lanes(w).bits.bpu_pht_index
+    packet.bpu_ghr_snapshot := ifu.in.lanes(w).bits.bpu_ghr_snapshot
 
-    io.dispatch.lanes(w).valid := io.ifu.lanes(w).valid
-    io.ifu.lanes(w).ready      := io.dispatch.lanes(w).ready
-    io.dispatch.lanes(w).bits  := kindImpl.decode(isaImpl, packet)
+    dispatch.out.lanes(w).valid := ifu.in.lanes(w).valid
+    ifu.in.lanes(w).ready       := dispatch.out.lanes(w).ready
+    dispatch.out.lanes(w).bits  := kindImpl.decode(isaImpl, packet)
   }
 }

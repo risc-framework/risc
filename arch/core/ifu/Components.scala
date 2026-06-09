@@ -2,7 +2,7 @@ package arch.core.ifu
 
 import arch.configs._
 import chisel3._
-import chisel3.util.Decoupled
+import chisel3.util.log2Ceil
 
 class IBufferEntry(implicit p: Parameters) extends Bundle {
   val pc               = UInt(p(XLen).W)
@@ -13,22 +13,22 @@ class IBufferEntry(implicit p: Parameters) extends Bundle {
   val bpu_ghr_snapshot = UInt(p(GShareGhrWidth).W)
 }
 
-class IfuBpuIO(implicit p: Parameters) extends Bundle {
-  val query_pc      = Output(Vec(p(IssueWidth), UInt(p(XLen).W)))
-  val advance_valid = Output(Bool())
-  val flush         = Output(Bool())
-  val taken         = Input(Vec(p(IssueWidth), Bool()))
-  val target        = Input(Vec(p(IssueWidth), UInt(p(XLen).W)))
-  val pht_index     = Input(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W)))
-  val ghr_snapshot  = Input(Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W)))
+class IBufferFlush extends Bundle {
+  val flush = Bool()
 }
 
-class IfuDecodeIO(implicit p: Parameters) extends Bundle {
-  val lanes = Vec(p(IssueWidth), Decoupled(new IBufferEntry))
+class IBufferStatus(implicit p: Parameters) extends Bundle {
+  val enq_ready = Bool()
+  val empty     = Bool()
+  val full      = Bool()
+  val count     = UInt(log2Ceil(p(IBufferSize) + 1).W)
 }
 
-class IfuExceptionIO(implicit p: Parameters) extends Bundle {
-  val redirect = Input(Bool())
-  val target   = Input(UInt(p(XLen).W))
-  val fetch_pc = Output(UInt(p(XLen).W))
+class IfuExceptionReq(implicit p: Parameters) extends Bundle {
+  val redirect = Bool()
+  val target   = UInt(p(XLen).W)
+}
+
+class IfuExceptionResp(implicit p: Parameters) extends Bundle {
+  val fetch_pc = UInt(p(XLen).W)
 }

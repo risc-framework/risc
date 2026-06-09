@@ -3,7 +3,7 @@ package arch.core.csr.impls.isa.rv32im
 import arch.configs._
 import arch.core.csr._
 import arch.core.csr.impls.isa.rv32i.CsrRv32iIsa
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 
 object CsrRv32imIsa extends RegisteredNodeUtils[CsrIsaImpl] {
@@ -14,8 +14,11 @@ object CsrRv32imIsa extends RegisteredNodeUtils[CsrIsaImpl] {
     override def addrWidth: Int = rv32i.addrWidth
     override def opWidth: Int   = rv32i.opWidth
 
-    override def getAddr(instr: UInt)(implicit p: Parameters): UInt = rv32i.getAddr(instr)
-    override def decode(uop: UInt): CsrCtrl                         = rv32i.decode(uop)
+    override def getAddr(instr: UInt)(implicit p: Parameters): UInt =
+      rv32i.getAddr(instr)
+
+    override def decode(uop: UInt): CsrCtrl =
+      rv32i.decode(uop)
 
     override def fn(op: UInt, csrData: UInt, srcData: UInt)(implicit p: Parameters): UInt =
       rv32i.fn(op, csrData, srcData)
@@ -57,5 +60,6 @@ object CsrRv32imIsa extends RegisteredNodeUtils[CsrIsaImpl] {
       rv32i.syncExceptionCause(instr, uop)
   }
 
-  override def registry: NodeRegistry[CsrIsaImpl] = CsrIsaFactory
+  override def registry: NodeDimensionRegistry[CsrIsaImpl] =
+    CsrIsaFactory
 }

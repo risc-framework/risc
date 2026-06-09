@@ -3,8 +3,8 @@ package arch.system.crossbar.impls.bus.axil
 import arch.configs._
 import arch.system.crossbar._
 import vamba.axi4.lite._
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
 
 object BusCrossbarAxilType extends RegisteredNodeUtils[BusCrossbarTypeImpl] {
   override def utils: BusCrossbarTypeImpl = new BusCrossbarTypeImpl {
@@ -66,5 +66,6 @@ object BusCrossbarAxilType extends RegisteredNodeUtils[BusCrossbarTypeImpl] {
     }
   }
 
-  override def registry: NodeRegistry[BusCrossbarTypeImpl] = BusCrossbarTypeFactory
+  override def registry: NodeDimensionRegistry[BusCrossbarTypeImpl] =
+    BusCrossbarTypeFactory
 }

@@ -3,7 +3,7 @@ package arch.core.csr.impls.isa.rv32i
 import arch.configs._
 import arch.core.csr._
 import arch.isa._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.{ BitPat, Cat, MuxLookup }
 
@@ -57,7 +57,6 @@ trait Rv32iCsrMap {
 
 object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConsts with Rv32iCsrMap {
   override def utils: CsrIsaImpl = new CsrIsaImpl with Rv32iCsrUOpConsts with Rv32iCsrMap {
-
     private def enc(name: String): InstructionEncoding =
       IsaFactory
         .instrSet(value)
@@ -207,5 +206,6 @@ object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConst
     }
   }
 
-  override def registry: NodeRegistry[CsrIsaImpl] = CsrIsaFactory
+  override def registry: NodeDimensionRegistry[CsrIsaImpl] =
+    CsrIsaFactory
 }

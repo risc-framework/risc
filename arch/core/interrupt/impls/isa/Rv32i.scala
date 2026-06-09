@@ -2,18 +2,20 @@ package arch.core.interrupt.impls.isa.rv32i
 
 import arch.configs._
 import arch.core.csr.{ CsrTrapView, InterruptLines }
+import arch.core.exception.ExceptionRequest
 import arch.core.interrupt._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 
 object InterruptRv32iIsa extends RegisteredNodeUtils[InterruptIsaImpl] {
   override def utils: InterruptIsaImpl = new InterruptIsaImpl {
     override def value: String = "rv32i"
 
-    override def detect(view: CsrTrapView, irq: InterruptLines)(implicit
-      p: Parameters
-    ): TrapCandidate = {
-      val out = Wire(new TrapCandidate)
+    override def detect(
+      view: CsrTrapView,
+      irq: InterruptLines
+    )(implicit p: Parameters): ExceptionRequest = {
+      val out = Wire(new ExceptionRequest)
 
       val globalEnable = view.status(3)
 
@@ -41,5 +43,6 @@ object InterruptRv32iIsa extends RegisteredNodeUtils[InterruptIsaImpl] {
     }
   }
 
-  override def registry: NodeRegistry[InterruptIsaImpl] = InterruptIsaFactory
+  override def registry: NodeDimensionRegistry[InterruptIsaImpl] =
+    InterruptIsaFactory
 }

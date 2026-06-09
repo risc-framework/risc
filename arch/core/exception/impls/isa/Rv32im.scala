@@ -4,7 +4,7 @@ import arch.configs._
 import arch.core.csr.CsrTrapUpdate
 import arch.core.exception._
 import arch.core.exception.impls.isa.rv32i.ExceptionRv32iIsa
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 
 object ExceptionRv32imIsa extends RegisteredNodeUtils[ExceptionIsaImpl] {
@@ -21,5 +21,6 @@ object ExceptionRv32imIsa extends RegisteredNodeUtils[ExceptionIsaImpl] {
       rv32i.select(requests, csrBusy, archPc)
   }
 
-  override def registry: NodeRegistry[ExceptionIsaImpl] = ExceptionIsaFactory
+  override def registry: NodeDimensionRegistry[ExceptionIsaImpl] =
+    ExceptionIsaFactory
 }

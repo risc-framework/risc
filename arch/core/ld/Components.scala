@@ -1,8 +1,6 @@
 package arch.core.ld
 
-import arch.core.sb.StoreForwardIO
 import arch.configs._
-import vcache.CachePortIO
 import chisel3._
 import chisel3.util.{ Cat, Fill, MuxCase }
 
@@ -13,17 +11,6 @@ class LoadCtrl(implicit p: Parameters) extends Bundle {
   val is_dword    = Bool()
   val is_unsigned = Bool()
   val strb        = UInt(p(BytesPerWord).W)
-}
-
-class LdMemIO(implicit p: Parameters) extends Bundle {
-  val mem  = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
-  val mmio = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
-}
-
-class LdSbFwdIO(implicit p: Parameters) extends Bundle {
-  val sb_fwd       = Flipped(new StoreForwardIO)
-  val oldest_valid = Input(Bool())
-  val oldest_seq   = Input(UInt(64.W))
 }
 
 trait LoadDataHelpers {

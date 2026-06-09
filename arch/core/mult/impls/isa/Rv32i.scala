@@ -1,7 +1,7 @@
 package arch.core.mult.impls.isa.rv32i
 
 import arch.core.mult._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 
 object MultRv32iIsa extends RegisteredNodeUtils[MultIsaImpl] {
@@ -12,5 +12,6 @@ object MultRv32iIsa extends RegisteredNodeUtils[MultIsaImpl] {
       0.U.asTypeOf(new MultCtrl)
   }
 
-  override def registry: NodeRegistry[MultIsaImpl] = MultIsaFactory
+  override def registry: NodeDimensionRegistry[MultIsaImpl] =
+    MultIsaFactory
 }

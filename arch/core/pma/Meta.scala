@@ -2,22 +2,14 @@ package arch.core.pma
 
 import arch.system.device.DeviceType
 import arch.configs._
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
+import vutils.graph.NodeDims
 import chisel3._
 
-object PmaMeta {
-  val Type = NodeType("pma")
+object PmaDims extends NodeDims("pma") {
+  val MODE = dim("mode")
 }
 
-object PmaDims {
-  val MODE = NodeDim("mode")
-}
-
-trait PmaModeImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = PmaMeta.Type
-  override def dim: NodeDim       = PmaDims.MODE
-  override def name: String       = value
-
+trait PmaModeImpl extends PmaDims.MODE.Impl {
   def check(addr: UInt)(implicit p: Parameters): PmaCheckResult = {
     val result = Wire(new PmaCheckResult)
 
@@ -26,9 +18,14 @@ trait PmaModeImpl extends NodeDimensionImpl {
       (d.`type`, hit)
     }
 
-    val is_sram = hits.filter(_._1 == DeviceType.DEVICE_TYPE_SRAM).map(_._2).reduce(_ || _)
-    val is_uart = hits.filter(_._1 == DeviceType.DEVICE_TYPE_UART).map(_._2).reduce(_ || _)
-    val is_irh  = hits.filter(_._1 == DeviceType.DEVICE_TYPE_IRH).map(_._2).reduce(_ || _)
+    def anyHit(deviceType: DeviceType): Bool = {
+      val xs = hits.filter(_._1 == deviceType).map(_._2)
+      if (xs.isEmpty) false.B else xs.reduce(_ || _)
+    }
+
+    val is_sram = anyHit(DeviceType.DEVICE_TYPE_SRAM)
+    val is_uart = anyHit(DeviceType.DEVICE_TYPE_UART)
+    val is_irh  = anyHit(DeviceType.DEVICE_TYPE_IRH)
 
     result.valid     := is_sram || is_uart || is_irh
     result.readable  := is_sram || is_uart || is_irh
@@ -39,8 +36,8 @@ trait PmaModeImpl extends NodeDimensionImpl {
   }
 }
 
-object PmaModeFactory extends NodeDimensionRegistry[PmaModeImpl](PmaMeta.Type, PmaDims.MODE)
+object PmaModeFactory extends PmaDims.MODE.Registry[PmaModeImpl]
 
 object PmaInit {
-  val default = impls.mode.default.PmaDefaultMode
+  val default = impls.mode.default.PmaDefaultMode.registered
 }

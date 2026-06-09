@@ -1,7 +1,7 @@
 package arch.core.div.impls.isa.rv32im
 
 import arch.core.div._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.BitPat
 
@@ -23,11 +23,14 @@ object DivRv32imIsa extends RegisteredNodeUtils[DivIsaImpl] with Rv32imDivUopCon
 
     override def decode(uop: UInt): DivCtrl = {
       val ctrl = Wire(new DivCtrl)
+
       ctrl.is_signed := uop(1)
       ctrl.is_rem    := uop(0)
+
       ctrl
     }
   }
 
-  override def registry: NodeRegistry[DivIsaImpl] = DivIsaFactory
+  override def registry: NodeDimensionRegistry[DivIsaImpl] =
+    DivIsaFactory
 }

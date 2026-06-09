@@ -1,37 +1,30 @@
 package arch.core.bpu
 
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
+import vutils.graph.NodeDims
 
-object BtbMeta {
-  val Type = NodeType("btb")
+object BpuDims extends NodeDims("bpu") {
+  val PREDICTOR = dim("predictor")
 }
 
-object PredictorMeta {
-  val Type = NodeType("predictor")
+object BtbDims extends NodeDims("btb")
+
+object PredictorDims extends NodeDims("predictor") {
+  val KIND = dim("kind")
 }
 
-object BpuMeta {
-  val Type = NodeType("bpu")
+trait PredictorKindImpl extends PredictorDims.KIND.Impl {
+  def elaborate(
+    req: PredictorQueryReq,
+    resp: PredictorQueryResp,
+    update: BpuUpdate
+  )(implicit p: Parameters): Unit
 }
 
-object PredictorDims {
-  val KIND = NodeDim("kind")
-}
-
-trait PredictorKindImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = PredictorMeta.Type
-  override def dim: NodeDim       = PredictorDims.KIND
-  override def name: String       = value
-
-  def elaborate(io: PredictorIO)(implicit p: Parameters): Unit
-}
-
-object PredictorKindFactory
-    extends NodeDimensionRegistry[PredictorKindImpl](PredictorMeta.Type, PredictorDims.KIND)
+object PredictorKindFactory extends PredictorDims.KIND.Registry[PredictorKindImpl]
 
 object BpuInit {
-  val staticNotTaken = impls.predictor.StaticNotTakenPredictor
-  val staticTaken    = impls.predictor.StaticTakenPredictor
-  val gshare         = impls.predictor.GSharePredictor
+  val staticNotTaken = impls.predictor.StaticNotTakenPredictor.registered
+  val staticTaken    = impls.predictor.StaticTakenPredictor.registered
+  val gshare         = impls.predictor.GSharePredictor.registered
 }

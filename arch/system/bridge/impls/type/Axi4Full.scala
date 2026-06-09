@@ -3,10 +3,10 @@ package arch.system.bridge.impls.bus.axif
 import arch.configs._
 import arch.system.bridge._
 import vamba.axi4.full.{ Axi4FullBurst, Axi4FullMasterPort, Axi4FullParams }
-import vcache.{ CacheCommand, CachePortIO }
+import vcache.{ CacheCommand, CacheReq, CacheResp }
 import chisel3._
-import chisel3.util.{ Cat, is, log2Ceil, switch }
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import chisel3.util.{ Cat, is, log2Ceil, switch, DecoupledIO }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 
 object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
   override def utils: BusBridgeTypeImpl = new BusBridgeTypeImpl {
@@ -25,12 +25,13 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
     override def createBridge[T <: Data](
       gen: T,
-      memory: CachePortIO[T],
+      req: DecoupledIO[CacheReq[T]],
+      resp: DecoupledIO[CacheResp[T]],
       isMmio: Boolean = false
     )(implicit p: Parameters): Bundle = {
       val axi = Wire(new Axi4FullMasterPort(axiP))
 
-      val bytesPerGen    = memory.req.bits.data.getWidth / 8
+      val bytesPerGen    = req.bits.data.getWidth / 8
       val axiBeatsPerGen = bytesPerGen / p(BytesPerWord)
 
       val wordsPerLine  = if (isMmio) 1 else p(L1DCacheLineSize) / bytesPerGen
@@ -41,8 +42,8 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       val req_addr = RegInit(0.U(p(XLen).W))
 
       val w_beat_count  = RegInit(0.U(8.W))
-      val w_data_buffer = Reg(UInt(memory.req.bits.data.getWidth.W))
-      val w_strb_buffer = Reg(UInt(memory.req.bits.strb.getWidth.W))
+      val w_data_buffer = Reg(UInt(req.bits.data.getWidth.W))
+      val w_strb_buffer = Reg(UInt(req.bits.strb.getWidth.W))
 
       axi.aw.valid := false.B
       axi.aw.bits  := DontCare
@@ -53,27 +54,27 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      memory.req.ready        := false.B
-      memory.resp.valid       := false.B
-      memory.resp.bits.data   := DontCare
-      memory.resp.bits.last   := false.B
-      memory.resp.bits.hit    := false.B
-      memory.resp.bits.source := 0.U
+      req.ready        := false.B
+      resp.valid       := false.B
+      resp.bits.data   := DontCare
+      resp.bits.last   := false.B
+      resp.bits.hit    := false.B
+      resp.bits.source := 0.U
 
       switch(state) {
         is(Axi4BridgeState.Idle) {
-          memory.req.ready := true.B
+          req.ready := true.B
 
-          when(memory.req.fire) {
-            req_addr := memory.req.bits.addr
+          when(req.fire) {
+            req_addr := req.bits.addr
 
-            when(memory.req.bits.cmd === CacheCommand.Read) {
+            when(req.bits.cmd === CacheCommand.Read) {
               state := Axi4BridgeState.AR
             }.otherwise {
               state         := Axi4BridgeState.AW
               w_beat_count  := 0.U
-              w_data_buffer := memory.req.bits.data.asUInt
-              w_strb_buffer := memory.req.bits.strb
+              w_data_buffer := req.bits.data.asUInt
+              w_strb_buffer := req.bits.strb
             }
           }
         }
@@ -99,10 +100,10 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
         is(Axi4BridgeState.R) {
           if (axiBeatsPerGen <= 1) {
-            memory.resp.valid     := axi.r.valid
-            axi.r.ready           := memory.resp.ready
-            memory.resp.bits.data := axi.r.bits.data.asTypeOf(gen)
-            memory.resp.bits.last := axi.r.bits.last
+            resp.valid     := axi.r.valid
+            axi.r.ready    := resp.ready
+            resp.bits.data := axi.r.bits.data.asTypeOf(gen)
+            resp.bits.last := axi.r.bits.last
 
             when(axi.r.fire && axi.r.bits.last) {
               state := Axi4BridgeState.Idle
@@ -113,8 +114,8 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
             val isLastPack = r_pack_count === (axiBeatsPerGen - 1).U
 
-            memory.resp.valid := axi.r.valid && isLastPack
-            axi.r.ready       := Mux(isLastPack, memory.resp.ready, true.B)
+            resp.valid  := axi.r.valid && isLastPack
+            axi.r.ready := Mux(isLastPack, resp.ready, true.B)
 
             when(axi.r.fire) {
               when(!isLastPack) {
@@ -131,8 +132,8 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
             finalDataVec(axiBeatsPerGen - 1) := axi.r.bits.data
 
-            memory.resp.bits.data := Cat(finalDataVec.reverse).asTypeOf(gen)
-            memory.resp.bits.last := axi.r.bits.last
+            resp.bits.data := Cat(finalDataVec.reverse).asTypeOf(gen)
+            resp.bits.last := axi.r.bits.last
 
             when(axi.r.fire && axi.r.bits.last) {
               state := Axi4BridgeState.Idle
@@ -163,11 +164,11 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
           if (axiBeatsPerGen <= 1) {
             val isFirst = w_beat_count === 0.U
 
-            axi.w.valid      := isFirst || memory.req.valid
-            memory.req.ready := !isFirst && axi.w.ready
+            axi.w.valid := isFirst || req.valid
+            req.ready   := !isFirst && axi.w.ready
 
-            axi.w.bits.data := Mux(isFirst, w_data_buffer, memory.req.bits.data.asUInt)
-            axi.w.bits.strb := Mux(isFirst, w_strb_buffer, memory.req.bits.strb)
+            axi.w.bits.data := Mux(isFirst, w_data_buffer, req.bits.data.asUInt)
+            axi.w.bits.strb := Mux(isFirst, w_strb_buffer, req.bits.strb)
             axi.w.bits.last := w_beat_count === burstLen
             axi.w.bits.user := 0.U
 
@@ -189,15 +190,15 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
             val isLastUnpack = w_unpack_count === (axiBeatsPerGen - 1).U
 
-            memory.req.ready := axi.w.ready && isLastUnpack && (w_beat_count =/= burstLen)
+            req.ready := axi.w.ready && isLastUnpack && (w_beat_count =/= burstLen)
 
             when(axi.w.fire) {
               w_beat_count   := w_beat_count + 1.U
               w_unpack_count := Mux(isLastUnpack, 0.U, w_unpack_count + 1.U)
 
               when(isLastUnpack) {
-                w_data_buffer := memory.req.bits.data.asUInt
-                w_strb_buffer := memory.req.bits.strb
+                w_data_buffer := req.bits.data.asUInt
+                w_strb_buffer := req.bits.strb
               }.otherwise {
                 w_data_buffer := w_data_buffer >> p(XLen)
                 w_strb_buffer := w_strb_buffer >> p(BytesPerWord)
@@ -213,17 +214,18 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
         is(Axi4BridgeState.B) {
           val bDone = RegInit(false.B)
 
-          axi.b.ready           := !bDone
-          memory.resp.valid     := bDone || axi.b.valid
-          memory.resp.bits.data := 0.U.asTypeOf(gen)
-          memory.resp.bits.last := true.B
-          memory.resp.bits.hit  := false.B
+          axi.b.ready      := !bDone
+          resp.valid       := bDone || axi.b.valid
+          resp.bits.data   := 0.U.asTypeOf(gen)
+          resp.bits.last   := true.B
+          resp.bits.hit    := false.B
+          resp.bits.source := 0.U
 
           when(axi.b.fire) {
             bDone := true.B
           }
 
-          when(memory.resp.fire) {
+          when(resp.fire) {
             bDone := false.B
             state := Axi4BridgeState.Idle
           }
@@ -235,12 +237,13 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
     override def createBridgeReadOnly[T <: Data](
       gen: T,
-      memory: CachePortIO[T],
+      req: DecoupledIO[CacheReq[T]],
+      resp: DecoupledIO[CacheResp[T]],
       isMmio: Boolean = false
     )(implicit p: Parameters): Bundle = {
       val axi = Wire(new Axi4FullMasterPort(axiP))
 
-      val bytesPerGen    = memory.resp.bits.data.getWidth / 8
+      val bytesPerGen    = resp.bits.data.getWidth / 8
       val axiBeatsPerGen = bytesPerGen / p(BytesPerWord)
 
       val wordsPerLine  = if (isMmio) 1 else p(L1ICacheLineSize) / bytesPerGen
@@ -259,19 +262,19 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      memory.req.ready        := false.B
-      memory.resp.valid       := false.B
-      memory.resp.bits.data   := DontCare
-      memory.resp.bits.last   := false.B
-      memory.resp.bits.hit    := false.B
-      memory.resp.bits.source := 0.U
+      req.ready        := false.B
+      resp.valid       := false.B
+      resp.bits.data   := DontCare
+      resp.bits.last   := false.B
+      resp.bits.hit    := false.B
+      resp.bits.source := 0.U
 
       switch(state) {
         is(Axi4BridgeState.Idle) {
-          memory.req.ready := true.B
+          req.ready := true.B
 
-          when(memory.req.fire) {
-            req_addr := memory.req.bits.addr
+          when(req.fire) {
+            req_addr := req.bits.addr
             state    := Axi4BridgeState.AR
           }
         }
@@ -297,10 +300,10 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
         is(Axi4BridgeState.R) {
           if (axiBeatsPerGen <= 1) {
-            memory.resp.valid     := axi.r.valid
-            axi.r.ready           := memory.resp.ready
-            memory.resp.bits.data := axi.r.bits.data.asTypeOf(gen)
-            memory.resp.bits.last := axi.r.bits.last
+            resp.valid     := axi.r.valid
+            axi.r.ready    := resp.ready
+            resp.bits.data := axi.r.bits.data.asTypeOf(gen)
+            resp.bits.last := axi.r.bits.last
 
             when(axi.r.fire && axi.r.bits.last) {
               state := Axi4BridgeState.Idle
@@ -311,8 +314,8 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
             val isLastPack = r_pack_count === (axiBeatsPerGen - 1).U
 
-            memory.resp.valid := axi.r.valid && isLastPack
-            axi.r.ready       := Mux(isLastPack, memory.resp.ready, true.B)
+            resp.valid  := axi.r.valid && isLastPack
+            axi.r.ready := Mux(isLastPack, resp.ready, true.B)
 
             when(axi.r.fire) {
               when(!isLastPack) {
@@ -329,8 +332,8 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
             finalDataVec(axiBeatsPerGen - 1) := axi.r.bits.data
 
-            memory.resp.bits.data := Cat(finalDataVec.reverse).asTypeOf(gen)
-            memory.resp.bits.last := axi.r.bits.last
+            resp.bits.data := Cat(finalDataVec.reverse).asTypeOf(gen)
+            resp.bits.last := axi.r.bits.last
 
             when(axi.r.fire && axi.r.bits.last) {
               state := Axi4BridgeState.Idle
@@ -343,5 +346,6 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
     }
   }
 
-  override def registry: NodeRegistry[BusBridgeTypeImpl] = BusBridgeTypeFactory
+  override def registry: NodeDimensionRegistry[BusBridgeTypeImpl] =
+    BusBridgeTypeFactory
 }

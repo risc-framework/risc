@@ -2,35 +2,45 @@ package arch.core.bpu.impls.predictor
 
 import arch.core.bpu._
 import arch.configs._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 
 object StaticNotTakenPredictor extends RegisteredNodeUtils[PredictorKindImpl] {
   override def utils: PredictorKindImpl = new PredictorKindImpl {
     override def value: String = "static_nt"
 
-    override def elaborate(io: PredictorIO)(implicit p: Parameters): Unit =
+    override def elaborate(
+      req: PredictorQueryReq,
+      resp: PredictorQueryResp,
+      update: BpuUpdate
+    )(implicit p: Parameters): Unit =
       for (w <- 0 until p(IssueWidth)) {
-        io.query.taken(w)        := false.B
-        io.query.pht_index(w)    := 0.U
-        io.query.ghr_snapshot(w) := 0.U
+        resp.taken(w)        := false.B
+        resp.pht_index(w)    := 0.U
+        resp.ghr_snapshot(w) := 0.U
       }
   }
 
-  override def registry: NodeRegistry[PredictorKindImpl] = PredictorKindFactory
+  override def registry: NodeDimensionRegistry[PredictorKindImpl] =
+    PredictorKindFactory
 }
 
 object StaticTakenPredictor extends RegisteredNodeUtils[PredictorKindImpl] {
   override def utils: PredictorKindImpl = new PredictorKindImpl {
     override def value: String = "static_t"
 
-    override def elaborate(io: PredictorIO)(implicit p: Parameters): Unit =
+    override def elaborate(
+      req: PredictorQueryReq,
+      resp: PredictorQueryResp,
+      update: BpuUpdate
+    )(implicit p: Parameters): Unit =
       for (w <- 0 until p(IssueWidth)) {
-        io.query.taken(w)        := true.B
-        io.query.pht_index(w)    := 0.U
-        io.query.ghr_snapshot(w) := 0.U
+        resp.taken(w)        := true.B
+        resp.pht_index(w)    := 0.U
+        resp.ghr_snapshot(w) := 0.U
       }
   }
 
-  override def registry: NodeRegistry[PredictorKindImpl] = PredictorKindFactory
+  override def registry: NodeDimensionRegistry[PredictorKindImpl] =
+    PredictorKindFactory
 }

@@ -7,7 +7,7 @@ import arch.core.div.impls.isa.rv32im.Rv32imDivUopConsts
 import arch.core.fupool.FunctionalUnitType
 import arch.core.mult.impls.isa.rv32im.Rv32imMultUopConsts
 import arch.isa._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.BitPat
 
@@ -45,11 +45,19 @@ object DecodeRv32imIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32imDec
         enc("REMU")   -> List(Y, Y, Y, Y, Y, N, FU_DIV, UOP_REMU, RF_RS1, RF_RS2, RF_RD, IMM_X)
       )
 
-    override def reg(sel: UInt, instr: UInt)(implicit p: Parameters): UInt = rv32i.reg(sel, instr)
-    override def readable(addr: UInt)(implicit p: Parameters): Bool        = rv32i.readable(addr)
-    override def writable(addr: UInt)(implicit p: Parameters): Bool        = rv32i.writable(addr)
-    override def imm(sel: UInt, instr: UInt)(implicit p: Parameters): UInt = rv32i.imm(sel, instr)
+    override def reg(sel: UInt, instr: UInt)(implicit p: Parameters): UInt =
+      rv32i.reg(sel, instr)
+
+    override def readable(addr: UInt)(implicit p: Parameters): Bool =
+      rv32i.readable(addr)
+
+    override def writable(addr: UInt)(implicit p: Parameters): Bool =
+      rv32i.writable(addr)
+
+    override def imm(sel: UInt, instr: UInt)(implicit p: Parameters): UInt =
+      rv32i.imm(sel, instr)
   }
 
-  override def registry: NodeRegistry[DecodeIsaImpl] = DecodeIsaFactory
+  override def registry: NodeDimensionRegistry[DecodeIsaImpl] =
+    DecodeIsaFactory
 }

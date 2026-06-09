@@ -1,6 +1,7 @@
 package arch.core.exception
 
 import arch.configs._
+import arch.core.csr.CsrTrapUpdate
 import chisel3._
 
 class RedirectBundle(implicit p: Parameters) extends Bundle {
@@ -16,19 +17,17 @@ class ExceptionRequest(implicit p: Parameters) extends Bundle {
   val requires_csr_idle = Bool()
 }
 
-class ExceptionDispatchIO extends Bundle {
-  val flush = Output(Bool())
+class ExceptionFuPoolReq(implicit p: Parameters) extends Bundle {
+  val flush       = Bool()
+  val arch_pc     = UInt(p(XLen).W)
+  val trap_update = new CsrTrapUpdate
 }
 
-class ExceptionStoreBufferIO extends Bundle {
-  val flush = Output(Bool())
+class ExceptionFuPoolResp extends Bundle {
+  val csr_busy = Bool()
 }
 
-class ExceptionSchedulerIO extends Bundle {
-  val flush = Output(Bool())
-}
-
-class ExceptionDebugIO(implicit p: Parameters) extends Bundle {
-  val redirect = Output(new RedirectBundle)
-  val arch_pc  = Output(UInt(p(XLen).W))
+class ExceptionDebugInfo(implicit p: Parameters) extends Bundle {
+  val redirect = new RedirectBundle
+  val arch_pc  = UInt(p(XLen).W)
 }

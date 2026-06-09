@@ -1,42 +1,36 @@
 package arch.system.bridge
 
 import arch.configs._
-import vcache.CachePortIO
+import vcache.{ CacheReq, CacheResp }
 import chisel3._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
+import chisel3.util.DecoupledIO
+import vutils.graph.NodeDims
 
-object BusBridgeMeta {
-  val Type = NodeType("bus_bridge")
+object BusBridgeDims extends NodeDims("bus_bridge") {
+  val TYPE = dim("type")
 }
 
-object BusBridgeDims {
-  val TYPE = NodeDim("type")
-}
-
-trait BusBridgeTypeImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = BusBridgeMeta.Type
-  override def dim: NodeDim       = BusBridgeDims.TYPE
-  override def name: String       = value
-
+trait BusBridgeTypeImpl extends BusBridgeDims.TYPE.Impl {
   def busType(implicit p: Parameters): Bundle
 
   def createBridge[T <: Data](
     gen: T,
-    memory: CachePortIO[T],
+    req: DecoupledIO[CacheReq[T]],
+    resp: DecoupledIO[CacheResp[T]],
     isMmio: Boolean = false
   )(implicit p: Parameters): Bundle
 
   def createBridgeReadOnly[T <: Data](
     gen: T,
-    memory: CachePortIO[T],
+    req: DecoupledIO[CacheReq[T]],
+    resp: DecoupledIO[CacheResp[T]],
     isMmio: Boolean = false
   )(implicit p: Parameters): Bundle
 }
 
-object BusBridgeTypeFactory
-    extends NodeDimensionRegistry[BusBridgeTypeImpl](BusBridgeMeta.Type, BusBridgeDims.TYPE)
+object BusBridgeTypeFactory extends BusBridgeDims.TYPE.Registry[BusBridgeTypeImpl]
 
 object BusBridgeInit {
-  val axil = impls.bus.axil.BusBridgeAxilType
-  val axif = impls.bus.axif.BusBridgeAxifType
+  val axil = impls.bus.axil.BusBridgeAxilType.registered
+  val axif = impls.bus.axif.BusBridgeAxifType.registered
 }

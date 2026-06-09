@@ -1,22 +1,14 @@
 package arch.core.bru
 
 import arch.configs._
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
+import vutils.graph.NodeDims
 import chisel3._
 
-object BruMeta {
-  val Type = NodeType("bru")
+object BruDims extends NodeDims("bru") {
+  val ISA = dim("isa")
 }
 
-object BruDims {
-  val ISA = NodeDim("isa")
-}
-
-trait BruIsaImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = BruMeta.Type
-  override def dim: NodeDim       = BruDims.ISA
-  override def name: String       = value
-
+trait BruIsaImpl extends BruDims.ISA.Impl {
   def opWidth: Int
   def hasJump: Boolean
   def hasJalr: Boolean
@@ -35,9 +27,9 @@ trait BruIsaImpl extends NodeDimensionImpl {
     }
 }
 
-object BruIsaFactory extends NodeDimensionRegistry[BruIsaImpl](BruMeta.Type, BruDims.ISA)
+object BruIsaFactory extends BruDims.ISA.Registry[BruIsaImpl]
 
 object BruInit {
-  val rv32i  = impls.isa.rv32i.BruRv32iIsa
-  val rv32im = impls.isa.rv32im.BruRv32imIsa
+  val rv32i  = impls.isa.rv32i.BruRv32iIsa.registered
+  val rv32im = impls.isa.rv32im.BruRv32imIsa.registered
 }

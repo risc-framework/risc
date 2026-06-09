@@ -1,27 +1,19 @@
 package arch.core.div
 
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
+import vutils.graph.NodeDims
 import chisel3._
 
-object DivMeta {
-  val Type = NodeType("div")
+object DivDims extends NodeDims("div") {
+  val ISA = dim("isa")
 }
 
-object DivDims {
-  val ISA = NodeDim("isa")
-}
-
-trait DivIsaImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = DivMeta.Type
-  override def dim: NodeDim       = DivDims.ISA
-  override def name: String       = value
-
+trait DivIsaImpl extends DivDims.ISA.Impl {
   def decode(uop: UInt): DivCtrl
 }
 
-object DivIsaFactory extends NodeDimensionRegistry[DivIsaImpl](DivMeta.Type, DivDims.ISA)
+object DivIsaFactory extends DivDims.ISA.Registry[DivIsaImpl]
 
 object DivInit {
-  val rv32i  = impls.isa.rv32i.DivRv32iIsa
-  val rv32im = impls.isa.rv32im.DivRv32imIsa
+  val rv32i  = impls.isa.rv32i.DivRv32iIsa.registered
+  val rv32im = impls.isa.rv32im.DivRv32imIsa.registered
 }

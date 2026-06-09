@@ -1,9 +1,8 @@
 package arch.core.st
 
-import arch.core.sb.StoreWriteBundle
 import arch.configs._
 import chisel3._
-import chisel3.util.{ Cat, Fill, MuxCase, Valid }
+import chisel3.util.{ Cat, Fill, MuxCase }
 
 class StoreCtrl(implicit p: Parameters) extends Bundle {
   val is_byte  = Bool()
@@ -11,10 +10,6 @@ class StoreCtrl(implicit p: Parameters) extends Bundle {
   val is_word  = Bool()
   val is_dword = Bool()
   val strb     = UInt(p(BytesPerWord).W)
-}
-
-class StSbWriteIO(implicit p: Parameters) extends Bundle {
-  val write = Valid(new StoreWriteBundle)
 }
 
 trait StoreDataHelpers {

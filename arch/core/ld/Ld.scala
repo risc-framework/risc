@@ -1,37 +1,42 @@
 package arch.core.ld
 
 import arch.core.pma.PmaModeFactory
-import arch.core.fupool.FuResp
+import arch.core.fupool.{ FuFlushReq, FuResp }
 import arch.core.fupool.FuReq
-import arch.core.fupool.FuIO
+import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
+import arch.core.sb.{ StoreBufferStatus, StoreForwardReq, StoreForwardResp }
 import arch.configs._
 import vcache.CacheCommand
-import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
 import chisel3.util.{ is, switch }
-
-class LdIO(implicit p: Parameters) extends Bundle {
-  val fu  = new FuIO
-  val mem = new LdMemIO
-  val sb  = new LdSbFwdIO
-}
 
 object LdState extends ChiselEnum {
   val IDLE, FWD_REQ, FWD_RESP, MEM_REQ, WAIT_MEM, DONE, FLUSH_DRAIN = Value
 }
 
-class Ld(implicit p: Parameters) extends Node(new LdIO) {
-  private val cfg = NodeConfig(
+class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
+  override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       LdDims.ISA -> p(ISA).name
     )
   )
 
-  override def nodeType: NodeType  = LdMeta.Type
-  override def desiredName: String = s"ld_${cfg.selector.canonicalName}"
+  val fuReq  = inD[FuReq]
+  val fuResp = outD[FuResp]
+  val flush  = in[FuFlushReq]
+
+  val memReq   = outD[MemoryArbiterCacheReq]
+  val memResp  = inD[MemoryArbiterCacheResp]
+  val mmioReq  = outD[MemoryArbiterCacheReq]
+  val mmioResp = inD[MemoryArbiterCacheResp]
+
+  val fwdReq   = outD[StoreForwardReq]
+  val fwdResp  = inD[StoreForwardResp]
+  val sbStatus = in[StoreBufferStatus]
 
   private val isaImpl = LdIsaFactory.select(cfg)
-  private val pma     = PmaModeFactory.select("default")
+  private val pma     = PmaModeFactory.getOrThrow("default")
 
   private val state           = RegInit(LdState.IDLE)
   private val uopReg          = Reg(new FuReq)
@@ -46,61 +51,62 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
   private val reqOutstanding  = RegInit(false.B)
   private val reqWasCache     = RegInit(false.B)
 
-  private val acceptCtrl          = isaImpl.decodeLoad(io.fu.req.bits.uop)
-  private val acceptImm           = io.fu.req.bits.imm
-  private val acceptAddr          = io.fu.req.bits.rs1_data + acceptImm
+  private val acceptCtrl          = isaImpl.decodeLoad(fuReq.in.bits.uop)
+  private val acceptImm           = fuReq.in.bits.imm
+  private val acceptAddr          = fuReq.in.bits.rs1_data + acceptImm
   private val acceptAlignedAddr   = isaImpl.alignedAddr(acceptAddr)
   private val acceptLoadMask      = isaImpl.shiftedLoadMask(acceptCtrl, acceptAddr)
   private val acceptPmaResult     = pma.check(acceptAddr)
-  private val acceptHasOlderStore = io.sb.oldest_valid && io.sb.oldest_seq < io.fu.req.bits.sq_seq
+  private val acceptHasOlderStore =
+    sbStatus.in.oldest_valid && sbStatus.in.oldest_seq < fuReq.in.bits.sq_seq
 
-  private val fwdResp        = io.sb.sb_fwd.resp.bits
-  private val fwdRespFire    = io.sb.sb_fwd.resp.fire
-  private val mmioOrderBlock = !pmaCacheableReg && fwdResp.has_older
-  private val shouldBlock    = fwdResp.block || mmioOrderBlock
-  private val fullForward    = pmaCacheableReg && fwdResp.full
-  private val partialForward = pmaCacheableReg && fwdResp.valid && !fwdResp.full
+  private val fwdRespBits    = fwdResp.in.bits
+  private val fwdRespFire    = fwdResp.in.fire
+  private val mmioOrderBlock = !pmaCacheableReg && fwdRespBits.has_older
+  private val shouldBlock    = fwdRespBits.block || mmioOrderBlock
+  private val fullForward    = pmaCacheableReg && fwdRespBits.full
+  private val partialForward = pmaCacheableReg && fwdRespBits.valid && !fwdRespBits.full
 
   private val fwdCompleteNow =
-    state === LdState.FWD_RESP && io.sb.sb_fwd.resp.valid && !shouldBlock && fullForward && !io.fu.flush
+    state === LdState.FWD_RESP && fwdResp.in.valid && !shouldBlock && fullForward && !flush.in.flush
 
   private val canSendMemFromFwd =
-    state === LdState.FWD_RESP && io.sb.sb_fwd.resp.valid && !shouldBlock && !fullForward && !io.fu.flush
+    state === LdState.FWD_RESP && fwdResp.in.valid && !shouldBlock && !fullForward && !flush.in.flush
 
-  io.mem.mem.resp.ready  := (state === LdState.WAIT_MEM || state === LdState.FLUSH_DRAIN) && reqWasCache
-  io.mem.mmio.resp.ready := (state === LdState.WAIT_MEM || state === LdState.FLUSH_DRAIN) && !reqWasCache
+  memResp.in.ready  := (state === LdState.WAIT_MEM || state === LdState.FLUSH_DRAIN) && reqWasCache
+  mmioResp.in.ready := (state === LdState.WAIT_MEM || state === LdState.FLUSH_DRAIN) && !reqWasCache
 
-  private val memReqFire  = io.mem.mem.req.fire || io.mem.mmio.req.fire
-  private val memRespFire = io.mem.mem.resp.fire || io.mem.mmio.resp.fire
-  private val memRespData = Mux(reqWasCache, io.mem.mem.resp.bits.data, io.mem.mmio.resp.bits.data)
+  private val memReqFire  = memReq.out.fire || mmioReq.out.fire
+  private val memRespFire = memResp.in.fire || mmioResp.in.fire
+  private val memRespData = Mux(reqWasCache, memResp.in.bits.data, mmioResp.in.bits.data)
 
   private val expandedFwdMask = isaImpl.expandByteMask(fwdMaskReg)
   private val mergedBusData   = (memRespData & ~expandedFwdMask) | (fwdDataReg & expandedFwdMask)
-  private val fwdResult       = isaImpl.loadResult(ctrlReg, addrReg, fwdResp.data)
+  private val fwdResult       = isaImpl.loadResult(ctrlReg, addrReg, fwdRespBits.data)
   private val memResult       = isaImpl.loadResult(ctrlReg, addrReg, mergedBusData)
 
-  private val memCompleteNow   = state === LdState.WAIT_MEM && memRespFire && !io.fu.flush
-  private val doneCompleteNow  = state === LdState.DONE && !io.fu.flush
+  private val memCompleteNow   = state === LdState.WAIT_MEM && memRespFire && !flush.in.flush
+  private val doneCompleteNow  = state === LdState.DONE && !flush.in.flush
   private val currentRespValid = fwdCompleteNow || memCompleteNow || doneCompleteNow
-  private val currentRespFire  = currentRespValid && io.fu.resp.ready
+  private val currentRespFire  = currentRespValid && fuResp.out.ready
 
-  io.fu.req.ready := !io.fu.flush && (state === LdState.IDLE || currentRespFire)
+  fuReq.in.ready := !flush.in.flush && (state === LdState.IDLE || currentRespFire)
 
-  private val acceptFire = io.fu.req.fire && !io.fu.flush
+  private val acceptFire = fuReq.in.fire && !flush.in.flush
 
   private val fwdReqFromAccept  = acceptFire && acceptHasOlderStore
-  private val fwdReqFromRetry   = state === LdState.FWD_REQ && !io.fu.flush
+  private val fwdReqFromRetry   = state === LdState.FWD_REQ && !flush.in.flush
   private val fwdReqUsingAccept = fwdReqFromAccept
 
-  io.sb.sb_fwd.req.valid       := fwdReqFromAccept || fwdReqFromRetry
-  io.sb.sb_fwd.req.bits.valid  := true.B
-  io.sb.sb_fwd.req.bits.sq_seq := Mux(fwdReqUsingAccept, io.fu.req.bits.sq_seq, uopReg.sq_seq)
-  io.sb.sb_fwd.req.bits.addr   := Mux(fwdReqUsingAccept, acceptAlignedAddr, alignedAddrReg)
-  io.sb.sb_fwd.req.bits.mask   := Mux(fwdReqUsingAccept, acceptLoadMask, loadMaskReg)
-  io.sb.sb_fwd.resp.ready      := state === LdState.FWD_RESP && !io.fu.flush
+  fwdReq.out.valid       := fwdReqFromAccept || fwdReqFromRetry
+  fwdReq.out.bits.valid  := true.B
+  fwdReq.out.bits.sq_seq := Mux(fwdReqUsingAccept, fuReq.in.bits.sq_seq, uopReg.sq_seq)
+  fwdReq.out.bits.addr   := Mux(fwdReqUsingAccept, acceptAlignedAddr, alignedAddrReg)
+  fwdReq.out.bits.mask   := Mux(fwdReqUsingAccept, acceptLoadMask, loadMaskReg)
+  fwdResp.in.ready       := state === LdState.FWD_RESP && !flush.in.flush
 
   private val memReqFromAccept = acceptFire && !acceptHasOlderStore
-  private val memReqFromRetry  = state === LdState.MEM_REQ && !io.fu.flush
+  private val memReqFromRetry  = state === LdState.MEM_REQ && !flush.in.flush
   private val memReqFromFwd    = canSendMemFromFwd
   private val memReqActive     = memReqFromAccept || memReqFromRetry || memReqFromFwd
 
@@ -108,19 +114,19 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
   private val memReqAddr      = Mux(memReqFromAccept, acceptAlignedAddr, alignedAddrReg)
   private val memReqMask      = Mux(memReqFromAccept, acceptLoadMask, loadMaskReg)
 
-  io.mem.mem.req.valid       := memReqActive && memReqCacheable && !io.fu.flush
-  io.mem.mem.req.bits.cmd    := CacheCommand.Read
-  io.mem.mem.req.bits.addr   := memReqAddr
-  io.mem.mem.req.bits.data   := 0.U
-  io.mem.mem.req.bits.strb   := memReqMask
-  io.mem.mem.req.bits.source := 0.U
+  memReq.out.valid       := memReqActive && memReqCacheable && !flush.in.flush
+  memReq.out.bits.cmd    := CacheCommand.Read
+  memReq.out.bits.addr   := memReqAddr
+  memReq.out.bits.data   := 0.U
+  memReq.out.bits.strb   := memReqMask
+  memReq.out.bits.source := 0.U
 
-  io.mem.mmio.req.valid       := memReqActive && !memReqCacheable && !io.fu.flush
-  io.mem.mmio.req.bits.cmd    := CacheCommand.Read
-  io.mem.mmio.req.bits.addr   := memReqAddr
-  io.mem.mmio.req.bits.data   := 0.U
-  io.mem.mmio.req.bits.strb   := memReqMask
-  io.mem.mmio.req.bits.source := 0.U
+  mmioReq.out.valid       := memReqActive && !memReqCacheable && !flush.in.flush
+  mmioReq.out.bits.cmd    := CacheCommand.Read
+  mmioReq.out.bits.addr   := memReqAddr
+  mmioReq.out.bits.data   := 0.U
+  mmioReq.out.bits.strb   := memReqMask
+  mmioReq.out.bits.source := 0.U
 
   private val respResult = Mux(fwdCompleteNow, fwdResult, Mux(memCompleteNow, memResult, resultReg))
   private val resp       = WireDefault(0.U.asTypeOf(new FuResp))
@@ -131,8 +137,8 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
   resp.instr   := uopReg.instr
   resp.rob_tag := uopReg.rob_tag
 
-  io.fu.resp.valid := currentRespValid
-  io.fu.resp.bits  := resp
+  fuResp.out.valid := currentRespValid
+  fuResp.out.bits  := resp
 
   when(memReqFire || memRespFire) {
     reqOutstanding := (reqOutstanding && !memRespFire) || memReqFire
@@ -144,7 +150,7 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
 
   private val willHaveOutstanding = (reqOutstanding && !memRespFire) || memReqFire
 
-  when(io.fu.flush) {
+  when(flush.in.flush) {
     when(willHaveOutstanding) {
       state := LdState.FLUSH_DRAIN
     }.otherwise {
@@ -155,7 +161,7 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
       is(LdState.IDLE) {}
 
       is(LdState.FWD_REQ) {
-        when(io.sb.sb_fwd.req.fire) {
+        when(fwdReq.out.fire) {
           state := LdState.FWD_RESP
         }
       }
@@ -165,15 +171,15 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
           when(shouldBlock) {
             state := LdState.FWD_REQ
           }.elsewhen(fullForward) {
-            when(io.fu.resp.ready) {
+            when(fuResp.out.ready) {
               state := LdState.IDLE
             }.otherwise {
               resultReg := fwdResult
               state     := LdState.DONE
             }
           }.otherwise {
-            fwdDataReg := Mux(partialForward, fwdResp.data, 0.U)
-            fwdMaskReg := Mux(partialForward, fwdResp.mask, 0.U)
+            fwdDataReg := Mux(partialForward, fwdRespBits.data, 0.U)
+            fwdMaskReg := Mux(partialForward, fwdRespBits.mask, 0.U)
 
             when(memReqFire) {
               state := LdState.WAIT_MEM
@@ -192,7 +198,7 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
 
       is(LdState.WAIT_MEM) {
         when(memRespFire) {
-          when(io.fu.resp.ready) {
+          when(fuResp.out.ready) {
             state := LdState.IDLE
           }.otherwise {
             resultReg := memResult
@@ -202,7 +208,7 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
       }
 
       is(LdState.DONE) {
-        when(io.fu.resp.fire) {
+        when(fuResp.out.fire) {
           state := LdState.IDLE
         }
       }
@@ -215,7 +221,7 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
     }
 
     when(acceptFire) {
-      uopReg          := io.fu.req.bits
+      uopReg          := fuReq.in.bits
       ctrlReg         := acceptCtrl
       addrReg         := acceptAddr
       alignedAddrReg  := acceptAlignedAddr
@@ -226,7 +232,7 @@ class Ld(implicit p: Parameters) extends Node(new LdIO) {
       fwdMaskReg      := 0.U
 
       when(acceptHasOlderStore) {
-        state := Mux(io.sb.sb_fwd.req.fire, LdState.FWD_RESP, LdState.FWD_REQ)
+        state := Mux(fwdReq.out.fire, LdState.FWD_RESP, LdState.FWD_REQ)
       }.otherwise {
         state := Mux(memReqFire, LdState.WAIT_MEM, LdState.MEM_REQ)
       }

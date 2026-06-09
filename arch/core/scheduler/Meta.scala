@@ -1,28 +1,26 @@
 package arch.core.scheduler
 
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
+import arch.core.fupool.{ FuReq, FuResp }
+import vutils.graph.NodeDims
+import chisel3.util.{ DecoupledIO, ValidIO }
 
-object SchedulerMeta {
-  val Type = NodeType("scheduler")
+object SchedulerDims extends NodeDims("scheduler") {
+  val POLICY = dim("policy")
 }
 
-object SchedulerDims {
-  val POLICY = NodeDim("policy")
+trait SchedulerPolicyImpl extends SchedulerDims.POLICY.Impl {
+  def elaborate(
+    exception: SchedulerExceptionReq,
+    dispatchReq: Int => DecoupledIO[FuReq],
+    fuReq: Int => DecoupledIO[FuReq],
+    fuDone: Int => ValidIO[FuResp]
+  )(implicit p: Parameters): Unit
 }
 
-trait SchedulerPolicyImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = SchedulerMeta.Type
-  override def dim: NodeDim       = SchedulerDims.POLICY
-  override def name: String       = value
-
-  def elaborate(io: SchedulerIO)(implicit p: Parameters): Unit
-}
-
-object SchedulerPolicyFactory
-    extends NodeDimensionRegistry[SchedulerPolicyImpl](SchedulerMeta.Type, SchedulerDims.POLICY)
+object SchedulerPolicyFactory extends SchedulerDims.POLICY.Registry[SchedulerPolicyImpl]
 
 object SchedulerInit {
-  val inorder    = impls.policy.inorder.InorderSchedulerPolicy
-  val scoreboard = impls.policy.scoreboard.ScoreboardSchedulerPolicy
+  val inorder    = impls.policy.inorder.InorderSchedulerPolicy.registered
+  val scoreboard = impls.policy.scoreboard.ScoreboardSchedulerPolicy.registered
 }

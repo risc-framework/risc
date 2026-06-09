@@ -3,10 +3,10 @@ package arch.system.bridge.impls.bus.axil
 import arch.configs._
 import arch.system.bridge._
 import vamba.axi4.lite.{ Axi4LiteMasterPort, Axi4LiteParams }
-import vcache.{ CacheCommand, CachePortIO }
+import vcache.{ CacheCommand, CacheReq, CacheResp }
 import chisel3._
-import chisel3.util.{ Cat, is, log2Ceil, switch }
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import chisel3.util.{ Cat, is, log2Ceil, switch, DecoupledIO }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 
 object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
   override def utils: BusBridgeTypeImpl = new BusBridgeTypeImpl {
@@ -20,7 +20,8 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
     override def createBridge[T <: Data](
       gen: T,
-      memory: CachePortIO[T],
+      req: DecoupledIO[CacheReq[T]],
+      resp: DecoupledIO[CacheResp[T]],
       isMmio: Boolean = false
     )(implicit p: Parameters): Bundle = {
       val axi = Wire(new Axi4LiteMasterPort(axiP))
@@ -46,25 +47,25 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.w.bits   := DontCare
       axi.b.ready  := false.B
 
-      memory.req.ready        := false.B
-      memory.resp.valid       := false.B
-      memory.resp.bits.data   := DontCare
-      memory.resp.bits.hit    := false.B
-      memory.resp.bits.last   := true.B
-      memory.resp.bits.source := 0.U
+      req.ready        := false.B
+      resp.valid       := false.B
+      resp.bits.data   := DontCare
+      resp.bits.hit    := false.B
+      resp.bits.last   := true.B
+      resp.bits.source := 0.U
 
       switch(state) {
         is(Axi4BridgeState.Idle) {
-          memory.req.ready := true.B
+          req.ready := true.B
 
-          when(memory.req.fire) {
-            req_addr := memory.req.bits.addr
-            req_cmd  := memory.req.bits.cmd
-            w_data   := memory.req.bits.data.asUInt
-            w_strb   := memory.req.bits.strb
+          when(req.fire) {
+            req_addr := req.bits.addr
+            req_cmd  := req.bits.cmd
+            w_data   := req.bits.data.asUInt
+            w_strb   := req.bits.strb
             beat     := 0.U
             state    := Mux(
-              memory.req.bits.cmd === CacheCommand.Read,
+              req.bits.cmd === CacheCommand.Read,
               Axi4BridgeState.AR,
               Axi4BridgeState.AW
             )
@@ -84,15 +85,15 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
         is(Axi4BridgeState.R) {
           val isLast = beat === (beats - 1).U
 
-          memory.resp.valid := axi.r.valid && isLast
-          axi.r.ready       := Mux(isLast, memory.resp.ready, true.B)
+          resp.valid  := axi.r.valid && isLast
+          axi.r.ready := Mux(isLast, resp.ready, true.B)
 
           val finalData = Wire(Vec(beats, UInt(p(XLen).W)))
 
           for (i <- 0 until beats)
             finalData(i) := Mux(i.U === beat, axi.r.bits.data, r_data(i))
 
-          memory.resp.bits.data := finalData.asUInt.asTypeOf(gen)
+          resp.bits.data := finalData.asUInt.asTypeOf(gen)
 
           when(axi.r.fire) {
             r_data(beat) := axi.r.bits.data
@@ -126,8 +127,8 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
         is(Axi4BridgeState.B) {
           val isLast = beat === (beats - 1).U
 
-          memory.resp.valid := axi.b.valid && isLast
-          axi.b.ready       := Mux(isLast, memory.resp.ready, true.B)
+          resp.valid  := axi.b.valid && isLast
+          axi.b.ready := Mux(isLast, resp.ready, true.B)
 
           when(axi.b.fire) {
             beat  := beat + 1.U
@@ -141,12 +142,13 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
     override def createBridgeReadOnly[T <: Data](
       gen: T,
-      memory: CachePortIO[T],
+      req: DecoupledIO[CacheReq[T]],
+      resp: DecoupledIO[CacheResp[T]],
       isMmio: Boolean = false
     )(implicit p: Parameters): Bundle = {
       val axi = Wire(new Axi4LiteMasterPort(axiP))
 
-      val bytesPerGen    = memory.resp.bits.data.getWidth / 8
+      val bytesPerGen    = resp.bits.data.getWidth / 8
       val axiBeatsPerGen = bytesPerGen / p(BytesPerWord)
 
       val wordsPerLine  = if (isMmio) 1 else p(L1ICacheLineSize) / bytesPerGen
@@ -168,19 +170,19 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      memory.req.ready        := false.B
-      memory.resp.valid       := false.B
-      memory.resp.bits.data   := DontCare
-      memory.resp.bits.last   := false.B
-      memory.resp.bits.hit    := false.B
-      memory.resp.bits.source := 0.U
+      req.ready        := false.B
+      resp.valid       := false.B
+      resp.bits.data   := DontCare
+      resp.bits.last   := false.B
+      resp.bits.hit    := false.B
+      resp.bits.source := 0.U
 
       switch(state) {
         is(Axi4BridgeState.Idle) {
-          memory.req.ready := true.B
+          req.ready := true.B
 
-          when(memory.req.fire) {
-            req_addr     := memory.req.bits.addr
+          when(req.fire) {
+            req_addr     := req.bits.addr
             state        := Axi4BridgeState.AR
             r_beat_count := 0.U
             r_pack_count := 0.U
@@ -203,17 +205,17 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
           val isLastPack = r_pack_count === (axiBeatsPerGen - 1).U
           val isLastBeat = r_beat_count === (totalAxiBeats - 1).U
 
-          memory.resp.valid     := axi.r.valid && isLastPack
-          memory.resp.bits.last := isLastBeat
+          resp.valid     := axi.r.valid && isLastPack
+          resp.bits.last := isLastBeat
 
           val finalDataVec = Wire(Vec(axiBeatsPerGen, UInt(p(XLen).W)))
 
           for (i <- 0 until axiBeatsPerGen)
             finalDataVec(i) := Mux(i.U === r_pack_count, axi.r.bits.data, r_data_buffer(i))
 
-          memory.resp.bits.data := Cat(finalDataVec.reverse).asTypeOf(gen)
+          resp.bits.data := Cat(finalDataVec.reverse).asTypeOf(gen)
 
-          axi.r.ready := Mux(isLastPack, memory.resp.ready, true.B)
+          axi.r.ready := Mux(isLastPack, resp.ready, true.B)
 
           when(axi.r.fire) {
             when(!isLastPack) {
@@ -236,5 +238,6 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
     }
   }
 
-  override def registry: NodeRegistry[BusBridgeTypeImpl] = BusBridgeTypeFactory
+  override def registry: NodeDimensionRegistry[BusBridgeTypeImpl] =
+    BusBridgeTypeFactory
 }

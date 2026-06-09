@@ -3,7 +3,7 @@ package arch.core.exception.impls.isa.rv32i
 import arch.configs._
 import arch.core.csr.CsrTrapUpdate
 import arch.core.exception._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.{ Mux1H, PriorityEncoderOH }
 
@@ -45,5 +45,6 @@ object ExceptionRv32iIsa extends RegisteredNodeUtils[ExceptionIsaImpl] {
     }
   }
 
-  override def registry: NodeRegistry[ExceptionIsaImpl] = ExceptionIsaFactory
+  override def registry: NodeDimensionRegistry[ExceptionIsaImpl] =
+    ExceptionIsaFactory
 }

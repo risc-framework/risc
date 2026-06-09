@@ -2,7 +2,7 @@ package arch.core.st.impls.isa.rv32i
 
 import arch.configs._
 import arch.core.st._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.{ BitPat, MuxLookup }
 
@@ -55,5 +55,6 @@ object StRv32iIsa extends RegisteredNodeUtils[StIsaImpl] with Rv32iMemUopConsts 
     }
   }
 
-  override def registry: NodeRegistry[StIsaImpl] = StIsaFactory
+  override def registry: NodeDimensionRegistry[StIsaImpl] =
+    StIsaFactory
 }

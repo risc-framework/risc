@@ -1,25 +1,24 @@
 package arch.core.flush
 
 import arch.configs._
-import vutils.graph.{ Node, NodeType }
+import arch.core.exception.ExceptionRequest
+import vutils.graph.Node
 import chisel3._
-import chisel3.util.Mux1H
+import chisel3.util.PriorityEncoder
 
-class FlushIO(implicit p: Parameters) extends Bundle {
-  val rob       = new FlushRobIO
-  val exception = new FlushExceptionIO
-}
+class Flush(implicit p: Parameters) extends Node[Parameters]("flush") {
+  val rob       = in[FlushRobReq]
+  val exception = out[ExceptionRequest]
 
-class Flush(implicit p: Parameters) extends Node(new FlushIO) {
-  override def nodeType: NodeType  = FlushMeta.Type
-  override def desiredName: String = "flush"
+  private val flushValid  = rob.in.flushes.asUInt.orR
+  private val flushSlot   = PriorityEncoder(rob.in.flushes.asUInt)
+  private val flushTarget = rob.in.targets(flushSlot)
 
-  private val flush  = io.rob.flushes.reduce(_ || _)
-  private val target = Mux1H(io.rob.flushes, io.rob.targets)
+  exception.out := 0.U.asTypeOf(new ExceptionRequest)
 
-  io.exception.request.valid             := flush
-  io.exception.request.target            := target
-  io.exception.request.cause             := 0.U
-  io.exception.request.write_csr         := false.B
-  io.exception.request.requires_csr_idle := false.B
+  exception.out.valid             := flushValid
+  exception.out.target            := Mux(flushValid, flushTarget, 0.U)
+  exception.out.cause             := 0.U
+  exception.out.write_csr         := false.B
+  exception.out.requires_csr_idle := false.B
 }

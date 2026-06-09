@@ -2,7 +2,6 @@ package arch.core.bru
 
 import arch.configs._
 import chisel3._
-import chisel3.util.Valid
 
 class BruCtrl(val opWidth: Int) extends Bundle {
   val is_jump = Bool()
@@ -17,8 +16,4 @@ class BruResolveBundle(implicit p: Parameters) extends Bundle {
   val taken       = Bool()
   val target      = UInt(p(XLen).W)
   val fallthrough = UInt(p(XLen).W)
-}
-
-class BruResolveIO(implicit p: Parameters) extends Bundle {
-  val resolved = Valid(new BruResolveBundle)
 }

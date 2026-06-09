@@ -1,27 +1,21 @@
 package arch.core.interrupt
 
 import arch.configs._
-import arch.core.fupool.FuPoolInterruptIO
-import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
-import chisel3._
+import arch.core.exception.ExceptionRequest
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 
-class InterruptIO(implicit p: Parameters) extends Bundle {
-  val cpu       = new InterruptCpuIO
-  val fu_pool   = Flipped(new FuPoolInterruptIO)
-  val exception = new InterruptExceptionIO
-}
-
-class Interrupt(implicit p: Parameters) extends Node(new InterruptIO) {
-  private val cfg = NodeConfig(
+class Interrupt(implicit p: Parameters) extends Node[Parameters]("interrupt") {
+  override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       InterruptDims.ISA -> p(ISA).name
     )
   )
 
-  override def nodeType: NodeType  = InterruptMeta.Type
-  override def desiredName: String = s"interrupt_${cfg.selector.canonicalName}"
+  val cpu       = in[InterruptCpuReq]
+  val fuPool    = in[InterruptFuPoolResp]
+  val exception = out[ExceptionRequest]
 
   private val isaImpl = InterruptIsaFactory.select(cfg)
 
-  io.exception.request := isaImpl.detect(io.fu_pool.view, io.cpu.irq)
+  exception.out := isaImpl.detect(fuPool.in.view, cpu.in.irq)
 }

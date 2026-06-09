@@ -1,27 +1,19 @@
 package arch.core.mult
 
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
+import vutils.graph.NodeDims
 import chisel3._
 
-object MultMeta {
-  val Type = NodeType("mult")
+object MultDims extends NodeDims("mult") {
+  val ISA = dim("isa")
 }
 
-object MultDims {
-  val ISA = NodeDim("isa")
-}
-
-trait MultIsaImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = MultMeta.Type
-  override def dim: NodeDim       = MultDims.ISA
-  override def name: String       = value
-
+trait MultIsaImpl extends MultDims.ISA.Impl {
   def decode(uop: UInt): MultCtrl
 }
 
-object MultIsaFactory extends NodeDimensionRegistry[MultIsaImpl](MultMeta.Type, MultDims.ISA)
+object MultIsaFactory extends MultDims.ISA.Registry[MultIsaImpl]
 
 object MultInit {
-  val rv32i  = impls.isa.rv32i.MultRv32iIsa
-  val rv32im = impls.isa.rv32im.MultRv32imIsa
+  val rv32i  = impls.isa.rv32i.MultRv32iIsa.registered
+  val rv32im = impls.isa.rv32im.MultRv32imIsa.registered
 }

@@ -1,29 +1,26 @@
 package arch.core.mult
 
 import arch.configs._
-import arch.core.fupool.{ FuIO, FuResp, FuReq }
-import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
+import arch.core.fupool.{ FuFlushReq, FuResp, FuReq }
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import vutils.math.mul.IntegerMultiplier
 import chisel3._
 import chisel3.util.{ switch, is }
-
-class MultIO(implicit p: Parameters) extends Bundle {
-  val fu = new FuIO
-}
 
 object MultState extends ChiselEnum {
   val IDLE, BUSY, DONE = Value
 }
 
-class Mult(implicit p: Parameters) extends Node(new MultIO) {
-  private val cfg = NodeConfig(
+class Mult(implicit p: Parameters) extends Node[Parameters]("mult") {
+  override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       MultDims.ISA -> p(ISA).name
     )
   )
 
-  override def nodeType: NodeType  = MultMeta.Type
-  override def desiredName: String = s"mult_${cfg.selector.canonicalName}"
+  val fuReq  = inD[FuReq]
+  val fuResp = outD[FuResp]
+  val flush  = in[FuFlushReq]
 
   private val isaImpl    = MultIsaFactory.select(cfg)
   private val multiplier = Module(new IntegerMultiplier(p(XLen), p(MultPipelineStages)))
@@ -31,26 +28,26 @@ class Mult(implicit p: Parameters) extends Node(new MultIO) {
   private val uopReg     = Reg(new FuReq)
   private val resultReg  = RegInit(0.U(p(XLen).W))
 
-  private val ctrl = isaImpl.decode(io.fu.req.bits.uop)
+  private val ctrl = isaImpl.decode(fuReq.in.bits.uop)
 
-  io.fu.req.ready := !io.fu.flush && state === MultState.IDLE && multiplier.io.in.ready
+  fuReq.in.ready := !flush.in.flush && state === MultState.IDLE && multiplier.io.in.ready
 
-  multiplier.io.kill                 := io.fu.flush
-  multiplier.io.in.valid             := io.fu.req.valid && io.fu.req.ready
-  multiplier.io.in.bits.multiplicand := io.fu.req.bits.rs1_data
-  multiplier.io.in.bits.multiplier   := io.fu.req.bits.rs2_data
+  multiplier.io.kill                 := flush.in.flush
+  multiplier.io.in.valid             := !flush.in.flush && state === MultState.IDLE && fuReq.in.valid
+  multiplier.io.in.bits.multiplicand := fuReq.in.bits.rs1_data
+  multiplier.io.in.bits.multiplier   := fuReq.in.bits.rs2_data
   multiplier.io.in.bits.aSigned      := ctrl.a_signed
   multiplier.io.in.bits.bSigned      := ctrl.b_signed
   multiplier.io.in.bits.takeHigh     := ctrl.high
-  multiplier.io.out.ready            := !io.fu.flush && state === MultState.BUSY
+  multiplier.io.out.ready            := !flush.in.flush && state === MultState.BUSY
 
-  when(io.fu.flush) {
+  when(flush.in.flush) {
     state := MultState.IDLE
   }.otherwise {
     switch(state) {
       is(MultState.IDLE) {
-        when(io.fu.req.fire) {
-          uopReg := io.fu.req.bits
+        when(fuReq.in.fire) {
+          uopReg := fuReq.in.bits
           state  := MultState.BUSY
         }
       }
@@ -63,7 +60,7 @@ class Mult(implicit p: Parameters) extends Node(new MultIO) {
       }
 
       is(MultState.DONE) {
-        when(io.fu.resp.fire) {
+        when(fuResp.out.fire) {
           state := MultState.IDLE
         }
       }
@@ -82,6 +79,6 @@ class Mult(implicit p: Parameters) extends Node(new MultIO) {
   resp.trap_ret     := false.B
   resp.trap_ret_tgt := 0.U
 
-  io.fu.resp.valid := state === MultState.DONE && !io.fu.flush
-  io.fu.resp.bits  := resp
+  fuResp.out.valid := state === MultState.DONE && !flush.in.flush
+  fuResp.out.bits  := resp
 }

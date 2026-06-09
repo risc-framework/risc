@@ -1,7 +1,7 @@
 package arch.core.bru.impls.isa.rv32i
 
 import arch.core.bru._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import arch.configs._
 import chisel3._
 import chisel3.util.{ BitPat, MuxLookup }
@@ -42,9 +42,11 @@ object BruRv32iIsa extends RegisteredNodeUtils[BruIsaImpl] with Rv32iBruUopConst
 
     override def decode(uop: UInt): BruCtrl = {
       val ctrl = Wire(new BruCtrl(opWidth))
+
       ctrl.is_jump := uop(4)
       ctrl.is_jalr := uop(3)
       ctrl.op      := uop(2, 0)
+
       ctrl
     }
 
@@ -77,5 +79,6 @@ object BruRv32iIsa extends RegisteredNodeUtils[BruIsaImpl] with Rv32iBruUopConst
     }
   }
 
-  override def registry: NodeRegistry[BruIsaImpl] = BruIsaFactory
+  override def registry: NodeDimensionRegistry[BruIsaImpl] =
+    BruIsaFactory
 }

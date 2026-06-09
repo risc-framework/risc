@@ -1,9 +1,8 @@
 package arch.core.sb
 
 import arch.configs._
-import vcache.CachePortIO
 import chisel3._
-import chisel3.util.{ Decoupled, Valid, log2Ceil }
+import chisel3.util.log2Ceil
 
 class StoreBufferTicket(implicit p: Parameters) extends Bundle {
   val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
@@ -35,11 +34,6 @@ class StoreForwardResp(implicit p: Parameters) extends Bundle {
   val mask      = UInt(p(BytesPerWord).W)
 }
 
-class StoreForwardIO(implicit p: Parameters) extends Bundle {
-  val req  = Flipped(Decoupled(new StoreForwardReq))
-  val resp = Decoupled(new StoreForwardResp)
-}
-
 class StoreBufferEntry(implicit p: Parameters) extends Bundle {
   val valid     = Bool()
   val committed = Bool()
@@ -53,18 +47,11 @@ class StoreBufferEntry(implicit p: Parameters) extends Bundle {
   val cacheable = Bool()
 }
 
-class StoreBufferFuPoolIO(implicit p: Parameters) extends Bundle {
-  val fwd          = Vec(p(NumLDs), new StoreForwardIO)
-  val oldest_valid = Output(Bool())
-  val oldest_seq   = Output(UInt(64.W))
-  val write        = Flipped(Vec(p(NumSTs), Valid(new StoreWriteBundle)))
+class StoreBufferStatus extends Bundle {
+  val oldest_valid = Bool()
+  val oldest_seq   = UInt(64.W)
 }
 
-class StoreBufferMemoryArbiterIO(implicit p: Parameters) extends Bundle {
-  val mem  = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
-  val mmio = new CachePortIO(UInt(p(XLen).W), p(L1DCacheParams))
-}
-
-class StoreBufferExceptionIO extends Bundle {
-  val flush = Input(Bool())
+class StoreBufferExceptionReq extends Bundle {
+  val flush = Bool()
 }

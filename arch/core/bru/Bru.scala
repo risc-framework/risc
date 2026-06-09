@@ -1,39 +1,36 @@
 package arch.core.bru
 
-import arch.core.fupool.{ FuIO, FuResp }
+import arch.core.fupool.{ FuFlushReq, FuResp }
 import arch.core.fupool.FuReq
 import arch.configs._
-import vutils.graph.{ Node, NodeType, NodeConfig, NodeSelector }
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
 
-class BruIO(implicit p: Parameters) extends Bundle {
-  val fu      = new FuIO
-  val resolve = new BruResolveIO
-}
-
-class Bru(implicit p: Parameters) extends Node(new BruIO) {
-  private val cfg = NodeConfig(
+class Bru(implicit p: Parameters) extends Node[Parameters]("bru") {
+  override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       BruDims.ISA -> p(ISA).name
     )
   )
 
-  override def nodeType: NodeType  = BruMeta.Type
-  override def desiredName: String = s"bru_${cfg.selector.canonicalName}"
+  val fuReq    = inD[FuReq]
+  val fuResp   = outD[FuResp]
+  val flush    = in[FuFlushReq]
+  val resolved = outV[BruResolveBundle]
 
   private val isaImpl  = BruIsaFactory.select(cfg)
   private val validReg = RegInit(false.B)
   private val uopReg   = Reg(new FuReq)
 
-  io.fu.req.ready  := !io.fu.flush && (!validReg || io.fu.resp.fire)
-  io.fu.resp.valid := validReg && !io.fu.flush
+  fuReq.in.ready   := !flush.in.flush && (!validReg || fuResp.out.fire)
+  fuResp.out.valid := validReg && !flush.in.flush
 
-  when(io.fu.flush) {
+  when(flush.in.flush) {
     validReg := false.B
-  }.elsewhen(io.fu.req.fire) {
+  }.elsewhen(fuReq.in.fire) {
     validReg := true.B
-    uopReg   := io.fu.req.bits
-  }.elsewhen(io.fu.resp.fire) {
+    uopReg   := fuReq.in.bits
+  }.elsewhen(fuResp.out.fire) {
     validReg := false.B
   }
 
@@ -57,13 +54,13 @@ class Bru(implicit p: Parameters) extends Node(new BruIO) {
   resp.trap_ret     := false.B
   resp.trap_ret_tgt := 0.U
 
-  io.fu.resp.bits := resp
+  fuResp.out.bits := resp
 
-  io.resolve.resolved.valid            := validReg && !io.fu.flush
-  io.resolve.resolved.bits.pc          := uopReg.pc
-  io.resolve.resolved.bits.instr       := uopReg.instr
-  io.resolve.resolved.bits.rob_tag     := uopReg.rob_tag
-  io.resolve.resolved.bits.taken       := resolvedTaken
-  io.resolve.resolved.bits.target      := actualTarget
-  io.resolve.resolved.bits.fallthrough := fallthrough
+  resolved.out.valid            := validReg && !flush.in.flush
+  resolved.out.bits.pc          := uopReg.pc
+  resolved.out.bits.instr       := uopReg.instr
+  resolved.out.bits.rob_tag     := uopReg.rob_tag
+  resolved.out.bits.taken       := resolvedTaken
+  resolved.out.bits.target      := actualTarget
+  resolved.out.bits.fallthrough := fallthrough
 }

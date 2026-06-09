@@ -1,25 +1,20 @@
 package arch.core.bpu
 
 import arch.configs._
-import vutils.graph.{ Node, NodeConfig, NodeSelector, NodeType }
-import chisel3._
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 
-class PredictorIO(implicit p: Parameters) extends Bundle {
-  val query  = new PredictorQueryIO
-  val update = new BpuUpdateIO
-}
-
-class Predictor(kind: String)(implicit p: Parameters) extends Node(new PredictorIO) {
-  private val cfg = NodeConfig(
+class Predictor(kind: String)(implicit p: Parameters) extends Node[Parameters]("predictor") {
+  override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       PredictorDims.KIND -> kind
     )
   )
 
-  override def nodeType: NodeType  = PredictorMeta.Type
-  override def desiredName: String = s"predictor_${cfg.selector.canonicalName}"
+  val queryReq  = in[PredictorQueryReq]
+  val queryResp = out[PredictorQueryResp]
+  val update    = in[BpuUpdate]
 
   private val impl = PredictorKindFactory.select(cfg)
 
-  impl.elaborate(io)
+  impl.elaborate(queryReq.in, queryResp.out, update.in)
 }

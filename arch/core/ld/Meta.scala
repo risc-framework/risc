@@ -1,28 +1,20 @@
 package arch.core.ld
 
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
+import vutils.graph.NodeDims
 import chisel3._
 
-object LdMeta {
-  val Type = NodeType("ld")
+object LdDims extends NodeDims("ld") {
+  val ISA = dim("isa")
 }
 
-object LdDims {
-  val ISA = NodeDim("isa")
-}
-
-trait LdIsaImpl extends NodeDimensionImpl with LoadDataHelpers {
-  override def nodeType: NodeType = LdMeta.Type
-  override def dim: NodeDim       = LdDims.ISA
-  override def name: String       = value
-
+trait LdIsaImpl extends LdDims.ISA.Impl with LoadDataHelpers {
   def decodeLoad(uop: UInt)(implicit p: Parameters): LoadCtrl
 }
 
-object LdIsaFactory extends NodeDimensionRegistry[LdIsaImpl](LdMeta.Type, LdDims.ISA)
+object LdIsaFactory extends LdDims.ISA.Registry[LdIsaImpl]
 
 object LdInit {
-  val rv32i  = impls.isa.rv32i.LdRv32iIsa
-  val rv32im = impls.isa.rv32im.LdRv32imIsa
+  val rv32i  = impls.isa.rv32i.LdRv32iIsa.registered
+  val rv32im = impls.isa.rv32im.LdRv32imIsa.registered
 }

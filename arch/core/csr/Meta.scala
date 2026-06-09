@@ -1,22 +1,14 @@
 package arch.core.csr
 
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
 import chisel3._
+import vutils.graph.{ NodeDimensionRegistry, NodeDims }
 
-object CsrMeta {
-  val Type = NodeType("csr")
+object CsrDims extends NodeDims("csr") {
+  val ISA = dim("isa")
 }
 
-object CsrDims {
-  val ISA = NodeDim("isa")
-}
-
-trait CsrIsaImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = CsrMeta.Type
-  override def dim: NodeDim       = CsrDims.ISA
-  override def name: String       = value
-
+trait CsrIsaImpl extends CsrDims.ISA.Impl {
   def addrWidth: Int
   def opWidth: Int
 
@@ -34,9 +26,11 @@ trait CsrIsaImpl extends NodeDimensionImpl {
     out
   }
 
-  def trapEntryUpdates(regs: Map[String, UInt], pc: UInt, cause: UInt)(implicit
-    p: Parameters
-  ): Map[String, UInt] =
+  def trapEntryUpdates(
+    regs: Map[String, UInt],
+    pc: UInt,
+    cause: UInt
+  )(implicit p: Parameters): Map[String, UInt] =
     Map.empty[String, UInt]
 
   def trapReturnTarget(regs: Map[String, UInt])(implicit p: Parameters): UInt =
@@ -58,9 +52,9 @@ trait CsrIsaImpl extends NodeDimensionImpl {
     view.trapVector
 }
 
-object CsrIsaFactory extends NodeDimensionRegistry[CsrIsaImpl](CsrMeta.Type, CsrDims.ISA)
+object CsrIsaFactory extends CsrDims.ISA.Registry[CsrIsaImpl]
 
 object CsrInit {
-  val rv32i  = impls.isa.rv32i.CsrRv32iIsa
-  val rv32im = impls.isa.rv32im.CsrRv32imIsa
+  val rv32i  = impls.isa.rv32i.CsrRv32iIsa.registered
+  val rv32im = impls.isa.rv32im.CsrRv32imIsa.registered
 }

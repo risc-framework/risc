@@ -5,18 +5,14 @@ import arch.core.fupool.FunctionalUnitType
 import arch.configs._
 import vutils.graph.{ NodeConfig, NodeSelector }
 import chisel3._
-import chisel3.util.{ log2Ceil, Decoupled }
+import chisel3.util.log2Ceil
 
 class DecodePacket(implicit p: Parameters) extends IBufferEntry
-
-class DecodeIfuIO(implicit p: Parameters) extends Bundle {
-  val lanes = Vec(p(IssueWidth), Flipped(Decoupled(new DecodePacket)))
-}
 
 class DecodedPacket(implicit p: Parameters) extends Bundle {
   private val cfg = NodeConfig(
     selector = NodeSelector(
-      DecodeDims.ISA -> p(ISA).name,
+      DecodeDims.ISA -> p(ISA).name
     )
   )
 

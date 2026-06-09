@@ -2,7 +2,7 @@ package arch.core.bpu.impls.predictor
 
 import arch.core.bpu._
 import arch.configs._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.Cat
 
@@ -10,7 +10,11 @@ object GSharePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCo
   override def utils: PredictorKindImpl = new PredictorKindImpl with BHTConsts {
     override def value: String = "gshare"
 
-    override def elaborate(io: PredictorIO)(implicit p: Parameters): Unit = {
+    override def elaborate(
+      req: PredictorQueryReq,
+      resp: PredictorQueryResp,
+      update: BpuUpdate
+    )(implicit p: Parameters): Unit = {
       val phtEntries = 1 << p(GShareGhrWidth)
 
       require(p(GShareGhrWidth) >= 2, "GShareGhrWidth must be at least 2")
@@ -48,44 +52,45 @@ object GSharePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCo
       def predictTaken(counter: UInt): Bool =
         counter(SZ_BHT - 1)
 
-      val updateOldCnt  = pht(io.update.update.pht_index)
-      val updateNewCnt  = satUpdate(updateOldCnt, io.update.update.taken)
-      val updateNextGhr = shiftHist(io.update.update.ghr_snapshot, io.update.update.taken)
+      val updateOldCnt  = pht(update.pht_index)
+      val updateNewCnt  = satUpdate(updateOldCnt, update.taken)
+      val updateNextGhr = shiftHist(update.ghr_snapshot, update.taken)
 
       val queryGhr = Wire(Vec(p(IssueWidth) + 1, UInt(p(GShareGhrWidth).W)))
       queryGhr(0) := specGhr
 
       for (w <- 0 until p(IssueWidth)) {
-        val index      = getIndex(io.query.pc(w), queryGhr(w))
+        val index      = getIndex(req.pc(w), queryGhr(w))
         val rawCounter = pht(index)
-        val bypassHit  = io.update.update.valid && io.update.update.pht_index === index
+        val bypassHit  = update.valid && update.pht_index === index
         val counter    = Mux(bypassHit, updateNewCnt, rawCounter)
         val dirTaken   = predictTaken(counter)
 
-        io.query.taken(w)        := dirTaken
-        io.query.pht_index(w)    := index
-        io.query.ghr_snapshot(w) := queryGhr(w)
-        queryGhr(w + 1)          := Mux(io.query.is_branch(w), shiftHist(queryGhr(w), dirTaken), queryGhr(w))
+        resp.taken(w)        := dirTaken
+        resp.pht_index(w)    := index
+        resp.ghr_snapshot(w) := queryGhr(w)
+        queryGhr(w + 1)      := Mux(req.is_branch(w), shiftHist(queryGhr(w), dirTaken), queryGhr(w))
       }
 
-      when(io.update.update.valid) {
-        pht(io.update.update.pht_index) := updateNewCnt
-        commitGhr                       := updateNextGhr
+      when(update.valid) {
+        pht(update.pht_index) := updateNewCnt
+        commitGhr             := updateNextGhr
       }
 
-      when(io.query.accept) {
+      when(req.accept) {
         specGhr := queryGhr(p(IssueWidth))
       }
 
-      when(io.query.flush) {
+      when(req.flush) {
         specGhr := commitGhr
       }
 
-      when(io.update.update.valid && io.update.update.mispredict) {
+      when(update.valid && update.mispredict) {
         specGhr := updateNextGhr
       }
     }
   }
 
-  override def registry: NodeRegistry[PredictorKindImpl] = PredictorKindFactory
+  override def registry: NodeDimensionRegistry[PredictorKindImpl] =
+    PredictorKindFactory
 }

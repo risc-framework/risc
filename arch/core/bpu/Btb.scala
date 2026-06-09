@@ -1,18 +1,14 @@
 package arch.core.bpu
 
 import arch.configs._
-import vutils.graph.{ Node, NodeType }
+import vutils.graph.Node
 import chisel3._
 import chisel3.util.{ PriorityEncoder, UIntToOH, log2Ceil }
 
-class BtbIO(implicit p: Parameters) extends Bundle {
-  val query  = new BtbQueryIO
-  val update = new BpuUpdateIO
-}
-
-class Btb(implicit p: Parameters) extends Node(new BtbIO) with BHTConsts {
-  override def nodeType: NodeType  = BtbMeta.Type
-  override def desiredName: String = "btb"
+class Btb(implicit p: Parameters) extends Node[Parameters]("btb") with BHTConsts {
+  val queryReq  = in[BtbQueryReq]
+  val queryResp = out[BtbQueryResp]
+  val update    = in[BpuUpdate]
 
   private val rawIndexWidth = log2Ceil(p(BTBSets))
   private val indexWidth    = rawIndexWidth.max(1)
@@ -39,8 +35,8 @@ class Btb(implicit p: Parameters) extends Node(new BtbIO) with BHTConsts {
     victimWayReg(s) := replStates(s).getVictim()
 
   for (q <- 0 until p(IssueWidth)) {
-    val qIndex   = getIndex(io.query.pc(q))
-    val qTag     = getTag(io.query.pc(q))
+    val qIndex   = getIndex(queryReq.in.pc(q))
+    val qTag     = getTag(queryReq.in.pc(q))
     val qValid   = validBits(qIndex)
     val qTags    = tagArray(q).read(qIndex)
     val qTargets = targetArray(q).read(qIndex)
@@ -53,16 +49,16 @@ class Btb(implicit p: Parameters) extends Node(new BtbIO) with BHTConsts {
     val anyHit = hitBits.asUInt.orR
     val hitWay = PriorityEncoder(hitBits)
 
-    io.query.hit(q)              := anyHit
-    io.query.entry_out(q).valid  := anyHit
-    io.query.entry_out(q).tag    := Mux(anyHit, qTags(hitWay), 0.U)
-    io.query.entry_out(q).target := Mux(anyHit, qTargets(hitWay), 0.U)
-    io.query.entry_out(q).ctrl   := Mux(anyHit, qCtrls(hitWay), BHT_WT.value.U(SZ_BHT.W))
+    queryResp.out.hit(q)              := anyHit
+    queryResp.out.entry_out(q).valid  := anyHit
+    queryResp.out.entry_out(q).tag    := Mux(anyHit, qTags(hitWay), 0.U)
+    queryResp.out.entry_out(q).target := Mux(anyHit, qTargets(hitWay), 0.U)
+    queryResp.out.entry_out(q).ctrl   := Mux(anyHit, qCtrls(hitWay), BHT_WT.value.U(SZ_BHT.W))
   }
 
-  when(io.update.update.valid && io.update.update.taken) {
-    val uIndex   = getIndex(io.update.update.pc)
-    val uTag     = getTag(io.update.update.pc)
+  when(update.in.valid && update.in.taken) {
+    val uIndex   = getIndex(update.in.pc)
+    val uTag     = getTag(update.in.pc)
     val uValid   = validBits(uIndex)
     val uTags    = tagArray(p(IssueWidth)).read(uIndex)
     val uTargets = targetArray(p(IssueWidth)).read(uIndex)
@@ -86,7 +82,7 @@ class Btb(implicit p: Parameters) extends Node(new BtbIO) with BHTConsts {
 
     for (w <- 0 until p(BTBWays)) {
       nextTags(w)    := Mux(writeWay === w.U, uTag, uTags(w))
-      nextTargets(w) := Mux(writeWay === w.U, io.update.update.target, uTargets(w))
+      nextTargets(w) := Mux(writeWay === w.U, update.in.target, uTargets(w))
       nextCtrls(w)   := Mux(writeWay === w.U, nextCtrl, uCtrls(w))
     }
 

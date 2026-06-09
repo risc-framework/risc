@@ -1,26 +1,27 @@
 package arch.core.rob
 
 import arch.core.bpu.BpuUpdate
-import arch.core.fupool.FuPoolRobIO
+import arch.core.dispatch.{ DispatchRobPacket, DispatchRobResp }
+import arch.core.flush.FlushRobReq
+import arch.core.fupool.FunctionalUnitType
+import arch.core.regfile.RegfileWrite
 import arch.configs._
-import vutils.graph.{ Node, NodeType }
+import vutils.graph.Node
 import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 
-class RobIO(implicit p: Parameters) extends Bundle {
-  val dispatch  = new RobDispatchIO
-  val fu_pool   = Flipped(new FuPoolRobIO)
-  val regfile   = new RobRegfileIO
-  val sb        = new RobSbIO
-  val bpu       = new RobBpuIO
-  val flush     = new RobFlushIO
-  val exception = new RobExceptionIO
-  val debug     = new RobDebugIO
-}
-
-class Rob(implicit p: Parameters) extends Node(new RobIO) {
-  override def nodeType: NodeType  = RobMeta.Type
-  override def desiredName: String = "rob"
+class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
+  val dispatchReq   = inDVec[DispatchRobPacket](p => p(IssueWidth))
+  val dispatchResp  = outVec[DispatchRobResp](p => p(IssueWidth))
+  val fuDone        = inVVec[RobFuDone](p => p(NumFUs))
+  val bruResolved   = inVVec[RobBruResolved](p => p(NumBRUs))
+  val regfileWrite  = outVVec[RegfileWrite](p => p(IssueWidth))
+  val sbCommit      = outVVec[RobSbCommit](p => p(IssueWidth))
+  val bpuUpdate     = out[BpuUpdate]
+  val flush         = out[FlushRobReq]
+  val exceptionReq  = in[RobExceptionReq]
+  val exceptionResp = out[RobExceptionResp]
+  val debug         = out[RobDebugInfo]
 
   private val CntW = log2Ceil(p(RobSize) + 1)
 
@@ -28,6 +29,12 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   private val head   = RegInit(0.U(p(RobTagWidth).W))
   private val tail   = RegInit(0.U(p(RobTagWidth).W))
   private val count  = RegInit(0.U(CntW.W))
+
+  private def isBru(fuType: UInt): Bool =
+    fuType === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU.index.U(p(FuTypeWidth).W)
+
+  private def isStore(fuType: UInt): Bool =
+    fuType === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U(p(FuTypeWidth).W)
 
   private def wrapAdd(x: UInt, y: UInt): UInt = {
     val sum = x +& y
@@ -64,14 +71,15 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   }
 
   for (i <- 0 until p(NumFUs))
-    when(io.fu_pool.done(i).valid) {
-      val idx              = io.fu_pool.done(i).bits.rob_tag
+    when(fuDone.in.lanes(i).valid) {
+      val done             = fuDone.in.lanes(i).bits
+      val idx              = done.rob_tag
       val oldPc            = buffer(idx).pc
       val nonBruMispredict = !buffer(idx).is_branch && buffer(idx).pred_taken
       val nonBruRedirect   = oldPc + p(PCStep).U(p(XLen).W)
 
       buffer(idx).ready := true.B
-      buffer(idx).data  := io.fu_pool.done(i).bits.result
+      buffer(idx).data  := done.result
 
       when(nonBruMispredict) {
         buffer(idx).actual_taken   := false.B
@@ -80,19 +88,15 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
         buffer(idx).flush_target   := nonBruRedirect
       }
 
-      when(io.fu_pool.done(i).bits.trap_req || io.fu_pool.done(i).bits.trap_ret) {
+      when(done.trap_req || done.trap_ret) {
         buffer(idx).flush_pipeline := true.B
-        buffer(idx).flush_target   := Mux(
-          io.fu_pool.done(i).bits.trap_req,
-          io.fu_pool.done(i).bits.trap_target,
-          io.fu_pool.done(i).bits.trap_ret_tgt
-        )
+        buffer(idx).flush_target   := Mux(done.trap_req, done.trap_target, done.trap_ret_tgt)
       }
     }
 
   for (i <- 0 until p(NumBRUs))
-    when(io.fu_pool.bru(i).resolved.valid) {
-      val resolved      = io.fu_pool.bru(i).resolved.bits
+    when(bruResolved.in.lanes(i).valid) {
+      val resolved      = bruResolved.in.lanes(i).bits
       val idx           = resolved.rob_tag
       val oldPredTaken  = buffer(idx).pred_taken
       val oldPredTarget = buffer(idx).pred_target
@@ -169,12 +173,12 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
       olderFires := PopCount((0 until w).map(i => enqFire(i)))
     }
 
-    io.dispatch.lanes(w).req_ready := availableSlotsAfterCommit > olderFires
-    enqFire(w)                     := io.dispatch.lanes(w).req_valid && io.dispatch.lanes(w).req_ready
-    enqOffset(w)                   := olderFires(p(RobTagWidth) - 1, 0)
-    enqIdx(w)                      := wrapAdd(tail, enqOffset(w))
+    dispatchReq.in.lanes(w).ready := availableSlotsAfterCommit > olderFires
+    enqFire(w)                    := dispatchReq.in.lanes(w).valid && dispatchReq.in.lanes(w).ready
+    enqOffset(w)                  := olderFires(p(RobTagWidth) - 1, 0)
+    enqIdx(w)                     := wrapAdd(tail, enqOffset(w))
 
-    io.dispatch.lanes(w).rob_tag := enqIdx(w)
+    dispatchResp.out.lanes(w).rob_tag := enqIdx(w)
   }
 
   private val enqCount = PopCount(enqFire)
@@ -187,7 +191,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   for (w <- 0 until p(IssueWidth))
     when(enqFire(w)) {
       val idx = enqIdx(w)
-      val pkt = io.dispatch.lanes(w).req_bits
+      val pkt = dispatchReq.in.lanes(w).bits
       val dec = pkt.decoded
 
       buffer(idx).valid          := true.B
@@ -197,8 +201,8 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
       buffer(idx).rd             := dec.rd
       buffer(idx).rd_write       := dec.rd_write
       buffer(idx).data           := 0.U
-      buffer(idx).is_branch      := dec.isBru
-      buffer(idx).is_store       := dec.isStore
+      buffer(idx).is_branch      := isBru(dec.fu_type)
+      buffer(idx).is_store       := isStore(dec.fu_type)
       buffer(idx).commit_barrier := dec.commit_barrier
       buffer(idx).pred_taken     := dec.bpu_pred_taken
       buffer(idx).pred_target    := dec.bpu_pred_target
@@ -215,7 +219,7 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   tail  := wrapAdd(tail, enqCount)
   count := count + enqCount - commitCount
 
-  when(io.exception.flush) {
+  when(exceptionReq.in.flush) {
     head  := 0.U
     tail  := 0.U
     count := 0.U
@@ -225,31 +229,31 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    val dec = io.dispatch.lanes(w).req_bits.decoded
+    val dec = dispatchReq.in.lanes(w).bits.decoded
 
     val (rs1Valid, rs1Data, rs1Pending) = bypassNewest(dec.rs1)
     val (rs2Valid, rs2Data, rs2Pending) = bypassNewest(dec.rs2)
 
-    io.dispatch.lanes(w).rs1_bypass_valid   := rs1Valid
-    io.dispatch.lanes(w).rs1_bypass_data    := rs1Data
-    io.dispatch.lanes(w).rs1_bypass_pending := rs1Pending
+    dispatchResp.out.lanes(w).rs1_bypass_valid   := rs1Valid
+    dispatchResp.out.lanes(w).rs1_bypass_data    := rs1Data
+    dispatchResp.out.lanes(w).rs1_bypass_pending := rs1Pending
 
-    io.dispatch.lanes(w).rs2_bypass_valid   := rs2Valid
-    io.dispatch.lanes(w).rs2_bypass_data    := rs2Data
-    io.dispatch.lanes(w).rs2_bypass_pending := rs2Pending
+    dispatchResp.out.lanes(w).rs2_bypass_valid   := rs2Valid
+    dispatchResp.out.lanes(w).rs2_bypass_data    := rs2Data
+    dispatchResp.out.lanes(w).rs2_bypass_pending := rs2Pending
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    io.regfile.write(w).valid     := commitInfo(w).pop && commitInfo(w).rd_write
-    io.regfile.write(w).bits.addr := commitInfo(w).rd
-    io.regfile.write(w).bits.data := commitInfo(w).data
+    regfileWrite.out.lanes(w).valid     := commitInfo(w).pop && commitInfo(w).rd_write
+    regfileWrite.out.lanes(w).bits.addr := commitInfo(w).rd
+    regfileWrite.out.lanes(w).bits.data := commitInfo(w).data
 
-    io.sb.commit(w).valid         := commitInfo(w).pop
-    io.sb.commit(w).bits.is_store := commitInfo(w).is_store
-    io.sb.commit(w).bits.sq_idx   := commitInfo(w).sq_idx
+    sbCommit.out.lanes(w).valid         := commitInfo(w).pop
+    sbCommit.out.lanes(w).bits.is_store := commitInfo(w).is_store
+    sbCommit.out.lanes(w).bits.sq_idx   := commitInfo(w).sq_idx
   }
 
-  private val bpuUpdate = WireDefault(0.U.asTypeOf(new BpuUpdate))
+  private val bpuUpdateWire = WireDefault(0.U.asTypeOf(new BpuUpdate))
 
   for (w <- 0 until p(IssueWidth)) {
     val lane               = commitInfo(w)
@@ -257,48 +261,50 @@ class Rob(implicit p: Parameters) extends Node(new RobIO) {
     val shouldUpdateBranch = lane.pop && (lane.is_branch || predTakenNonBranch)
 
     when(shouldUpdateBranch) {
-      bpuUpdate.valid        := true.B
-      bpuUpdate.pc           := lane.pc
-      bpuUpdate.target       := lane.bpu_actual_target
-      bpuUpdate.taken        := lane.bpu_actual_taken
-      bpuUpdate.pht_index    := lane.bpu_pht_index
-      bpuUpdate.ghr_snapshot := lane.bpu_ghr_snapshot
-      bpuUpdate.mispredict   := lane.flush_pipeline
+      bpuUpdateWire.valid        := true.B
+      bpuUpdateWire.pc           := lane.pc
+      bpuUpdateWire.target       := lane.bpu_actual_target
+      bpuUpdateWire.taken        := lane.bpu_actual_taken
+      bpuUpdateWire.pht_index    := lane.bpu_pht_index
+      bpuUpdateWire.ghr_snapshot := lane.bpu_ghr_snapshot
+      bpuUpdateWire.mispredict   := lane.flush_pipeline
     }
   }
 
-  io.bpu.update := bpuUpdate
+  bpuUpdate.out := bpuUpdateWire
 
-  io.flush.flushes := VecInit(
+  flush.out.flushes := VecInit(
     commitInfo.map(lane => lane.flush_pipeline && lane.pop)
   )
 
-  io.flush.targets := VecInit(
+  flush.out.targets := VecInit(
     commitInfo.map(_.flush_target)
   )
 
-  io.exception.empty     := count === 0.U
-  io.exception.commit_pc := commitInfo(0).pc
+  exceptionResp.out.empty     := count === 0.U
+  exceptionResp.out.commit_pc := commitInfo(0).pc
 
-  io.debug.commit_count   := commitCount
-  io.debug.branch_commit  := PopCount(
+  debug.out.commit_count  := commitCount
+  debug.out.branch_commit := PopCount(
     commitInfo.map(lane => lane.pop && lane.is_branch)
   )
-  io.debug.bpu_mispredict := commitInfo
+
+  debug.out.bpu_mispredict := commitInfo
     .map(lane =>
       lane.pop &&
         (lane.is_branch || (!lane.is_branch && lane.bpu_pred_taken)) &&
         lane.flush_pipeline
     )
     .reduce(_ || _)
-  io.debug.empty          := count === 0.U
+
+  debug.out.empty := count === 0.U
 
   for (w <- 0 until p(IssueWidth)) {
-    io.debug.instret(w)  := commitInfo(w).pop
-    io.debug.pc(w)       := commitInfo(w).pc
-    io.debug.instr(w)    := commitInfo(w).instr
-    io.debug.reg_we(w)   := io.regfile.write(w).valid
-    io.debug.reg_addr(w) := io.regfile.write(w).bits.addr
-    io.debug.reg_data(w) := io.regfile.write(w).bits.data
+    debug.out.instret(w)  := commitInfo(w).pop
+    debug.out.pc(w)       := commitInfo(w).pc
+    debug.out.instr(w)    := commitInfo(w).instr
+    debug.out.reg_we(w)   := regfileWrite.out.lanes(w).valid
+    debug.out.reg_addr(w) := regfileWrite.out.lanes(w).bits.addr
+    debug.out.reg_data(w) := regfileWrite.out.lanes(w).bits.data
   }
 }

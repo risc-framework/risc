@@ -2,9 +2,10 @@ package arch.core.interrupt.impls.isa.rv32im
 
 import arch.configs._
 import arch.core.csr.{ CsrTrapView, InterruptLines }
+import arch.core.exception.ExceptionRequest
 import arch.core.interrupt._
 import arch.core.interrupt.impls.isa.rv32i.InterruptRv32iIsa
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 
 object InterruptRv32imIsa extends RegisteredNodeUtils[InterruptIsaImpl] {
   override def utils: InterruptIsaImpl = new InterruptIsaImpl {
@@ -12,11 +13,13 @@ object InterruptRv32imIsa extends RegisteredNodeUtils[InterruptIsaImpl] {
 
     override def value: String = "rv32im"
 
-    override def detect(view: CsrTrapView, irq: InterruptLines)(implicit
-      p: Parameters
-    ): TrapCandidate =
+    override def detect(
+      view: CsrTrapView,
+      irq: InterruptLines
+    )(implicit p: Parameters): ExceptionRequest =
       rv32i.detect(view, irq)
   }
 
-  override def registry: NodeRegistry[InterruptIsaImpl] = InterruptIsaFactory
+  override def registry: NodeDimensionRegistry[InterruptIsaImpl] =
+    InterruptIsaFactory
 }

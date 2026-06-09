@@ -1,7 +1,7 @@
 package arch.core.mult.impls.isa.rv32im
 
 import arch.core.mult._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.BitPat
 
@@ -23,12 +23,15 @@ object MultRv32imIsa extends RegisteredNodeUtils[MultIsaImpl] with Rv32imMultUop
 
     override def decode(uop: UInt): MultCtrl = {
       val ctrl = Wire(new MultCtrl)
+
       ctrl.a_signed := uop(2)
       ctrl.b_signed := uop(1)
       ctrl.high     := uop(0)
+
       ctrl
     }
   }
 
-  override def registry: NodeRegistry[MultIsaImpl] = MultIsaFactory
+  override def registry: NodeDimensionRegistry[MultIsaImpl] =
+    MultIsaFactory
 }

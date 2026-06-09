@@ -3,7 +3,7 @@ package arch.core.ld.impls.isa.rv32im
 import arch.configs._
 import arch.core.ld._
 import arch.core.ld.impls.isa.rv32i.LdRv32iIsa
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 
 object LdRv32imIsa extends RegisteredNodeUtils[LdIsaImpl] {
@@ -16,5 +16,6 @@ object LdRv32imIsa extends RegisteredNodeUtils[LdIsaImpl] {
       rv32i.decodeLoad(uop)
   }
 
-  override def registry: NodeRegistry[LdIsaImpl] = LdIsaFactory
+  override def registry: NodeDimensionRegistry[LdIsaImpl] =
+    LdIsaFactory
 }

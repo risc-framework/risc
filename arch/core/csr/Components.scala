@@ -46,19 +46,15 @@ class CsrTrapUpdate(implicit p: Parameters) extends Bundle {
   val cause = UInt(p(XLen).W)
 }
 
-class CsrExtraIO extends Bundle {
-  val cycle   = UInt(64.W)
-  val instret = UInt(64.W)
-  val irq     = new InterruptLines
+class CsrCtrlReq(implicit p: Parameters) extends Bundle {
+  val cycle       = UInt(64.W)
+  val instret     = UInt(64.W)
+  val irq         = new InterruptLines
+  val arch_pc     = UInt(p(XLen).W)
+  val trap_update = new CsrTrapUpdate
 }
 
-class CsrCtrlIO(implicit p: Parameters) extends Bundle {
-  val cycle       = Input(UInt(64.W))
-  val instret     = Input(UInt(64.W))
-  val irq         = Input(new InterruptLines)
-  val arch_pc     = Input(UInt(p(XLen).W))
-  val trap_update = Input(new CsrTrapUpdate)
-
-  val view = Output(new CsrTrapView)
-  val busy = Output(Bool())
+class CsrCtrlResp(implicit p: Parameters) extends Bundle {
+  val view = new CsrTrapView
+  val busy = Bool()
 }

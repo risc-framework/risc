@@ -1,51 +1,50 @@
 package arch.core.dispatch
 
-import arch.configs._
+import arch.core.decode.DecodedPacket
 import arch.core.fupool.FuReq
+import arch.configs._
 import vutils.graph.{ Node, NodeType }
 import chisel3._
 
-class DispatchIO(implicit p: Parameters) extends Bundle {
-  val decode    = new DispatchDecodeIO
-  val regfile   = new DispatchRegfileIO
-  val rob       = new DispatchRobIO
-  val sb        = new DispatchStoreBufferIO
-  val scheduler = new DispatchSchedulerIO
-  val exception = new DispatchExceptionIO
-}
-
-class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
-  override def nodeType: NodeType  = DispatchMeta.Type
-  override def desiredName: String = "dispatch"
+class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
+  val decode       = inDVec[DecodedPacket](p => p(IssueWidth))
+  val regfileReq   = out[DispatchRegfileReq]
+  val regfileResp  = in[DispatchRegfileResp]
+  val robReq       = outDVec[DispatchRobPacket](p => p(IssueWidth))
+  val robResp      = inVec[DispatchRobResp](p => p(IssueWidth))
+  val sbReq        = outVec[DispatchStoreBufferReq](p => p(IssueWidth))
+  val sbResp       = inVec[DispatchStoreBufferResp](p => p(IssueWidth))
+  val schedulerReq = outDVec[FuReq](p => p(IssueWidth))
+  val exception    = in[DispatchExceptionReq]
 
   private val laneBaseReqOk = Wire(Vec(p(IssueWidth), Bool()))
   private val lanePrefixOk  = Wire(Vec(p(IssueWidth), Bool()))
   private val coreValidReq  = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
-    val dec = io.decode.lanes(w).bits
+    val dec = decode.in.lanes(w).bits
 
-    io.regfile.rs1_addr(w) := dec.rs1
-    io.regfile.rs2_addr(w) := dec.rs2
+    regfileReq.out.rs1_addr(w) := dec.rs1
+    regfileReq.out.rs2_addr(w) := dec.rs2
 
-    io.sb.lanes(w).valid   := io.decode.lanes(w).valid
-    io.sb.lanes(w).bits    := dec
-    io.sb.lanes(w).rob_tag := io.rob.lanes(w).rob_tag
+    sbReq.out.lanes(w).valid   := decode.in.lanes(w).valid
+    sbReq.out.lanes(w).bits    := dec
+    sbReq.out.lanes(w).rob_tag := robResp.in.lanes(w).rob_tag
 
-    io.rob.lanes(w).req_bits.decoded := dec
-    io.rob.lanes(w).req_bits.sq_idx  := io.sb.lanes(w).ticket.sq_idx
+    robReq.out.lanes(w).bits.decoded := dec
+    robReq.out.lanes(w).bits.sq_idx  := sbResp.in.lanes(w).ticket.sq_idx
 
-    laneBaseReqOk(w) := io.decode.lanes(w).valid &&
+    laneBaseReqOk(w) := decode.in.lanes(w).valid &&
       dec.legal &&
-      !io.exception.flush &&
-      io.sb.lanes(w).ready &&
-      io.rob.lanes(w).req_ready
+      !exception.in.flush &&
+      sbResp.in.lanes(w).ready &&
+      robReq.out.lanes(w).ready
   }
 
   lanePrefixOk(0) := true.B
 
   for (w <- 1 until p(IssueWidth)) {
-    val olderLaneMayBeSkipped   = !io.decode.lanes(w - 1).valid || io.exception.flush
+    val olderLaneMayBeSkipped   = !decode.in.lanes(w - 1).valid || exception.in.flush
     val olderLaneCanBePresented = laneBaseReqOk(w - 1)
 
     lanePrefixOk(w) := lanePrefixOk(w - 1) && (olderLaneMayBeSkipped || olderLaneCanBePresented)
@@ -55,13 +54,24 @@ class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
     coreValidReq(w) := laneBaseReqOk(w) && lanePrefixOk(w)
 
   for (w <- 0 until p(IssueWidth)) {
-    val dec         = io.decode.lanes(w).bits
+    val dec = decode.in.lanes(w).bits
+
     val rs1Bypassed =
-      Mux(io.rob.lanes(w).rs1_bypass_valid, io.rob.lanes(w).rs1_bypass_data, io.regfile.rs1_data(w))
+      Mux(
+        robResp.in.lanes(w).rs1_bypass_valid,
+        robResp.in.lanes(w).rs1_bypass_data,
+        regfileResp.in.rs1_data(w)
+      )
+
     val rs2Bypassed =
-      Mux(io.rob.lanes(w).rs2_bypass_valid, io.rob.lanes(w).rs2_bypass_data, io.regfile.rs2_data(w))
-    val dis         = io.scheduler.reqs(w)
-    val issueOp     = Wire(new FuReq)
+      Mux(
+        robResp.in.lanes(w).rs2_bypass_valid,
+        robResp.in.lanes(w).rs2_bypass_data,
+        regfileResp.in.rs2_data(w)
+      )
+
+    val dis     = schedulerReq.out.lanes(w)
+    val issueOp = Wire(new FuReq)
 
     issueOp.pc       := dec.pc
     issueOp.instr    := dec.instr
@@ -77,24 +87,24 @@ class Dispatch(implicit p: Parameters) extends Node(new DispatchIO) {
     issueOp.rs2_read := dec.rs2_read
     issueOp.rs1_data := rs1Bypassed
     issueOp.rs2_data := rs2Bypassed
-    issueOp.rob_tag  := io.rob.lanes(w).rob_tag
-    issueOp.sq_idx   := io.sb.lanes(w).ticket.sq_idx
-    issueOp.sq_seq   := io.sb.lanes(w).ticket.sq_seq
+    issueOp.rob_tag  := robResp.in.lanes(w).rob_tag
+    issueOp.sq_idx   := sbResp.in.lanes(w).ticket.sq_idx
+    issueOp.sq_seq   := sbResp.in.lanes(w).ticket.sq_seq
 
     dis.valid := coreValidReq(w)
     dis.bits  := issueOp
 
-    io.rob.lanes(w).req_valid := dis.fire
-    io.sb.lanes(w).fire       := dis.fire
+    robReq.out.lanes(w).valid := dis.fire
+    sbReq.out.lanes(w).fire   := dis.fire
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    val consumeThisLane = io.exception.flush || io.scheduler.reqs(w).fire
+    val consumeThisLane = exception.in.flush || schedulerReq.out.lanes(w).fire
 
     if (w == 0) {
-      io.decode.lanes(w).ready := consumeThisLane
+      decode.in.lanes(w).ready := consumeThisLane
     } else {
-      io.decode.lanes(w).ready := io.decode.lanes(w - 1).fire && consumeThisLane
+      decode.in.lanes(w).ready := decode.in.lanes(w - 1).fire && consumeThisLane
     }
   }
 }

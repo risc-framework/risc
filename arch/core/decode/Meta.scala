@@ -1,24 +1,16 @@
 package arch.core.decode
 
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
+import vutils.graph.NodeDims
 import chisel3._
 import chisel3.util.BitPat
 
-object DecodeMeta {
-  val Type = NodeType("decode")
+object DecodeDims extends NodeDims("decode") {
+  val ISA  = dim("isa")
+  val KIND = dim("kind")
 }
 
-object DecodeDims {
-  val ISA  = NodeDim("isa")
-  val KIND = NodeDim("kind")
-}
-
-trait DecodeIsaImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = DecodeMeta.Type
-  override def dim: NodeDim       = DecodeDims.ISA
-  override def name: String       = value
-
+trait DecodeIsaImpl extends DecodeDims.ISA.Impl {
   def uopWidth: Int
   def default(implicit p: Parameters): List[BitPat]
   def table(implicit p: Parameters): Array[(BitPat, List[BitPat])]
@@ -28,22 +20,16 @@ trait DecodeIsaImpl extends NodeDimensionImpl {
   def imm(sel: UInt, instr: UInt)(implicit p: Parameters): UInt
 }
 
-trait DecodeKindImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = DecodeMeta.Type
-  override def dim: NodeDim       = DecodeDims.KIND
-  override def name: String       = value
-
+trait DecodeKindImpl extends DecodeDims.KIND.Impl {
   def decode(isa: DecodeIsaImpl, in: DecodePacket)(implicit p: Parameters): DecodedPacket
 }
 
-object DecodeIsaFactory
-    extends NodeDimensionRegistry[DecodeIsaImpl](DecodeMeta.Type, DecodeDims.ISA)
+object DecodeIsaFactory extends DecodeDims.ISA.Registry[DecodeIsaImpl]
 
-object DecodeKindFactory
-    extends NodeDimensionRegistry[DecodeKindImpl](DecodeMeta.Type, DecodeDims.KIND)
+object DecodeKindFactory extends DecodeDims.KIND.Registry[DecodeKindImpl]
 
 object DecodeInit {
-  val table  = impls.kind.table.DecodeTableKind
-  val rv32i  = impls.isa.rv32i.DecodeRv32iIsa
-  val rv32im = impls.isa.rv32im.DecodeRv32imIsa
+  val table  = impls.kind.table.DecodeTableKind.registered
+  val rv32i  = impls.isa.rv32i.DecodeRv32iIsa.registered
+  val rv32im = impls.isa.rv32im.DecodeRv32imIsa.registered
 }

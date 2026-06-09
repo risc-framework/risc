@@ -3,7 +3,7 @@ package arch.core.decode.impls.kind.table
 import arch.configs._
 import arch.core.decode._
 import chisel3._
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 
 object DecodeTableKind extends RegisteredNodeUtils[DecodeKindImpl] {
   override def utils: DecodeKindImpl = new DecodeKindImpl {
@@ -46,5 +46,6 @@ object DecodeTableKind extends RegisteredNodeUtils[DecodeKindImpl] {
     }
   }
 
-  override def registry: NodeRegistry[DecodeKindImpl] = DecodeKindFactory
+  override def registry: NodeDimensionRegistry[DecodeKindImpl] =
+    DecodeKindFactory
 }

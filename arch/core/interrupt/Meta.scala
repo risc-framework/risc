@@ -1,30 +1,24 @@
 package arch.core.interrupt
 
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
+import arch.configs._
+import arch.core.csr.{ CsrTrapView, InterruptLines }
+import arch.core.exception.ExceptionRequest
+import vutils.graph.NodeDims
 
-object InterruptMeta {
-  val Type = NodeType("interrupt")
+object InterruptDims extends NodeDims("interrupt") {
+  val ISA = dim("isa")
 }
 
-object InterruptDims {
-  val ISA = NodeDim("isa")
-}
-
-trait InterruptIsaImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = InterruptMeta.Type
-  override def dim: NodeDim       = InterruptDims.ISA
-  override def name: String       = value
-
+trait InterruptIsaImpl extends InterruptDims.ISA.Impl {
   def detect(
-    view: arch.core.csr.CsrTrapView,
-    irq: arch.core.csr.InterruptLines
-  )(implicit p: arch.configs.Parameters): TrapCandidate
+    view: CsrTrapView,
+    irq: InterruptLines
+  )(implicit p: Parameters): ExceptionRequest
 }
 
-object InterruptIsaFactory
-    extends NodeDimensionRegistry[InterruptIsaImpl](InterruptMeta.Type, InterruptDims.ISA)
+object InterruptIsaFactory extends InterruptDims.ISA.Registry[InterruptIsaImpl]
 
 object InterruptInit {
-  val rv32i  = impls.isa.rv32i.InterruptRv32iIsa
-  val rv32im = impls.isa.rv32im.InterruptRv32imIsa
+  val rv32i  = impls.isa.rv32i.InterruptRv32iIsa.registered
+  val rv32im = impls.isa.rv32im.InterruptRv32imIsa.registered
 }

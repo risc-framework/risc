@@ -2,10 +2,10 @@ package arch.core.scheduler.impls.policy.scoreboard
 
 import arch.configs._
 import arch.core.scheduler._
-import arch.core.fupool.FuReq
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import arch.core.fupool.{ FuReq, FuResp }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ Mux1H, PriorityEncoder, log2Ceil }
+import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder, ValidIO, log2Ceil }
 
 class ScoreboardEntry(implicit p: Parameters) extends Bundle {
   val valid = Bool()
@@ -26,10 +26,29 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
   override def utils: SchedulerPolicyImpl = new SchedulerPolicyImpl {
     override def value: String = "scoreboard"
 
-    override def elaborate(io: SchedulerIO)(implicit p: Parameters): Unit = {
-      val ctx = new SchedulerContext(io)
+    override def elaborate(
+      exception: SchedulerExceptionReq,
+      dispatchReq: Int => DecoupledIO[FuReq],
+      fuReq: Int => DecoupledIO[FuReq],
+      fuDone: Int => ValidIO[FuResp]
+    )(implicit p: Parameters): Unit = {
+      val numRegs = p(NumArchRegs)
 
-      import ctx.{ numRegs, fuTypes, olderLaneAccepted, defaultFuReqs, defaultDispatchReady }
+      val fuTypes =
+        p(FunctionalUnits).map(_.`type`.index.U(p(FuTypeWidth).W))
+
+      def defaultFuReqs(): Unit =
+        for (i <- 0 until p(NumFUs)) {
+          fuReq(i).valid := false.B
+          fuReq(i).bits  := 0.U.asTypeOf(new FuReq)
+        }
+
+      def defaultDispatchReady(): Unit =
+        for (w <- 0 until p(IssueWidth))
+          dispatchReq(w).ready := false.B
+
+      def olderLaneAccepted(w: Int, accepted: Vec[Bool]): Bool =
+        if (w == 0) true.B else !dispatchReq(w - 1).valid || accepted(w - 1)
 
       defaultFuReqs()
       defaultDispatchReady()
@@ -48,10 +67,10 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       val cdb_rd      = Wire(Vec(p(NumFUs), UInt(log2Ceil(p(NumArchRegs)).W)))
 
       for (i <- 0 until p(NumFUs)) {
-        cdb_valid(i)   := io.fu_pool.done(i).valid
-        cdb_data(i)    := io.fu_pool.done(i).bits.result
-        cdb_rob_tag(i) := io.fu_pool.done(i).bits.rob_tag
-        cdb_rd(i)      := io.fu_pool.done(i).bits.rd
+        cdb_valid(i)   := fuDone(i).valid
+        cdb_data(i)    := fuDone(i).bits.result
+        cdb_rob_tag(i) := fuDone(i).bits.rob_tag
+        cdb_rd(i)      := fuDone(i).bits.rd
       }
 
       val base_pending_valid   = Wire(Vec(numRegs, Bool()))
@@ -116,13 +135,13 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         val entry         = snooped_entries(i)
         val ready_to_exec = entry.valid && entry.q1_ready && entry.q2_ready
 
-        io.fu_pool.reqs(i).valid         := ready_to_exec
-        io.fu_pool.reqs(i).bits          := entry.op
-        io.fu_pool.reqs(i).bits.fu_id    := i.U
-        io.fu_pool.reqs(i).bits.rs1_data := entry.v1
-        io.fu_pool.reqs(i).bits.rs2_data := entry.v2
+        fuReq(i).valid         := ready_to_exec
+        fuReq(i).bits          := entry.op
+        fuReq(i).bits.fu_id    := i.U
+        fuReq(i).bits.rs1_data := entry.v1
+        fuReq(i).bits.rs2_data := entry.v2
 
-        when(ready_to_exec && io.fu_pool.reqs(i).ready) {
+        when(ready_to_exec && fuReq(i).ready) {
           issued_entries(i).valid := false.B
         }
       }
@@ -148,7 +167,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         temp_fu_avail(0)(i) := !issued_entries(i).valid
 
       for (w <- 0 until p(IssueWidth)) {
-        val dis = io.dispatch.reqs(w)
+        val dis = dispatchReq(w)
         val op  = dis.bits
 
         val fu_match_mask = Wire(Vec(p(NumFUs), Bool()))
@@ -234,7 +253,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         }
       }
 
-      when(io.exception.flush) {
+      when(exception.flush) {
         for (r <- 0 until numRegs) {
           reg_pending_valid(r)   := false.B
           reg_pending_rob(r)     := 0.U
@@ -257,5 +276,6 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
     }
   }
 
-  override def registry: NodeRegistry[SchedulerPolicyImpl] = SchedulerPolicyFactory
+  override def registry: NodeDimensionRegistry[SchedulerPolicyImpl] =
+    SchedulerPolicyFactory
 }

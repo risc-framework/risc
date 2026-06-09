@@ -2,22 +2,14 @@ package arch.core.exception
 
 import arch.core.csr.CsrTrapUpdate
 import arch.configs._
-import vutils.graph.{ NodeDim, NodeDimensionImpl, NodeDimensionRegistry, NodeType }
+import vutils.graph.NodeDims
 import chisel3._
 
-object ExceptionMeta {
-  val Type = NodeType("exception")
+object ExceptionDims extends NodeDims("exception") {
+  val ISA = dim("isa")
 }
 
-object ExceptionDims {
-  val ISA = NodeDim("isa")
-}
-
-trait ExceptionIsaImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = ExceptionMeta.Type
-  override def dim: NodeDim       = ExceptionDims.ISA
-  override def name: String       = value
-
+trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
   def select(
     requests: Seq[ExceptionRequest],
     csrBusy: Bool,
@@ -25,10 +17,9 @@ trait ExceptionIsaImpl extends NodeDimensionImpl {
   )(implicit p: Parameters): (RedirectBundle, CsrTrapUpdate)
 }
 
-object ExceptionIsaFactory
-    extends NodeDimensionRegistry[ExceptionIsaImpl](ExceptionMeta.Type, ExceptionDims.ISA)
+object ExceptionIsaFactory extends ExceptionDims.ISA.Registry[ExceptionIsaImpl]
 
 object ExceptionInit {
-  val rv32i  = impls.isa.rv32i.ExceptionRv32iIsa
-  val rv32im = impls.isa.rv32im.ExceptionRv32imIsa
+  val rv32i  = impls.isa.rv32i.ExceptionRv32iIsa.registered
+  val rv32im = impls.isa.rv32im.ExceptionRv32imIsa.registered
 }

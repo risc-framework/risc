@@ -2,30 +2,22 @@ package arch.core.alu
 
 import arch.core.fupool.FuReq
 import arch.configs._
-import vutils.graph.{ NodeType, NodeDim, NodeDimensionImpl, NodeDimensionRegistry }
+import vutils.graph.NodeDims
 import chisel3._
 
-object AluMeta {
-  val Type = NodeType("alu")
+object AluDims extends NodeDims("alu") {
+  val ISA = dim("isa")
 }
 
-object AluDims {
-  val ISA = NodeDim("isa")
-}
-
-trait AluIsaImpl extends NodeDimensionImpl {
-  override def nodeType: NodeType = AluMeta.Type
-  override def dim: NodeDim       = AluDims.ISA
-  override def name: String       = value
-
+trait AluIsaImpl extends AluDims.ISA.Impl {
   def fnTypeWidth: Int
   def decode(uop: UInt): AluCtrl
   def execute(uop: FuReq)(implicit p: Parameters): UInt
 }
 
-object AluIsaFactory extends NodeDimensionRegistry[AluIsaImpl](AluMeta.Type, AluDims.ISA)
+object AluIsaFactory extends AluDims.ISA.Registry[AluIsaImpl]
 
 object AluInit {
-  val rv32i  = impls.isa.rv32i.AluRv32iIsa
-  val rv32im = impls.isa.rv32im.AluRv32imIsa
+  val rv32i  = impls.isa.rv32i.AluRv32iIsa.registered
+  val rv32im = impls.isa.rv32im.AluRv32imIsa.registered
 }

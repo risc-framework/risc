@@ -7,15 +7,14 @@ import arch.core.sb.StoreBufferTicket
 import chisel3._
 import chisel3.util.{ Decoupled, log2Ceil }
 
-class DispatchDecodeIO(implicit p: Parameters) extends Bundle {
-  val lanes = Vec(p(IssueWidth), Flipped(Decoupled(new DecodedPacket)))
+class DispatchRegfileReq(implicit p: Parameters) extends Bundle {
+  val rs1_addr = Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W))
+  val rs2_addr = Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W))
 }
 
-class DispatchRegfileIO(implicit p: Parameters) extends Bundle {
-  val rs1_addr = Output(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
-  val rs2_addr = Output(Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W)))
-  val rs1_data = Input(Vec(p(IssueWidth), UInt(p(XLen).W)))
-  val rs2_data = Input(Vec(p(IssueWidth), UInt(p(XLen).W)))
+class DispatchRegfileResp(implicit p: Parameters) extends Bundle {
+  val rs1_data = Vec(p(IssueWidth), UInt(p(XLen).W))
+  val rs2_data = Vec(p(IssueWidth), UInt(p(XLen).W))
 }
 
 class DispatchRobPacket(implicit p: Parameters) extends Bundle {
@@ -23,43 +22,30 @@ class DispatchRobPacket(implicit p: Parameters) extends Bundle {
   val sq_idx  = UInt(log2Ceil(p(StoreBufferSize)).W)
 }
 
-class DispatchRobLaneIO(implicit p: Parameters) extends Bundle {
-  val req_valid = Output(Bool())
-  val req_ready = Input(Bool())
-  val req_bits  = Output(new DispatchRobPacket)
+class DispatchRobResp(implicit p: Parameters) extends Bundle {
+  val rob_tag = UInt(p(RobTagWidth).W)
 
-  val rob_tag = Input(UInt(p(RobTagWidth).W))
+  val rs1_bypass_valid   = Bool()
+  val rs1_bypass_data    = UInt(p(XLen).W)
+  val rs1_bypass_pending = Bool()
 
-  val rs1_bypass_valid   = Input(Bool())
-  val rs1_bypass_data    = Input(UInt(p(XLen).W))
-  val rs1_bypass_pending = Input(Bool())
-
-  val rs2_bypass_valid   = Input(Bool())
-  val rs2_bypass_data    = Input(UInt(p(XLen).W))
-  val rs2_bypass_pending = Input(Bool())
+  val rs2_bypass_valid   = Bool()
+  val rs2_bypass_data    = UInt(p(XLen).W)
+  val rs2_bypass_pending = Bool()
 }
 
-class DispatchRobIO(implicit p: Parameters) extends Bundle {
-  val lanes = Vec(p(IssueWidth), new DispatchRobLaneIO)
+class DispatchStoreBufferReq(implicit p: Parameters) extends Bundle {
+  val valid   = Bool()
+  val bits    = new DecodedPacket
+  val fire    = Bool()
+  val rob_tag = UInt(p(RobTagWidth).W)
 }
 
-class DispatchStoreBufferLaneIO(implicit p: Parameters) extends Bundle {
-  val valid   = Output(Bool())
-  val bits    = Output(new DecodedPacket)
-  val fire    = Output(Bool())
-  val rob_tag = Output(UInt(p(RobTagWidth).W))
-  val ready   = Input(Bool())
-  val ticket  = Input(new StoreBufferTicket)
+class DispatchStoreBufferResp(implicit p: Parameters) extends Bundle {
+  val ready  = Bool()
+  val ticket = new StoreBufferTicket
 }
 
-class DispatchStoreBufferIO(implicit p: Parameters) extends Bundle {
-  val lanes = Vec(p(IssueWidth), new DispatchStoreBufferLaneIO)
-}
-
-class DispatchSchedulerIO(implicit p: Parameters) extends Bundle {
-  val reqs = Vec(p(IssueWidth), Decoupled(new FuReq))
-}
-
-class DispatchExceptionIO extends Bundle {
-  val flush = Input(Bool())
+class DispatchExceptionReq extends Bundle {
+  val flush = Bool()
 }

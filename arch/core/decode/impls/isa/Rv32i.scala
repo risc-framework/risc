@@ -10,7 +10,7 @@ import arch.core.ld.impls.isa.rv32i.Rv32iMemUopConsts
 import arch.isa._
 import chisel3._
 import chisel3.util.{ BitPat, log2Ceil, MuxLookup, Cat, Fill }
-import vutils.graph.{ NodeRegistry, RegisteredNodeUtils }
+import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 
 trait Rv32iDecodeConsts
     extends Rv32iAluUopConsts
@@ -138,8 +138,11 @@ object DecodeRv32iIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32iDecod
       )
     }
 
-    override def readable(addr: UInt)(implicit p: Parameters): Bool = addr =/= 0.U
-    override def writable(addr: UInt)(implicit p: Parameters): Bool = addr =/= 0.U
+    override def readable(addr: UInt)(implicit p: Parameters): Bool =
+      addr =/= 0.U
+
+    override def writable(addr: UInt)(implicit p: Parameters): Bool =
+      addr =/= 0.U
 
     override def imm(sel: UInt, instr: UInt)(implicit p: Parameters): UInt =
       MuxLookup(sel, 0.U(p(XLen).W))(
@@ -169,5 +172,6 @@ object DecodeRv32iIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32iDecod
       )
   }
 
-  override def registry: NodeRegistry[DecodeIsaImpl] = DecodeIsaFactory
+  override def registry: NodeDimensionRegistry[DecodeIsaImpl] =
+    DecodeIsaFactory
 }
