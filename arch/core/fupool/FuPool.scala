@@ -64,9 +64,9 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
     port.ready := false.B
 
   private def forward[T <: Data](sink: DecoupledIO[T], source: DecoupledIO[T]): Unit = {
-    sink.valid    := source.valid
-    sink.bits     := source.bits
-    source.ready  := sink.ready
+    sink.valid   := source.valid
+    sink.bits    := source.bits
+    source.ready := sink.ready
   }
 
   private def connectFu(
@@ -84,7 +84,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
     schedulerDone.out.lanes(idx).valid := fuResp.valid && !exceptionReq.in.flush
     schedulerDone.out.lanes(idx).bits  := fuResp.bits
 
-    robDone.out.lanes(idx).valid := fuResp.valid && !exceptionReq.in.flush
+    robDone.out.lanes(idx).valid             := fuResp.valid && !exceptionReq.in.flush
     robDone.out.lanes(idx).bits.rob_tag      := fuResp.bits.rob_tag
     robDone.out.lanes(idx).bits.result       := fuResp.bits.result
     robDone.out.lanes(idx).bits.trap_req     := fuResp.bits.trap_req
@@ -140,7 +140,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
   private var stIdx  = 0
   private var bruIdx = 0
 
-  for ((unit, fuIdx) <- units) {
+  for ((unit, fuIdx) <- units)
     unit match {
       case alu: Alu =>
         connectFu(alu.fuReq.in, alu.fuResp.out, alu.flush.in, fuIdx)
@@ -178,7 +178,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case bru: Bru =>
         connectFu(bru.fuReq.in, bru.fuResp.out, bru.flush.in, fuIdx)
 
-        bruResolved.out.lanes(bruIdx).valid := bru.resolved.out.valid && !exceptionReq.in.flush
+        bruResolved.out.lanes(bruIdx).valid            := bru.resolved.out.valid && !exceptionReq.in.flush
         bruResolved.out.lanes(bruIdx).bits.rob_tag     := bru.resolved.out.bits.rob_tag
         bruResolved.out.lanes(bruIdx).bits.taken       := bru.resolved.out.bits.taken
         bruResolved.out.lanes(bruIdx).bits.target      := bru.resolved.out.bits.target
@@ -200,5 +200,4 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
 
       case _ =>
     }
-  }
 }
