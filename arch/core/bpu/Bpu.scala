@@ -1,8 +1,8 @@
 package arch.core.bpu
 
 import arch.configs._
-import chisel3._
 import vutils.graph.Node
+import chisel3._
 
 class Bpu(implicit p: Parameters) extends Node[Parameters]("bpu") {
   val ifuReq    = in[BpuIfuReq]

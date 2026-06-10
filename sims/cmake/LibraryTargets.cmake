@@ -6,8 +6,6 @@ add_library(demu
   ${GEN_HEADERS}
 )
 
-add_dependencies(demu)
-
 verilate(demu
   SOURCES ${RTL_SOURCE}
   VERILATOR_ARGS
