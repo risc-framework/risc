@@ -19,12 +19,12 @@ class CpuDebugInfo(implicit p: Parameters) extends Bundle {
   val cycle_count   = UInt(64.W)
   val instret_count = UInt(64.W)
 
-  val instret  = Vec(p(IssueWidth), Bool())
-  val pc       = Vec(p(IssueWidth), UInt(p(XLen).W))
-  val instr    = Vec(p(IssueWidth), UInt(p(ILen).W))
-  val reg_we   = Vec(p(IssueWidth), Bool())
-  val reg_addr = Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W))
-  val reg_data = Vec(p(IssueWidth), UInt(p(XLen).W))
+  val instret  = Vec(p(CommitWidth), Bool())
+  val pc       = Vec(p(CommitWidth), UInt(p(XLen).W))
+  val instr    = Vec(p(CommitWidth), UInt(p(ILen).W))
+  val reg_we   = Vec(p(CommitWidth), Bool())
+  val reg_addr = Vec(p(CommitWidth), UInt(log2Ceil(p(NumArchRegs)).W))
+  val reg_data = Vec(p(CommitWidth), UInt(p(XLen).W))
 
   val branch_taken  = Bool()
   val branch_source = UInt(p(XLen).W)
@@ -37,10 +37,10 @@ class CpuDebugInfo(implicit p: Parameters) extends Bundle {
 
   val flush_cycle    = Bool()
   val bpu_mispredict = Bool()
-  val branch_commit  = UInt(log2Ceil(p(IssueWidth) + 1).W)
+  val branch_commit  = UInt(log2Ceil(p(CommitWidth) + 1).W)
   val rob_empty      = Bool()
-  val issue_count    = UInt(log2Ceil(p(IssueWidth) + 1).W)
-  val commit_count   = UInt(log2Ceil(p(IssueWidth) + 1).W)
+  val issue_count    = UInt(log2Ceil(p(CommitWidth) + 1).W)
+  val commit_count   = UInt(log2Ceil(p(CommitWidth) + 1).W)
 
   val frontend_stall = Bool()
   val backend_stall  = Bool()

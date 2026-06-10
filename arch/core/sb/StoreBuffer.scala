@@ -1,13 +1,13 @@
 package arch.core.sb
 
+import arch.configs._
 import arch.core.dispatch.{ DispatchStoreBufferReq, DispatchStoreBufferResp }
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.rob.RobSbCommit
-import arch.configs._
-import vcache.CacheCommand
-import vutils.graph.Node
 import chisel3._
 import chisel3.util.{ Cat, Mux1H, PopCount, log2Ceil }
+import vcache.CacheCommand
+import vutils.graph.Node
 
 class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer") {
   val exception = in[StoreBufferExceptionReq]
@@ -15,7 +15,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   val dispatchReq  = inVec[DispatchStoreBufferReq](p => p(IssueWidth))
   val dispatchResp = outVec[DispatchStoreBufferResp](p => p(IssueWidth))
 
-  val robCommit = inVVec[RobSbCommit](p => p(IssueWidth))
+  val robCommit = inVVec[RobSbCommit](p => p(CommitWidth))
 
   val fwdReq  = inDVec[StoreForwardReq](p => p(NumLDs))
   val fwdResp = outDVec[StoreForwardResp](p => p(NumLDs))
@@ -207,7 +207,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   for (i <- 0 until p(StoreBufferSize)) {
     val drainedThis = drainRespFire && head === i.U
     val writeHit    = Wire(Vec(numStorePorts, Bool()))
-    val commitHit   = Wire(Vec(p(IssueWidth), Bool()))
+    val commitHit   = Wire(Vec(p(CommitWidth), Bool()))
     val allocHit    = Wire(Vec(p(IssueWidth), Bool()))
 
     for (s <- 0 until numStorePorts)
@@ -217,7 +217,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
         entries(i).rob_tag === storeWrite.in.lanes(s).bits.rob_tag &&
         !drainedThis
 
-    for (c <- 0 until p(IssueWidth))
+    for (c <- 0 until p(CommitWidth))
       commitHit(c) := robCommit.in.lanes(c).valid &&
         robCommit.in.lanes(c).bits.is_store &&
         robCommit.in.lanes(c).bits.sq_idx === i.U &&
@@ -242,9 +242,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     val writeCacheable = Mux1H(
       (0 until numStorePorts).map(s => writeHit(s) -> storeWrite.in.lanes(s).bits.cacheable)
     )
-    val allocSeq       = Mux1H(
-      (0 until p(IssueWidth)).map(a => allocHit(a) -> sqSeqForLane(a))
-    )
+    val allocSeq       = Mux1H((0 until p(IssueWidth)).map(a => allocHit(a) -> sqSeqForLane(a)))
     val allocRobTag    = Mux1H(
       (0 until p(IssueWidth)).map(a => allocHit(a) -> dispatchReq.in.lanes(a).rob_tag)
     )

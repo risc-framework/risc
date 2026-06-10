@@ -85,28 +85,6 @@ protected:
     word_t reg_data{0};
   };
 
-  auto read_retire_lane0() const noexcept -> RetirePacket {
-    return RetirePacket{
-        .valid = static_cast<bool>(dut_->debug_instret_0),
-        .pc = static_cast<addr_t>(dut_->debug_pc_0),
-        .instr = static_cast<instr_t>(dut_->debug_instr_0),
-        .reg_we = static_cast<bool>(dut_->debug_reg_we_0),
-        .reg_addr = static_cast<uint8_t>(dut_->debug_reg_addr_0),
-        .reg_data = static_cast<word_t>(dut_->debug_reg_data_0),
-    };
-  }
-
-  auto read_retire_lane1() const noexcept -> RetirePacket {
-    return RetirePacket{
-        .valid = static_cast<bool>(dut_->debug_instret_1),
-        .pc = static_cast<addr_t>(dut_->debug_pc_1),
-        .instr = static_cast<instr_t>(dut_->debug_instr_1),
-        .reg_we = static_cast<bool>(dut_->debug_reg_we_1),
-        .reg_addr = static_cast<uint8_t>(dut_->debug_reg_addr_1),
-        .reg_data = static_cast<word_t>(dut_->debug_reg_data_1),
-    };
-  }
-
   void on_init() override {
     difftest_error_.store(false);
     sim_running_.store(true);
@@ -160,7 +138,7 @@ protected:
       if (__builtin_expect(local_batch_.size() >= batch_size_, 0)) {
         std::unique_lock<std::mutex> lock(mtx_);
 
-        cv_produce_.wait(lock, [this]() {
+        cv_produce_.wait(lock, [this]() -> bool {
           return state_queue_.size() < max_queue_batches_ ||
                  difftest_error_.load(std::memory_order_relaxed);
         });
@@ -205,7 +183,7 @@ private:
 
       {
         std::unique_lock<std::mutex> lock(mtx_);
-        cv_consume_.wait(lock, [this]() {
+        cv_consume_.wait(lock, [this]() -> bool {
           return !state_queue_.empty() || !sim_running_.load();
         });
 

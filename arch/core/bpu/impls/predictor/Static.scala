@@ -9,11 +9,9 @@ object StaticNotTakenPredictor extends RegisteredNodeUtils[PredictorKindImpl] {
   override def utils: PredictorKindImpl = new PredictorKindImpl {
     override def value: String = "static_nt"
 
-    override def elaborate(
-      req: PredictorQueryReq,
-      resp: PredictorQueryResp,
-      update: BpuUpdate
-    )(implicit p: Parameters): Unit =
+    override def elaborate(req: PredictorQueryReq, resp: PredictorQueryResp, update: BpuUpdate)(
+      implicit p: Parameters
+    ): Unit =
       for (w <- 0 until p(IssueWidth)) {
         resp.taken(w)        := false.B
         resp.pht_index(w)    := 0.U
@@ -29,11 +27,9 @@ object StaticTakenPredictor extends RegisteredNodeUtils[PredictorKindImpl] {
   override def utils: PredictorKindImpl = new PredictorKindImpl {
     override def value: String = "static_t"
 
-    override def elaborate(
-      req: PredictorQueryReq,
-      resp: PredictorQueryResp,
-      update: BpuUpdate
-    )(implicit p: Parameters): Unit =
+    override def elaborate(req: PredictorQueryReq, resp: PredictorQueryResp, update: BpuUpdate)(
+      implicit p: Parameters
+    ): Unit =
       for (w <- 0 until p(IssueWidth)) {
         resp.taken(w)        := true.B
         resp.pht_index(w)    := 0.U

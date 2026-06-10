@@ -29,7 +29,7 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") {
   private val state   = RegInit(StState.IDLE)
   private val uopReg  = Reg(new FuReq)
 
-  private val ctrl        = isaImpl.decodeStore(uopReg.uop)
+  private val ctrl        = isaImpl.decode(uopReg.uop)
   private val addr        = uopReg.rs1_data + uopReg.imm
   private val alignedAddr = isaImpl.alignedAddr(addr)
   private val storeData   = isaImpl.alignedStoreData(ctrl, addr, uopReg.rs2_data)

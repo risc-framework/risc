@@ -26,6 +26,7 @@ package object configs {
   // Scheduler Parameters
   object ScheduleType    extends Field[String]
   object IssueWidth      extends Field[Int]
+  object CommitWidth     extends Field[Int]
   object FunctionalUnits extends Field[Seq[FunctionalUnitDescriptor]]
 
   // Decoder Parameters

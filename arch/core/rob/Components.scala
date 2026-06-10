@@ -57,14 +57,14 @@ class RobExceptionResp(implicit p: Parameters) extends Bundle {
 }
 
 class RobDebugInfo(implicit p: Parameters) extends Bundle {
-  val instret        = Vec(p(IssueWidth), Bool())
-  val pc             = Vec(p(IssueWidth), UInt(p(XLen).W))
-  val instr          = Vec(p(IssueWidth), UInt(p(ILen).W))
-  val reg_we         = Vec(p(IssueWidth), Bool())
-  val reg_addr       = Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W))
-  val reg_data       = Vec(p(IssueWidth), UInt(p(XLen).W))
-  val commit_count   = UInt(log2Ceil(p(IssueWidth) + 1).W)
-  val branch_commit  = UInt(log2Ceil(p(IssueWidth) + 1).W)
+  val instret        = Vec(p(CommitWidth), Bool())
+  val pc             = Vec(p(CommitWidth), UInt(p(XLen).W))
+  val instr          = Vec(p(CommitWidth), UInt(p(ILen).W))
+  val reg_we         = Vec(p(CommitWidth), Bool())
+  val reg_addr       = Vec(p(CommitWidth), UInt(log2Ceil(p(NumArchRegs)).W))
+  val reg_data       = Vec(p(CommitWidth), UInt(p(XLen).W))
+  val commit_count   = UInt(log2Ceil(p(CommitWidth) + 1).W)
+  val branch_commit  = UInt(log2Ceil(p(CommitWidth) + 1).W)
   val bpu_mispredict = Bool()
   val empty          = Bool()
 }

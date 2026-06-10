@@ -9,7 +9,7 @@ object LdDims extends NodeDims("ld") {
 }
 
 trait LdIsaImpl extends LdDims.ISA.Impl with LoadDataHelpers {
-  def decodeLoad(uop: UInt)(implicit p: Parameters): LoadCtrl
+  def decode(uop: UInt)(implicit p: Parameters): LoadCtrl
 }
 
 object LdIsaFactory extends LdDims.ISA.Registry[LdIsaImpl]

@@ -12,8 +12,8 @@ object LdRv32imIsa extends RegisteredNodeUtils[LdIsaImpl] {
 
     override def value: String = "rv32im"
 
-    override def decodeLoad(uop: UInt)(implicit p: Parameters): LoadCtrl =
-      rv32i.decodeLoad(uop)
+    override def decode(uop: UInt)(implicit p: Parameters): LoadCtrl =
+      rv32i.decode(uop)
   }
 
   override def registry: NodeDimensionRegistry[LdIsaImpl] =

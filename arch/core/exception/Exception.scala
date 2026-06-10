@@ -2,7 +2,6 @@ package arch.core.exception
 
 import arch.configs._
 import arch.core.dispatch.DispatchExceptionReq
-import arch.core.flush.FlushRobReq
 import arch.core.ifu.{ IfuExceptionReq, IfuExceptionResp }
 import arch.core.rob.{ RobExceptionReq, RobExceptionResp }
 import arch.core.sb.StoreBufferExceptionReq
@@ -38,9 +37,7 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   private val isaImpl = ExceptionIsaFactory.select(cfg)
   private val archPc  = Mux(robResp.in.empty, ifuResp.in.fetch_pc, robResp.in.commit_pc)
 
-  private val requests =
-    Seq(flushReq.in, interruptReq.in)
-
+  private val requests = Seq(flushReq.in, interruptReq.in)
   private val selected = isaImpl.select(
     requests,
     fuPoolResp.in.csr_busy,

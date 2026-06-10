@@ -34,7 +34,7 @@ object LdRv32iIsa extends RegisteredNodeUtils[LdIsaImpl] with Rv32iMemUopConsts 
   override def utils: LdIsaImpl = new LdIsaImpl with Rv32iMemUopConsts {
     override def value: String = "rv32i"
 
-    override def decodeLoad(uop: UInt)(implicit p: Parameters): LoadCtrl = {
+    override def decode(uop: UInt)(implicit p: Parameters): LoadCtrl = {
       val ctrl = Wire(new LoadCtrl)
       val size = uop(1, 0)
 

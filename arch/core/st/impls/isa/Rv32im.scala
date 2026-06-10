@@ -12,8 +12,8 @@ object StRv32imIsa extends RegisteredNodeUtils[StIsaImpl] {
 
     override def value: String = "rv32im"
 
-    override def decodeStore(uop: UInt)(implicit p: Parameters): StoreCtrl =
-      rv32i.decodeStore(uop)
+    override def decode(uop: UInt)(implicit p: Parameters): StoreCtrl =
+      rv32i.decode(uop)
   }
 
   override def registry: NodeDimensionRegistry[StIsaImpl] =

@@ -54,6 +54,7 @@ object MainSystem extends App {
       NumPhyRegs                    -> 64,
       ScheduleType                  -> "scoreboard",
       IssueWidth                    -> 2,
+      CommitWidth                   -> 1,
       FunctionalUnits               -> Seq(
         FunctionalUnitDescriptor(
           name = "ALU_0",

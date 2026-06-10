@@ -34,7 +34,7 @@ object StRv32iIsa extends RegisteredNodeUtils[StIsaImpl] with Rv32iMemUopConsts 
   override def utils: StIsaImpl = new StIsaImpl with Rv32iMemUopConsts {
     override def value: String = "rv32i"
 
-    override def decodeStore(uop: UInt)(implicit p: Parameters): StoreCtrl = {
+    override def decode(uop: UInt)(implicit p: Parameters): StoreCtrl = {
       val ctrl = Wire(new StoreCtrl)
       val size = uop(1, 0)
 

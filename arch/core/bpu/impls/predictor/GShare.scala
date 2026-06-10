@@ -10,11 +10,9 @@ object GSharePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCo
   override def utils: PredictorKindImpl = new PredictorKindImpl with BHTConsts {
     override def value: String = "gshare"
 
-    override def elaborate(
-      req: PredictorQueryReq,
-      resp: PredictorQueryResp,
-      update: BpuUpdate
-    )(implicit p: Parameters): Unit = {
+    override def elaborate(req: PredictorQueryReq, resp: PredictorQueryResp, update: BpuUpdate)(
+      implicit p: Parameters
+    ): Unit = {
       val phtEntries = 1 << p(GShareGhrWidth)
 
       require(p(GShareGhrWidth) >= 2, "GShareGhrWidth must be at least 2")

@@ -6,17 +6,17 @@ import arch.core.flush.FlushRobReq
 import arch.core.fupool.FunctionalUnitType
 import arch.core.regfile.RegfileWrite
 import arch.configs._
-import vutils.graph.Node
 import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
+import vutils.graph.Node
 
 class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val dispatchReq   = inDVec[DispatchRobPacket](p => p(IssueWidth))
   val dispatchResp  = outVec[DispatchRobResp](p => p(IssueWidth))
   val fuDone        = inVVec[RobFuDone](p => p(NumFUs))
   val bruResolved   = inVVec[RobBruResolved](p => p(NumBRUs))
-  val regfileWrite  = outVVec[RegfileWrite](p => p(IssueWidth))
-  val sbCommit      = outVVec[RobSbCommit](p => p(IssueWidth))
+  val regfileWrite  = outVVec[RegfileWrite](p => p(CommitWidth))
+  val sbCommit      = outVVec[RobSbCommit](p => p(CommitWidth))
   val bpuUpdate     = out[BpuUpdate]
   val flush         = out[FlushRobReq]
   val exceptionReq  = in[RobExceptionReq]
@@ -112,16 +112,16 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       }
     }
 
-  private val commitCanContinue = Wire(Vec(p(IssueWidth) + 1, Bool()))
-  private val commitBlocked     = Wire(Vec(p(IssueWidth) + 1, Bool()))
-  private val commitIdx         = Wire(Vec(p(IssueWidth), UInt(p(RobTagWidth).W)))
-  private val commitInfo        = Wire(Vec(p(IssueWidth), new RobCommitInfo))
-  private val commitPops        = Wire(Vec(p(IssueWidth), Bool()))
+  private val commitCanContinue = Wire(Vec(p(CommitWidth) + 1, Bool()))
+  private val commitBlocked     = Wire(Vec(p(CommitWidth) + 1, Bool()))
+  private val commitIdx         = Wire(Vec(p(CommitWidth), UInt(p(RobTagWidth).W)))
+  private val commitInfo        = Wire(Vec(p(CommitWidth), new RobCommitInfo))
+  private val commitPops        = Wire(Vec(p(CommitWidth), Bool()))
 
   commitCanContinue(0) := true.B
   commitBlocked(0)     := false.B
 
-  for (w <- 0 until p(IssueWidth)) {
+  for (w <- 0 until p(CommitWidth)) {
     commitIdx(w) := wrapAdd(head, w.U)
 
     val entry       = buffer(commitIdx(w))
@@ -183,7 +183,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
 
   private val enqCount = PopCount(enqFire)
 
-  for (w <- 0 until p(IssueWidth))
+  for (w <- 0 until p(CommitWidth))
     when(commitPops(w)) {
       buffer(commitIdx(w)).valid := false.B
     }
@@ -243,7 +243,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     dispatchResp.out.lanes(w).rs2_bypass_pending := rs2Pending
   }
 
-  for (w <- 0 until p(IssueWidth)) {
+  for (w <- 0 until p(CommitWidth)) {
     regfileWrite.out.lanes(w).valid     := commitInfo(w).pop && commitInfo(w).rd_write
     regfileWrite.out.lanes(w).bits.addr := commitInfo(w).rd
     regfileWrite.out.lanes(w).bits.data := commitInfo(w).data
@@ -255,7 +255,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
 
   private val bpuUpdateWire = WireDefault(0.U.asTypeOf(new BpuUpdate))
 
-  for (w <- 0 until p(IssueWidth)) {
+  for (w <- 0 until p(CommitWidth)) {
     val lane               = commitInfo(w)
     val predTakenNonBranch = !lane.is_branch && lane.bpu_pred_taken
     val shouldUpdateBranch = lane.pop && (lane.is_branch || predTakenNonBranch)
@@ -299,7 +299,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
 
   debug.out.empty := count === 0.U
 
-  for (w <- 0 until p(IssueWidth)) {
+  for (w <- 0 until p(CommitWidth)) {
     debug.out.instret(w)  := commitInfo(w).pop
     debug.out.pc(w)       := commitInfo(w).pc
     debug.out.instr(w)    := commitInfo(w).instr

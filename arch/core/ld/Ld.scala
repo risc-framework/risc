@@ -51,7 +51,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val reqOutstanding  = RegInit(false.B)
   private val reqWasCache     = RegInit(false.B)
 
-  private val acceptCtrl          = isaImpl.decodeLoad(fuReq.in.bits.uop)
+  private val acceptCtrl          = isaImpl.decode(fuReq.in.bits.uop)
   private val acceptImm           = fuReq.in.bits.imm
   private val acceptAddr          = fuReq.in.bits.rs1_data + acceptImm
   private val acceptAlignedAddr   = isaImpl.alignedAddr(acceptAddr)

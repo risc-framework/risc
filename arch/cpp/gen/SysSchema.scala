@@ -68,7 +68,7 @@ private[cpp] object CppSysSchema {
       u32("BYTES_PER_INSTR", BytesPerInstr),
       u32("PC_STEP", PCStep),
       u64("RESET_VECTOR", ResetVector),
-      u32("ISSUE_WIDTH", IssueWidth),
+      u32("COMMIT_WIDTH", CommitWidth),
       u32("NUM_FUS", NumFUs),
       cppEnum("ReplPolicy", "BTB_REPL_POLICY", p => repl(p(BTBReplPolicy))),
       cppEnum("BusType", "BUS_TYPE", p => bus(p(BusType))),

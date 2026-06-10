@@ -19,13 +19,13 @@ private[cpp] object CppRetireBindingsSchema {
     emitRetirePacket(w)
     w.line()
 
-    w.line(s"inline constexpr uint32_t NUM_RETIRE_LANES = ${p(IssueWidth)}u;")
+    w.line(s"inline constexpr uint32_t NUM_RETIRE_LANES = ${p(CommitWidth)}u;")
     w.line()
 
     emitForwardDecl(w)
     w.line()
 
-    for (lane <- 0 until p(IssueWidth)) {
+    for (lane <- 0 until p(CommitWidth)) {
       emitLaneBinding(w, lane)
       w.line()
     }
@@ -74,7 +74,7 @@ private[cpp] object CppRetireBindingsSchema {
     w.indent {
       w.line("switch (lane) {")
       w.indent {
-        for (lane <- 0 until p(IssueWidth)) {
+        for (lane <- 0 until p(CommitWidth)) {
           w.line(s"case $lane:")
           w.indent {
             w.line(s"return RetireLaneBinding<$lane>::read(dut);")

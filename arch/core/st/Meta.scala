@@ -9,7 +9,7 @@ object StDims extends NodeDims("st") {
 }
 
 trait StIsaImpl extends StDims.ISA.Impl with StoreDataHelpers {
-  def decodeStore(uop: UInt)(implicit p: Parameters): StoreCtrl
+  def decode(uop: UInt)(implicit p: Parameters): StoreCtrl
 }
 
 object StIsaFactory extends StDims.ISA.Registry[StIsaImpl]

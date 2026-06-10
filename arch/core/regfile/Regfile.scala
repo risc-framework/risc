@@ -1,7 +1,7 @@
 package arch.core.regfile
 
-import arch.core.dispatch.{ DispatchRegfileReq, DispatchRegfileResp }
 import arch.configs._
+import arch.core.dispatch.{ DispatchRegfileReq, DispatchRegfileResp }
 import chisel3._
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 
@@ -14,7 +14,7 @@ class Regfile(implicit p: Parameters) extends Node[Parameters]("regfile") {
 
   val dispatchReq  = in[DispatchRegfileReq]
   val dispatchResp = out[DispatchRegfileResp]
-  val robWrite     = inVVec[RegfileWrite](p => p(IssueWidth))
+  val robWrite     = inVVec[RegfileWrite](p => p(CommitWidth))
 
   private val isaImpl = RegfileIsaFactory.select(cfg)
 
@@ -27,7 +27,7 @@ class Regfile(implicit p: Parameters) extends Node[Parameters]("regfile") {
   private val regsVec = VecInit(regsSeq)
 
   for (addr <- 0 until p(NumArchRegs))
-    for (w <- 0 until p(IssueWidth))
+    for (w <- 0 until p(CommitWidth))
       when(robWrite.in.lanes(w).valid && robWrite.in.lanes(w).bits.addr === addr.U) {
         regsSeq(addr) := robWrite.in.lanes(w).bits.data
       }
@@ -40,14 +40,11 @@ class Regfile(implicit p: Parameters) extends Node[Parameters]("regfile") {
       var rs1Bypassed = rs1Raw
       var rs2Bypassed = rs2Raw
 
-      for (i <- 0 until p(IssueWidth)) {
-        val matchRs1 =
-          robWrite.in.lanes(i).valid && dispatchReq.in
-            .rs1_addr(w) === robWrite.in.lanes(i).bits.addr
-
-        val matchRs2 =
-          robWrite.in.lanes(i).valid && dispatchReq.in
-            .rs2_addr(w) === robWrite.in.lanes(i).bits.addr
+      for (i <- 0 until p(CommitWidth)) {
+        val matchRs1 = robWrite.in.lanes(i).valid && dispatchReq.in
+          .rs1_addr(w) === robWrite.in.lanes(i).bits.addr
+        val matchRs2 = robWrite.in.lanes(i).valid && dispatchReq.in
+          .rs2_addr(w) === robWrite.in.lanes(i).bits.addr
 
         rs1Bypassed = Mux(matchRs1, robWrite.in.lanes(i).bits.data, rs1Bypassed)
         rs2Bypassed = Mux(matchRs2, robWrite.in.lanes(i).bits.data, rs2Bypassed)

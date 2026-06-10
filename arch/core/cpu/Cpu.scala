@@ -128,7 +128,7 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   debug.out.cycle_count   := cycleCount
   debug.out.instret_count := instretCount
 
-  for (w <- 0 until p(IssueWidth)) {
+  for (w <- 0 until p(CommitWidth)) {
     debug.out.instret(w)  := rob.debug.out.instret(w)
     debug.out.pc(w)       := rob.debug.out.pc(w)
     debug.out.instr(w)    := rob.debug.out.instr(w)

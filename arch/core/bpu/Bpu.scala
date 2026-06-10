@@ -1,16 +1,10 @@
 package arch.core.bpu
 
 import arch.configs._
-import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
+import vutils.graph.Node
 
 class Bpu(implicit p: Parameters) extends Node[Parameters]("bpu") {
-  override protected def cfg: NodeConfig = NodeConfig(
-    selector = NodeSelector(
-      BpuDims.PREDICTOR -> p(BpuPredictorKind)
-    )
-  )
-
   val ifuReq    = in[BpuIfuReq]
   val ifuResp   = out[BpuIfuResp]
   val robUpdate = in[BpuUpdate]
@@ -35,8 +29,9 @@ class Bpu(implicit p: Parameters) extends Node[Parameters]("bpu") {
   for (w <- 0 until p(IssueWidth)) {
     rawTaken(w) := btb.queryResp.out.hit(w) && predictor.queryResp.out.taken(w)
 
-    if (w > 0)
+    if (w > 0) {
       killedByOlderTaken(w) := killedByOlderTaken(w - 1) || rawTaken(w - 1)
+    }
   }
 
   for (w <- 0 until p(IssueWidth)) {
