@@ -21,7 +21,7 @@ trait Rv32imDecodeConsts
 
 object DecodeRv32imIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32imDecodeConsts {
   private def enc(name: String): BitPat =
-    RV32IM.isa.bitPat(name)
+    Rv32im.isa.bitPat(name)
 
   override def utils: DecodeIsaImpl = new DecodeIsaImpl {
     private val rv32i = DecodeRv32iIsa.utils

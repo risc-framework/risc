@@ -46,7 +46,7 @@ object MainSystem extends App {
 
   private val params = Parameters(
     Map(
-      ISA                           -> RV32IM.isa,
+      ISA                           -> Rv32im.isa,
       Frequency                     -> 50_000_000L,
       IBufferSize                   -> 16,
       ResetVector                   -> 0x80000000L,

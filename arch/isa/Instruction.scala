@@ -20,7 +20,7 @@ final case class InstructionEncoding(
 }
 
 object InstructionEncoding {
-  def fromBitPat(name: String, bp: BitPat): InstructionEncoding =
+  def apply(name: String, bp: BitPat): InstructionEncoding =
     InstructionEncoding(
       name = name,
       value = bp.value,

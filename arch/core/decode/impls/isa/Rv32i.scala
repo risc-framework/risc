@@ -53,7 +53,7 @@ trait Rv32iDecodeConsts
 
 object DecodeRv32iIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32iDecodeConsts {
   private def enc(name: String): BitPat =
-    RV32I.isa.bitPat(name)
+    Rv32i.isa.bitPat(name)
 
   override def utils: DecodeIsaImpl = new DecodeIsaImpl {
     override def value: String = "rv32i"
