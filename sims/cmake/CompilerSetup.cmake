@@ -27,7 +27,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 
   find_program(MOLD_LINKER mold)
   find_program(LLD_LINKER lld)
-    
+
   if(MOLD_LINKER)
     message(STATUS "Using mold linker")
     add_link_options(-fuse-ld=mold)
@@ -57,6 +57,7 @@ endif()
 
 if(USE_CCACHE)
   find_program(CCACHE_PROGRAM ccache)
+
   if(CCACHE_PROGRAM)
     set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
     set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
