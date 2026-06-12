@@ -62,6 +62,7 @@ package object configs {
   // Bus Parameters
   object BusType                       extends Field[String]
   object BusCrossbarFifoDepthPerClient extends Field[Int]
+  object BusRouteQueuePipe             extends Field[Boolean]
   object BusAddressMap                 extends Field[Seq[DeviceDescriptor]]
   // --------------------------------------------
 
@@ -164,6 +165,7 @@ package object configs {
       L1DCacheReplPolicy,
       BusType,
       BusCrossbarFifoDepthPerClient,
+      BusRouteQueuePipe,
       BusAddressMap
     )
 

@@ -11,7 +11,7 @@ using isa_def::byte_t;
 using isa_def::word_t;
 
 struct CPU_state {
-  word_t gpr[isa_def::NUM_ARCH_REGS];
+  std::array<word_t, isa_def::NUM_ARCH_REGS> gpr{};
   addr_t pc;
 };
 

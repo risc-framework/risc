@@ -116,6 +116,7 @@ object MainSystem extends App {
       L1DCacheReplPolicy            -> ReplPolicy.PseudoLRU,
       BusType                       -> "axif",
       BusCrossbarFifoDepthPerClient -> 4,
+      BusRouteQueuePipe             -> true,
       BusAddressMap                 -> Seq(
         DeviceDescriptor(
           name = "imem",

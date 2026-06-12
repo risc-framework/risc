@@ -26,7 +26,7 @@ object BusCrossbarAxilType extends RegisteredNodeUtils[BusCrossbarTypeImpl] {
         arbiterArDepth = d,
         arbiterBRouteDepth = 3 * d,
         arbiterRRouteDepth = 3 * d,
-        queuePipe = true,
+        queuePipe = p(BusRouteQueuePipe),
       )
     }
 

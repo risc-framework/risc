@@ -18,7 +18,8 @@ public:
     sock_ = socket(AF_INET, SOCK_STREAM, 0);
 
     int flag = 1;
-    setsockopt(sock_, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(int));
+    setsockopt(sock_, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char *>(&flag),
+               sizeof(int));
 
     struct sockaddr_in serv_addr{};
     serv_addr.sin_family = AF_INET;
@@ -58,9 +59,9 @@ public:
     std::stringstream ss;
     ss << "M" << std::hex << addr << "," << size << ":";
     for (size_t i = 0; i < size; i++) {
-      char buf[3];
-      snprintf(buf, sizeof(buf), "%02x", bytes[i]);
-      ss << buf;
+      std::array<char, 3> buf;
+      snprintf(buf.data(), buf.size(), "%02x", bytes[i]);
+      ss << buf.data();
     }
     send_packet(ss.str());
     recv_packet();
@@ -76,11 +77,11 @@ public:
   void push_state() override {
     std::stringstream ss;
     ss << "G";
-    auto encode_hex_le = [](word_t val) {
-      char buf[9];
-      snprintf(buf, sizeof(buf), "%02x%02x%02x%02x", val & 0xFF,
+    auto encode_hex_le = [](word_t val) -> std::string {
+      std::array<char, 9> buf;
+      snprintf(buf.data(), buf.size(), "%02x%02x%02x%02x", val & 0xFF,
                (val >> 8) & 0xFF, (val >> 16) & 0xFF, (val >> 24) & 0xFF);
-      return std::string(buf);
+      return std::string{buf.data()};
     };
 
     for (int i = 0; i < isa_def::NUM_ARCH_REGS; i++) {
@@ -118,7 +119,7 @@ private:
   CPU_state state_{};
   bool no_ack_mode_ = false;
 
-  char recv_buf_[8192];
+  std::array<char, 8192> recv_buf_;
   size_t recv_pos_ = 0;
   size_t recv_len_ = 0;
 
@@ -127,14 +128,14 @@ private:
     for (char c : data) {
       csum += static_cast<byte_t>(c);
     }
-    char buf[4];
-    snprintf(buf, sizeof(buf), "%02x", csum);
-    return buf;
+    std::array<char, 4> buf;
+    snprintf(buf.data(), buf.size(), "%02x", csum);
+    return buf.data();
   }
 
-  inline char read_char() {
+  inline auto read_char() -> char {
     if (recv_pos_ >= recv_len_) {
-      ssize_t bytes = recv(sock_, recv_buf_, sizeof(recv_buf_), 0);
+      ssize_t bytes = recv(sock_, recv_buf_.data(), recv_buf_.size(), 0);
       if (bytes <= 0) {
         DEMU_ERROR("QEMU GDB Socket closed or error.");
         exit(1);
@@ -195,7 +196,7 @@ private:
     return val;
   }
 
-  [[nodiscard]] inline uint8_t hex2val(char c) const {
+  [[nodiscard]] inline auto hex2val(char c) const -> uint8_t {
     if (c >= '0' && c <= '9') {
       return c - '0';
     }
