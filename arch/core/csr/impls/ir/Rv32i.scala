@@ -2,38 +2,35 @@ package arch.core.csr.impls.ir.rv32i
 
 import arch.configs._
 import arch.core.csr._
+import arch.core.exception.impls.isa.rv32i.Rv32iExceptionKindConsts
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.Cat
 
-object CsrRv32iIr extends RegisteredNodeUtils[CsrIrImpl] {
-  override def utils: CsrIrImpl = new CsrIrImpl {
+object Rv32iCsrIr extends RegisteredNodeUtils[CsrIrImpl] with Rv32iExceptionKindConsts {
+  override def utils: CsrIrImpl = new CsrIrImpl with Rv32iExceptionKindConsts {
     override def value: String = "rv32i"
-
-    private def get(regs: Map[String, UInt], name: String)(implicit p: Parameters): UInt =
-      regs.getOrElse(name, 0.U(p(XLen).W))
 
     override def command(regs: Map[String, UInt], extra: Map[String, UInt])(implicit
       p: Parameters
     ): CsrIrCmd = {
       val cmd     = Wire(new CsrIrCmd)
-      val mstatus = get(regs, "mstatus")
-      val mie     = get(regs, "mie")
-      val mip     = get(regs, "mip")
-      val mtvec   = get(regs, "mtvec")
-      val global  = mstatus(3)
+      val mstatus = regs.getOrElse("mstatus", 0.U(p(XLen).W))
+      val mie     = regs.getOrElse("mie", 0.U(p(XLen).W))
+      val mip     = regs.getOrElse("mip", 0.U(p(XLen).W))
+      val mtvec   = regs.getOrElse("mtvec", 0.U(p(XLen).W))
 
-      val msip  = global && mie(3) && (mip(3) || extra("soft_irq").orR)
-      val mtip  = global && mie(7) && (mip(7) || extra("timer_irq").orR)
-      val meip  = global && mie(11) && (mip(11) || extra("ext_irq").orR)
-      val async = 1.U(p(XLen).W) << (p(XLen) - 1)
+      val globalEnable = mstatus(3)
+      val meip         = globalEnable && mie(11) && mip(11)
+      val msip         = globalEnable && mie(3) && mip(3)
+      val mtip         = globalEnable && mie(7) && mip(7)
 
-      cmd.valid  := meip || msip || mtip
+      cmd.valid  := mtip || msip || meip
       cmd.target := Cat(mtvec(p(XLen) - 1, 2), 0.U(2.W))
-      cmd.cause  := Mux(
-        meip,
-        async | 11.U(p(XLen).W),
-        Mux(msip, async | 3.U(p(XLen).W), async | 7.U(p(XLen).W))
+      cmd.kind   := Mux(
+        mtip,
+        E(E_MACHINE_TIMER_INTERRUPT),
+        Mux(msip, E(E_MACHINE_SOFTWARE_INTERRUPT), E(E_MACHINE_EXTERNAL_INTERRUPT))
       )
 
       cmd

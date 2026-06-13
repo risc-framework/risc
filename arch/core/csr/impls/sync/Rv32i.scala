@@ -2,87 +2,75 @@ package arch.core.csr.impls.sync.rv32i
 
 import arch.configs._
 import arch.core.csr._
-import arch.isa._
+import arch.core.exception.ExceptionTrapUpdate
+import arch.core.exception.impls.isa.rv32i.Rv32iExceptionKindConsts
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.Cat
 
-object CsrRv32iSync extends RegisteredNodeUtils[CsrSyncImpl] {
-  override def utils: CsrSyncImpl = new CsrSyncImpl {
+object Rv32iCsrSync extends RegisteredNodeUtils[CsrSyncImpl] with Rv32iExceptionKindConsts {
+  override def utils: CsrSyncImpl = new CsrSyncImpl with Rv32iExceptionKindConsts {
     override def value: String = "rv32i"
-
-    private def enc(name: String): InstructionEncoding =
-      IsaFactory
-        .instrSet(value)
-        .all
-        .find(_.name == name)
-        .getOrElse {
-          throw new NoSuchElementException(s"Instruction '$name' not found in ISA '$value'")
-        }
-
-    private def isInstr(instr: UInt, name: String)(implicit p: Parameters): Bool = {
-      val e = enc(name)
-      (instr & e.mask.U(p(ILen).W)) === e.value.U(p(ILen).W)
-    }
-
-    private def get(regs: Map[String, UInt], name: String)(implicit p: Parameters): UInt =
-      regs.getOrElse(name, 0.U(p(XLen).W))
 
     override def command(instr: UInt, uop: UInt)(implicit p: Parameters): CsrSyncCmd = {
       val cmd      = Wire(new CsrSyncCmd)
-      val isMret   = isInstr(instr, "MRET")
-      val isEcall  = isInstr(instr, "ECALL")
-      val isEbreak = isInstr(instr, "EBREAK")
+      val isSys    = uop(3)
+      val isEcall  = isSys && instr === "h00000073".U(p(ILen).W)
+      val isEbreak = isSys && instr === "h00100073".U(p(ILen).W)
+      val isMret   = isSys && instr === "h30200073".U(p(ILen).W)
 
       cmd.trap_ret       := isMret
       cmd.sync_exception := isEcall || isEbreak
-      cmd.cause          := Mux(isEbreak, 3.U(p(XLen).W), 11.U(p(XLen).W))
+      cmd.kind           := Mux(isMret, E(E_TRAP_RETURN), Mux(isEbreak, E(E_BREAKPOINT), E(E_ECALL_M)))
 
       cmd
     }
 
-    override def illegalAccessCause(cmd: CsrFileCmd)(implicit p: Parameters): UInt =
-      2.U(p(XLen).W)
+    override def illegalAccessKind(cmd: CsrFileCmd)(implicit p: Parameters): UInt =
+      E(E_ILLEGAL_INSTRUCTION)
 
     override def view(regs: Map[String, UInt], extra: Map[String, UInt])(implicit
       p: Parameters
     ): CsrTrapView = {
-      val v = Wire(new CsrTrapView)
+      val out = Wire(new CsrTrapView)
 
-      v.status           := get(regs, "mstatus")
-      v.interruptEnable  := get(regs, "mie")
-      v.interruptPending := get(regs, "mip")
-      v.trapVector       := get(regs, "mtvec")
-      v.epc              := get(regs, "mepc")
+      out.status           := regs.getOrElse("mstatus", 0.U(p(XLen).W))
+      out.interruptEnable  := regs.getOrElse("mie", 0.U(p(XLen).W))
+      out.interruptPending := regs.getOrElse("mip", 0.U(p(XLen).W))
+      out.trapVector       := regs.getOrElse("mtvec", 0.U(p(XLen).W))
+      out.epc              := regs.getOrElse("mepc", 0.U(p(XLen).W))
 
-      v
+      out
     }
 
-    override def trapEntryUpdates(regs: Map[String, UInt], update: CsrTrapUpdate)(implicit
+    override def trapEntryUpdates(regs: Map[String, UInt], update: ExceptionTrapUpdate)(implicit
       p: Parameters
     ): Map[String, UInt] = {
-      val mstatus    = get(regs, "mstatus")
-      val mie        = mstatus(3)
-      val newMstatus = Cat(mstatus(31, 8), mie, mstatus(6, 4), 0.U(1.W), mstatus(2, 0))
+      val mstatus      = regs.getOrElse("mstatus", 0.U(p(XLen).W))
+      val mie          = mstatus(3)
+      val clearMie     = mstatus & ~(BigInt(1) << 3).U(p(XLen).W)
+      val clearMpieMpp = clearMie & ~((BigInt(1) << 7) | (BigInt(3) << 11)).U(p(XLen).W)
+      val nextMstatus  = clearMpieMpp | (mie.asUInt << 7) | (3.U(p(XLen).W) << 11)
 
       Map(
-        "mstatus" -> newMstatus,
+        "mstatus" -> nextMstatus,
         "mepc"    -> update.pc,
-        "mcause"  -> update.cause
+        "mcause"  -> update.cause.asUInt.pad(p(XLen))
       )
     }
 
     override def trapReturnTarget(regs: Map[String, UInt])(implicit p: Parameters): UInt =
-      get(regs, "mepc")
+      regs.getOrElse("mepc", 0.U(p(XLen).W))
 
     override def trapReturnUpdates(
       regs: Map[String, UInt]
     )(implicit p: Parameters): Map[String, UInt] = {
-      val mstatus    = get(regs, "mstatus")
-      val mpie       = mstatus(7)
-      val newMstatus = Cat(mstatus(31, 8), 1.U(1.W), mstatus(6, 4), mpie, mstatus(2, 0))
+      val mstatus = regs.getOrElse("mstatus", 0.U(p(XLen).W))
+      val mpie    = mstatus(7)
+      val clear   = mstatus & ~((BigInt(1) << 3) | (BigInt(1) << 7) | (BigInt(3) << 11)).U(p(XLen).W)
+      val next    = clear | (mpie.asUInt << 3) | (1.U(p(XLen).W) << 7)
 
-      Map("mstatus" -> newMstatus)
+      Map("mstatus" -> next)
     }
 
     override def trapTarget(view: CsrTrapView)(implicit p: Parameters): UInt =

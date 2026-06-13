@@ -19,8 +19,6 @@ class IBuffer(implicit p: Parameters) extends Node[Parameters]("ibuffer") {
   val flush  = in[IBufferFlush]
   val status = out[IBufferStatus]
 
-  override def desiredName: String = "ibuffer"
-
   require(isPow2(p(IBufferSize)), "IBufferSize must be a power of 2")
   require(p(IBufferSize) >= p(IssueWidth), "IBufferSize must be >= IssueWidth")
 

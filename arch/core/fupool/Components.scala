@@ -1,8 +1,9 @@
 package arch.core.fupool
 
-import arch.core.decode.{ DecodeDims, DecodeIsaFactory }
-import arch.core.csr.InterruptLines
 import arch.configs._
+import arch.core.csr.InterruptLines
+import arch.core.decode.{ DecodeDims, DecodeIsaFactory }
+import arch.core.exception.{ ExceptionDims, ExceptionIsaFactory }
 import vutils.graph.{ NodeConfig, NodeSelector }
 import chisel3._
 import chisel3.util.log2Ceil
@@ -43,6 +44,9 @@ class FuReq(implicit p: Parameters) extends Bundle {
 }
 
 class FuResp(implicit p: Parameters) extends Bundle {
+  private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
+  private val isa = ExceptionIsaFactory.select(cfg)
+
   val result  = UInt(p(XLen).W)
   val rd      = UInt(log2Ceil(p(NumArchRegs)).W)
   val pc      = UInt(p(XLen).W)
@@ -50,7 +54,7 @@ class FuResp(implicit p: Parameters) extends Bundle {
   val rob_tag = UInt(p(RobTagWidth).W)
 
   val trap_req     = Bool()
-  val trap_cause   = UInt(p(XLen).W)
+  val trap_kind    = UInt(isa.kindWidth.W)
   val trap_target  = UInt(p(XLen).W)
   val trap_ret     = Bool()
   val trap_ret_tgt = UInt(p(XLen).W)

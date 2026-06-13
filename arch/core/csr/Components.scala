@@ -1,6 +1,8 @@
 package arch.core.csr
 
 import arch.configs._
+import arch.core.exception.{ ExceptionDims, ExceptionIsaFactory, ExceptionTrapUpdate }
+import vutils.graph.{ NodeConfig, NodeSelector }
 import chisel3._
 
 case class CsrRegister(
@@ -8,7 +10,7 @@ case class CsrRegister(
   addr: BigInt,
   initValue: BigInt = 0L,
   writable: Boolean = true,
-  readable: Boolean = true,
+  readable: Boolean = true
 )
 
 object CsrUpdateBehavior {
@@ -30,15 +32,21 @@ class CsrFileCmd(val addrWidth: Int, val opWidth: Int)(implicit p: Parameters) e
 }
 
 class CsrSyncCmd(implicit p: Parameters) extends Bundle {
+  private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
+  private val isa = ExceptionIsaFactory.select(cfg)
+
   val trap_ret       = Bool()
   val sync_exception = Bool()
-  val cause          = UInt(p(XLen).W)
+  val kind           = UInt(isa.kindWidth.W)
 }
 
 class CsrIrCmd(implicit p: Parameters) extends Bundle {
+  private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
+  private val isa = ExceptionIsaFactory.select(cfg)
+
   val valid  = Bool()
   val target = UInt(p(XLen).W)
-  val cause  = UInt(p(XLen).W)
+  val kind   = UInt(isa.kindWidth.W)
 }
 
 class InterruptLines extends Bundle {
@@ -55,19 +63,12 @@ class CsrTrapView(implicit p: Parameters) extends Bundle {
   val epc              = UInt(p(XLen).W)
 }
 
-class CsrTrapUpdate(implicit p: Parameters) extends Bundle {
-  val valid  = Bool()
-  val is_ret = Bool()
-  val pc     = UInt(p(XLen).W)
-  val cause  = UInt(p(XLen).W)
-}
-
 class CsrCtrlReq(implicit p: Parameters) extends Bundle {
   val cycle       = UInt(64.W)
   val instret     = UInt(64.W)
   val irq         = new InterruptLines
   val arch_pc     = UInt(p(XLen).W)
-  val trap_update = new CsrTrapUpdate
+  val trap_update = new ExceptionTrapUpdate
 }
 
 class CsrCtrlResp(implicit p: Parameters) extends Bundle {

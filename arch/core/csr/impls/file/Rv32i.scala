@@ -54,7 +54,7 @@ trait Rv32iCsrFileMap {
   def SZ_CSR = CSR_CYCLE.getWidth
 }
 
-object CsrRv32iFile
+object Rv32iCsrFile
     extends RegisteredNodeUtils[CsrFileImpl]
     with Rv32iCsrUopConsts
     with Rv32iCsrFileMap {
@@ -118,14 +118,9 @@ object CsrRv32iFile
       )
     )
 
-    override def command(
-      instr: UInt,
-      uop: UInt,
-      rs1: UInt,
-      rd: UInt,
-      rs1Data: UInt,
-      imm: UInt
-    )(implicit p: Parameters): CsrFileCmd = {
+    override def command(instr: UInt, uop: UInt, rs1: UInt, rd: UInt, rs1Data: UInt, imm: UInt)(
+      implicit p: Parameters
+    ): CsrFileCmd = {
       val cmd       = Wire(new CsrFileCmd(addrWidth, opWidth))
       val isSys     = uop(3)
       val isImm     = uop(2)

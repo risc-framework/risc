@@ -1,37 +1,38 @@
 package arch.core.csr.impls.file.rv32im
 
-import arch.configs._
 import arch.core.csr._
-import arch.core.csr.impls.file.rv32i.CsrRv32iFile
+import arch.core.csr.impls.file.rv32i.Rv32iCsrFile
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
-import chisel3._
 
-object CsrRv32imFile extends RegisteredNodeUtils[CsrFileImpl] {
+object Rv32imCsrFile extends RegisteredNodeUtils[CsrFileImpl] {
   override def utils: CsrFileImpl = new CsrFileImpl {
-    private val rv32i = CsrRv32iFile.utils
+    private val rv32i = Rv32iCsrFile.utils
 
-    override def value: String  = "rv32im"
-    override def addrWidth: Int = rv32i.addrWidth
-    override def opWidth: Int   = rv32i.opWidth
+    override def value: String =
+      "rv32im"
 
-    override def table(implicit p: Parameters): Seq[(CsrRegister, CsrUpdateBehavior)] =
-      rv32i.table.map {
-        case (reg, behavior) if reg.name == "misa" =>
-          (CsrRegister(reg.name, reg.addr, 0x40001100L, reg.writable, reg.readable), behavior)
-        case other                                 => other
-      }
+    override def addrWidth: Int =
+      rv32i.addrWidth
+
+    override def opWidth: Int =
+      rv32i.opWidth
+
+    override def table(implicit p: arch.configs.Parameters): Seq[(CsrRegister, CsrUpdateBehavior)] =
+      rv32i.table
 
     override def command(
-      instr: UInt,
-      uop: UInt,
-      rs1: UInt,
-      rd: UInt,
-      rs1Data: UInt,
-      imm: UInt
-    )(implicit p: Parameters): CsrFileCmd =
+      instr: chisel3.UInt,
+      uop: chisel3.UInt,
+      rs1: chisel3.UInt,
+      rd: chisel3.UInt,
+      rs1Data: chisel3.UInt,
+      imm: chisel3.UInt
+    )(implicit p: arch.configs.Parameters): CsrFileCmd =
       rv32i.command(instr, uop, rs1, rd, rs1Data, imm)
 
-    override def write(old: UInt, cmd: CsrFileCmd)(implicit p: Parameters): UInt =
+    override def write(old: chisel3.UInt, cmd: CsrFileCmd)(implicit
+      p: arch.configs.Parameters
+    ): chisel3.UInt =
       rv32i.write(old, cmd)
   }
 

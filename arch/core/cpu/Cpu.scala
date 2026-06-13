@@ -45,9 +45,9 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   private val fuPool        = subnode(new FuPool)
   private val rob           = subnode(new Rob)
   private val exception     = subnode(new Exception)
+  private val flush         = subnode(new Flush)
   private val storeBuffer   = subnode(new StoreBuffer)
   private val dispatch      = subnode(new Dispatch)
-  private val flush         = subnode(new Flush)
   private val memoryArbiter = subnode(new MemoryArbiter)
   private val l1ICache      = subnode(new L1ICache)
   private val l1DCache      = subnode(new L1DCache)
@@ -80,8 +80,6 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     bpu.ifuResp                -> ifu.bpuResp,
     rob.bpuUpdate              -> bpu.robUpdate,
     ifu.decode                 -> decode.ifu,
-    exception.ifuReq           -> ifu.exceptionReq,
-    ifu.exceptionResp          -> exception.ifuResp,
     decode.dispatch            -> dispatch.decode,
     dispatch.schedulerReq      -> scheduler.dispatchReq,
     dispatch.regfileReq        -> regfile.dispatchReq,
@@ -90,10 +88,8 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     rob.dispatchResp           -> dispatch.robResp,
     dispatch.sbReq             -> storeBuffer.dispatchReq,
     storeBuffer.dispatchResp   -> dispatch.sbResp,
-    exception.dispatchReq      -> dispatch.exception,
     scheduler.fuReq            -> fuPool.schedulerReq,
     fuPool.schedulerDone       -> scheduler.fuDone,
-    exception.schedulerReq     -> scheduler.exception,
     fuPool.robDone             -> rob.fuDone,
     fuPool.bruResolved         -> rob.bruResolved,
     fuPool.loadMemReq          -> memoryArbiter.loadMemReq,
@@ -104,23 +100,26 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     storeBuffer.fwdResp        -> fuPool.storeForwardResp,
     storeBuffer.status         -> fuPool.storeBufferStatus,
     fuPool.storeWrite          -> storeBuffer.storeWrite,
-    exception.csrReq           -> fuPool.exceptionReq,
-    fuPool.exceptionStatus     -> exception.csrStatus,
-    fuPool.asyncException      -> exception.asyncReq,
-    fuPool.robDone             -> rob.fuDone,
-    fuPool.bruResolved         -> rob.bruResolved,
     rob.regfileWrite           -> regfile.robWrite,
     rob.sbCommit               -> storeBuffer.robCommit,
-    rob.flush                  -> flush.rob,
-    flush.redirect             -> exception.redirectReq,
-    flush.sync                 -> exception.syncReq,
-    exception.robReq           -> rob.exceptionReq,
-    rob.exceptionResp          -> exception.robResp,
     storeBuffer.memReq         -> memoryArbiter.sbMemReq,
     memoryArbiter.sbMemResp    -> storeBuffer.memResp,
     storeBuffer.mmioReq        -> memoryArbiter.sbMmioReq,
     memoryArbiter.sbMmioResp   -> storeBuffer.mmioResp,
-    exception.storeBufferReq   -> storeBuffer.exception
+    rob.flush                  -> flush.rob,
+    flush.redirect             -> exception.redirectReq,
+    flush.sync                 -> exception.syncReq,
+    fuPool.asyncException      -> exception.asyncReq,
+    fuPool.exceptionStatus     -> exception.csrStatus,
+    exception.flush            -> flush.exception,
+    flush.ifuReq               -> ifu.exceptionReq,
+    ifu.exceptionResp          -> exception.ifuResp,
+    flush.dispatchReq          -> dispatch.exception,
+    flush.schedulerReq         -> scheduler.exception,
+    flush.storeBufferReq       -> storeBuffer.exception,
+    flush.fuPoolReq            -> fuPool.exceptionReq,
+    flush.robReq               -> rob.exceptionReq,
+    rob.exceptionResp          -> exception.robResp
   )
 
   debug.out.cycle_count   := cycleCount
@@ -148,7 +147,7 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   debug.out.l1_dcache_access := l1DCache.upperResp.out.valid && l1DCache.upperResp.out.ready
   debug.out.l1_dcache_miss   := l1DCache.upperResp.out.valid && l1DCache.upperResp.out.ready && !l1DCache.upperResp.out.bits.hit
 
-  debug.out.flush_cycle    := exception.debug.out.redirect_valid
+  debug.out.flush_cycle    := exception.debug.out.flush_valid
   debug.out.bpu_mispredict := rob.debug.out.bpu_mispredict
   debug.out.branch_commit  := rob.debug.out.branch_commit
   debug.out.rob_empty      := rob.debug.out.empty

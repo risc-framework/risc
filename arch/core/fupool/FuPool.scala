@@ -12,9 +12,9 @@ import arch.core.mult.Mult
 import arch.core.rob.{ RobBruResolved, RobFuDone }
 import arch.core.sb.{ StoreBufferStatus, StoreForwardReq, StoreForwardResp, StoreWriteBundle }
 import arch.core.st.St
+import vutils.graph.Node
 import chisel3._
 import chisel3.util.DecoupledIO
-import vutils.graph.Node
 
 class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
   val cpu = in[FuPoolCpuReq]
@@ -87,6 +87,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
     robDone.out.lanes(idx).bits.rob_tag      := fuResp.bits.rob_tag
     robDone.out.lanes(idx).bits.result       := fuResp.bits.result
     robDone.out.lanes(idx).bits.trap_req     := fuResp.bits.trap_req
+    robDone.out.lanes(idx).bits.trap_kind    := fuResp.bits.trap_kind
     robDone.out.lanes(idx).bits.trap_target  := fuResp.bits.trap_target
     robDone.out.lanes(idx).bits.trap_ret     := fuResp.bits.trap_ret
     robDone.out.lanes(idx).bits.trap_ret_tgt := fuResp.bits.trap_ret_tgt
@@ -127,6 +128,9 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
     storeWrite.out.lanes(i).valid := false.B
     storeWrite.out.lanes(i).bits  := 0.U.asTypeOf(new StoreWriteBundle)
   }
+
+  exceptionStatus.out.busy := false.B
+  asyncException.out       := 0.U.asTypeOf(new ExceptionAsyncReq)
 
   private val units = p(FunctionalUnits).zipWithIndex.map { case (desc, idx) =>
     subnode(build(desc)) -> idx
@@ -196,9 +200,8 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
         exceptionStatus.out.busy := csr.ctrlResp.out.busy
 
         asyncException.out.valid             := csr.ctrlResp.out.ir.valid
+        asyncException.out.kind              := csr.ctrlResp.out.ir.kind
         asyncException.out.target            := csr.ctrlResp.out.ir.target
-        asyncException.out.cause             := csr.ctrlResp.out.ir.cause
-        asyncException.out.write_csr         := true.B
         asyncException.out.requires_csr_idle := true.B
 
       case _ =>

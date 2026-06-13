@@ -14,14 +14,11 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
     )
   )
 
-  val fuReq  = inD[FuReq]
-  val fuResp = outD[FuResp]
-  val flush  = in[FuFlushReq]
-
+  val fuReq    = inD[FuReq]
+  val fuResp   = outD[FuResp]
+  val flush    = in[FuFlushReq]
   val ctrlReq  = in[CsrCtrlReq]
   val ctrlResp = out[CsrCtrlResp]
-
-  override def desiredName: String = s"csr_${cfg.selector.canonicalName}"
 
   private val fileImpl = CsrFileFactory.select(cfg)
   private val syncImpl = CsrSyncFactory.select(cfg)
@@ -63,17 +60,9 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
 
   private val activeInstr = Mux(busy, uopReg.instr, 0.U(p(ILen).W))
   private val activeUop   = Mux(busy, uopReg.uop, 0.U.asTypeOf(uopReg.uop))
-
-  private val fileCmd = fileImpl.command(
-    instr = activeInstr,
-    uop = activeUop,
-    rs1 = uopReg.rs1,
-    rd = uopReg.rd,
-    rs1Data = uopReg.rs1_data,
-    imm = uopReg.imm
-  )
-
-  private val syncCmd = syncImpl.command(activeInstr, activeUop)
+  private val fileCmd     =
+    fileImpl.command(activeInstr, activeUop, uopReg.rs1, uopReg.rd, uopReg.rs1_data, uopReg.imm)
+  private val syncCmd     = syncImpl.command(activeInstr, activeUop)
 
   private val hits         = addrMap.map(_ === fileCmd.addr)
   private val hitAny       = hits.reduce(_ || _)
@@ -86,9 +75,9 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
 
   private val illegalFileAccess = busy && fileCmd.valid && (!hitAny || !readLegal || !writeLegal)
   private val syncException     = busy && (syncCmd.sync_exception || illegalFileAccess)
-  private val syncCause         =
-    Mux(illegalFileAccess, syncImpl.illegalAccessCause(fileCmd), syncCmd.cause)
   private val trapRet           = busy && syncCmd.trap_ret
+  private val syncKind          = Mux(illegalFileAccess, syncImpl.illegalAccessKind(fileCmd), syncCmd.kind)
+  private val respKind          = Mux(trapRet, syncCmd.kind, syncKind)
 
   private val view = syncImpl.view(regMap, extraMap)
   private val ir   = irImpl.command(regMap, extraMap)
@@ -114,14 +103,9 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
     val next         = WireDefault(csrRegs(i))
 
     behavior match {
-      case AlwaysUpdate(fn) =>
-        next := fn(extraMap)
-
-      case ConditionalUpdate(fn) =>
-        next := fn(extraMap)
-
-      case NormalUpdate =>
-        next := csrRegs(i)
+      case AlwaysUpdate(fn)      => next := fn(extraMap)
+      case ConditionalUpdate(fn) => next := fn(extraMap)
+      case NormalUpdate          => next := csrRegs(i)
     }
 
     when(trapEntryHit) {
@@ -150,7 +134,7 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   resp.instr        := uopReg.instr
   resp.rob_tag      := uopReg.rob_tag
   resp.trap_req     := syncException
-  resp.trap_cause   := syncCause
+  resp.trap_kind    := respKind
   resp.trap_target  := syncImpl.trapTarget(view)
   resp.trap_ret     := trapRet
   resp.trap_ret_tgt := syncImpl.trapReturnTarget(regMap)

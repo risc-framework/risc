@@ -1,42 +1,48 @@
 package arch.core.csr.impls.sync.rv32im
 
-import arch.configs._
 import arch.core.csr._
-import arch.core.csr.impls.sync.rv32i.CsrRv32iSync
+import arch.core.csr.impls.sync.rv32i.Rv32iCsrSync
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
-import chisel3._
 
-object CsrRv32imSync extends RegisteredNodeUtils[CsrSyncImpl] {
+object Rv32imCsrSync extends RegisteredNodeUtils[CsrSyncImpl] {
   override def utils: CsrSyncImpl = new CsrSyncImpl {
-    private val rv32i = CsrRv32iSync.utils
+    private val rv32i = Rv32iCsrSync.utils
 
-    override def value: String = "rv32im"
+    override def value: String =
+      "rv32im"
 
-    override def command(instr: UInt, uop: UInt)(implicit p: Parameters): CsrSyncCmd =
+    override def command(instr: chisel3.UInt, uop: chisel3.UInt)(implicit
+      p: arch.configs.Parameters
+    ): CsrSyncCmd =
       rv32i.command(instr, uop)
 
-    override def illegalAccessCause(cmd: CsrFileCmd)(implicit p: Parameters): UInt =
-      rv32i.illegalAccessCause(cmd)
+    override def illegalAccessKind(cmd: CsrFileCmd)(implicit
+      p: arch.configs.Parameters
+    ): chisel3.UInt =
+      rv32i.illegalAccessKind(cmd)
 
-    override def view(regs: Map[String, UInt], extra: Map[String, UInt])(implicit
-      p: Parameters
+    override def view(regs: Map[String, chisel3.UInt], extra: Map[String, chisel3.UInt])(implicit
+      p: arch.configs.Parameters
     ): CsrTrapView =
       rv32i.view(regs, extra)
 
-    override def trapEntryUpdates(regs: Map[String, UInt], update: CsrTrapUpdate)(implicit
-      p: Parameters
-    ): Map[String, UInt] =
+    override def trapEntryUpdates(
+      regs: Map[String, chisel3.UInt],
+      update: arch.core.exception.ExceptionTrapUpdate
+    )(implicit p: arch.configs.Parameters): Map[String, chisel3.UInt] =
       rv32i.trapEntryUpdates(regs, update)
 
-    override def trapReturnTarget(regs: Map[String, UInt])(implicit p: Parameters): UInt =
+    override def trapReturnTarget(regs: Map[String, chisel3.UInt])(implicit
+      p: arch.configs.Parameters
+    ): chisel3.UInt =
       rv32i.trapReturnTarget(regs)
 
-    override def trapReturnUpdates(regs: Map[String, UInt])(implicit
-      p: Parameters
-    ): Map[String, UInt] =
+    override def trapReturnUpdates(regs: Map[String, chisel3.UInt])(implicit
+      p: arch.configs.Parameters
+    ): Map[String, chisel3.UInt] =
       rv32i.trapReturnUpdates(regs)
 
-    override def trapTarget(view: CsrTrapView)(implicit p: Parameters): UInt =
+    override def trapTarget(view: CsrTrapView)(implicit p: arch.configs.Parameters): chisel3.UInt =
       rv32i.trapTarget(view)
   }
 

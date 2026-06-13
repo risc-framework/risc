@@ -21,8 +21,6 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   val mmioReq    = outD[MemoryArbiterCacheReq]
   val mmioResp   = inD[MemoryArbiterCacheResp]
 
-  override def desiredName: String = "memory_arbiter"
-
   private val numLoadPorts = p(NumLDs)
 
   private val numReqs     = numLoadPorts + 1

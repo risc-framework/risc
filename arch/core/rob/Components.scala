@@ -1,20 +1,26 @@
 package arch.core.rob
 
 import arch.configs._
+import arch.core.exception.{ ExceptionDims, ExceptionIsaFactory }
+import vutils.graph.{ NodeConfig, NodeSelector }
 import chisel3._
 import chisel3.util.log2Ceil
 
 class RobFuDone(implicit p: Parameters) extends Bundle {
+  private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
+  private val isa = ExceptionIsaFactory.select(cfg)
+
   val result       = UInt(p(XLen).W)
   val rob_tag      = UInt(p(RobTagWidth).W)
   val trap_req     = Bool()
-  val trap_cause   = UInt(p(XLen).W)
+  val trap_kind    = UInt(isa.kindWidth.W)
   val trap_target  = UInt(p(XLen).W)
   val trap_ret     = Bool()
   val trap_ret_tgt = UInt(p(XLen).W)
 }
 
 class RobBruResolved(implicit p: Parameters) extends Bundle {
+  val valid       = Bool()
   val rob_tag     = UInt(p(RobTagWidth).W)
   val taken       = Bool()
   val target      = UInt(p(XLen).W)
@@ -50,6 +56,9 @@ class RobDebugInfo(implicit p: Parameters) extends Bundle {
 }
 
 class RobEntry(implicit p: Parameters) extends Bundle {
+  private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
+  private val isa = ExceptionIsaFactory.select(cfg)
+
   val valid          = Bool()
   val ready          = Bool()
   val pc             = UInt(p(XLen).W)
@@ -61,27 +70,27 @@ class RobEntry(implicit p: Parameters) extends Bundle {
   val is_store       = Bool()
   val commit_barrier = Bool()
 
-  val pred_taken   = Bool()
-  val pred_target  = UInt(p(XLen).W)
-  val pht_index    = UInt(p(GShareGhrWidth).W)
-  val ghr_snapshot = UInt(p(GShareGhrWidth).W)
-
+  val pred_taken    = Bool()
+  val pred_target   = UInt(p(XLen).W)
+  val pht_index     = UInt(p(GShareGhrWidth).W)
+  val ghr_snapshot  = UInt(p(GShareGhrWidth).W)
   val actual_taken  = Bool()
   val actual_target = UInt(p(XLen).W)
 
   val flush_pipeline = Bool()
   val flush_target   = UInt(p(XLen).W)
 
-  val sync_valid             = Bool()
-  val sync_trap_ret          = Bool()
-  val sync_cause             = UInt(p(XLen).W)
-  val sync_write_csr         = Bool()
-  val sync_requires_csr_idle = Bool()
-
   val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
+
+  val sync_valid             = Bool()
+  val sync_kind              = UInt(isa.kindWidth.W)
+  val sync_requires_csr_idle = Bool()
 }
 
 class RobCommitInfo(implicit p: Parameters) extends Bundle {
+  private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
+  private val isa = ExceptionIsaFactory.select(cfg)
+
   val valid          = Bool()
   val pop            = Bool()
   val pc             = UInt(p(XLen).W)
@@ -89,18 +98,11 @@ class RobCommitInfo(implicit p: Parameters) extends Bundle {
   val rd             = UInt(log2Ceil(p(NumArchRegs)).W)
   val rd_write       = Bool()
   val data           = UInt(p(XLen).W)
+  val flush_pipeline = Bool()
+  val flush_target   = UInt(p(XLen).W)
   val is_branch      = Bool()
   val is_store       = Bool()
   val commit_barrier = Bool()
-
-  val flush_pipeline = Bool()
-  val flush_target   = UInt(p(XLen).W)
-
-  val sync_valid             = Bool()
-  val sync_trap_ret          = Bool()
-  val sync_cause             = UInt(p(XLen).W)
-  val sync_write_csr         = Bool()
-  val sync_requires_csr_idle = Bool()
 
   val bpu_pred_taken    = Bool()
   val bpu_pred_target   = UInt(p(XLen).W)
@@ -110,4 +112,8 @@ class RobCommitInfo(implicit p: Parameters) extends Bundle {
   val bpu_ghr_snapshot  = UInt(p(GShareGhrWidth).W)
 
   val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
+
+  val sync_valid             = Bool()
+  val sync_kind              = UInt(isa.kindWidth.W)
+  val sync_requires_csr_idle = Bool()
 }

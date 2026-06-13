@@ -12,6 +12,7 @@ import arch.core.regfile.RegfileInit
 import arch.core.scheduler.SchedulerInit
 import arch.core.st.StInit
 import arch.core.csr.CsrInit
+import arch.core.exception.ExceptionInit
 import arch.system.soc.Soc
 import arch.system.bridge.BusBridgeInit
 import arch.system.crossbar.BusCrossbarInit
@@ -36,6 +37,7 @@ object MainSystem extends App {
   LdInit
   StInit
   SchedulerInit
+  ExceptionInit
 
   BusBridgeInit
   BusCrossbarInit

@@ -26,8 +26,6 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   val exceptionReq  = in[IfuExceptionReq]
   val exceptionResp = out[IfuExceptionResp]
 
-  override def desiredName: String = "ifu"
-
   private val ibuffer = subnode(new IBuffer)
   private val pc      = RegInit(p(ResetVector).U(p(XLen).W))
 

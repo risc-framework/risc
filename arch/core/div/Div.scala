@@ -74,7 +74,7 @@ class Div(implicit p: Parameters) extends Node[Parameters]("div") {
   resp.instr        := uopReg.instr
   resp.rob_tag      := uopReg.rob_tag
   resp.trap_req     := false.B
-  resp.trap_cause   := 0.U
+  resp.trap_kind    := 0.U
   resp.trap_target  := 0.U
   resp.trap_ret     := false.B
   resp.trap_ret_tgt := 0.U
