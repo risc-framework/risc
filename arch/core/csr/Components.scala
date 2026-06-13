@@ -20,10 +20,25 @@ case object NormalUpdate                                        extends CsrUpdat
 case class AlwaysUpdate(fn: CsrUpdateBehavior.CsrUpdateFn)      extends CsrUpdateBehavior
 case class ConditionalUpdate(fn: CsrUpdateBehavior.CsrUpdateFn) extends CsrUpdateBehavior
 
-class CsrCtrl(val opWidth: Int) extends Bundle {
-  val is_sys = Bool()
-  val is_imm = Bool()
-  val op     = UInt(opWidth.W)
+class CsrFileCmd(val addrWidth: Int, val opWidth: Int)(implicit p: Parameters) extends Bundle {
+  val valid = Bool()
+  val read  = Bool()
+  val write = Bool()
+  val addr  = UInt(addrWidth.W)
+  val op    = UInt(opWidth.W)
+  val data  = UInt(p(XLen).W)
+}
+
+class CsrSyncCmd(implicit p: Parameters) extends Bundle {
+  val trap_ret       = Bool()
+  val sync_exception = Bool()
+  val cause          = UInt(p(XLen).W)
+}
+
+class CsrIrCmd(implicit p: Parameters) extends Bundle {
+  val valid  = Bool()
+  val target = UInt(p(XLen).W)
+  val cause  = UInt(p(XLen).W)
 }
 
 class InterruptLines extends Bundle {
@@ -41,9 +56,10 @@ class CsrTrapView(implicit p: Parameters) extends Bundle {
 }
 
 class CsrTrapUpdate(implicit p: Parameters) extends Bundle {
-  val valid = Bool()
-  val pc    = UInt(p(XLen).W)
-  val cause = UInt(p(XLen).W)
+  val valid  = Bool()
+  val is_ret = Bool()
+  val pc     = UInt(p(XLen).W)
+  val cause  = UInt(p(XLen).W)
 }
 
 class CsrCtrlReq(implicit p: Parameters) extends Bundle {
@@ -56,5 +72,6 @@ class CsrCtrlReq(implicit p: Parameters) extends Bundle {
 
 class CsrCtrlResp(implicit p: Parameters) extends Bundle {
   val view = new CsrTrapView
+  val ir   = new CsrIrCmd
   val busy = Bool()
 }

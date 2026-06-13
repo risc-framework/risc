@@ -1,14 +1,14 @@
 package arch.core.rob
 
+import arch.configs._
 import arch.core.bpu.BpuUpdate
 import arch.core.dispatch.{ DispatchRobPacket, DispatchRobResp }
 import arch.core.flush.FlushRobReq
 import arch.core.fupool.FunctionalUnitType
 import arch.core.regfile.RegfileWrite
-import arch.configs._
+import vutils.graph.Node
 import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
-import vutils.graph.Node
 
 class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val dispatchReq   = inDVec[DispatchRobPacket](p => p(IssueWidth))
@@ -77,20 +77,27 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       val oldPc            = buffer(idx).pc
       val nonBruMispredict = !buffer(idx).is_branch && buffer(idx).pred_taken
       val nonBruRedirect   = oldPc + p(PCStep).U(p(XLen).W)
+      val syncValid        = done.trap_req || done.trap_ret
+      val syncTarget       = Mux(done.trap_req, done.trap_target, done.trap_ret_tgt)
 
       buffer(idx).ready := true.B
       buffer(idx).data  := done.result
 
-      when(nonBruMispredict) {
+      when(nonBruMispredict && !syncValid) {
         buffer(idx).actual_taken   := false.B
         buffer(idx).actual_target  := nonBruRedirect
         buffer(idx).flush_pipeline := true.B
         buffer(idx).flush_target   := nonBruRedirect
       }
 
-      when(done.trap_req || done.trap_ret) {
-        buffer(idx).flush_pipeline := true.B
-        buffer(idx).flush_target   := Mux(done.trap_req, done.trap_target, done.trap_ret_tgt)
+      when(syncValid) {
+        buffer(idx).flush_pipeline         := true.B
+        buffer(idx).flush_target           := syncTarget
+        buffer(idx).sync_valid             := true.B
+        buffer(idx).sync_trap_ret          := done.trap_ret
+        buffer(idx).sync_cause             := done.trap_cause
+        buffer(idx).sync_write_csr         := true.B
+        buffer(idx).sync_requires_csr_idle := true.B
       }
     }
 
@@ -106,7 +113,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       buffer(idx).actual_taken  := resolved.taken
       buffer(idx).actual_target := actualTarget
 
-      when(bruMispredict) {
+      when(bruMispredict && !buffer(idx).sync_valid) {
         buffer(idx).flush_pipeline := true.B
         buffer(idx).flush_target   := actualTarget
       }
@@ -117,6 +124,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   private val commitIdx         = Wire(Vec(p(CommitWidth), UInt(p(RobTagWidth).W)))
   private val commitInfo        = Wire(Vec(p(CommitWidth), new RobCommitInfo))
   private val commitPops        = Wire(Vec(p(CommitWidth), Bool()))
+  private val instretPops       = Wire(Vec(p(CommitWidth), Bool()))
 
   commitCanContinue(0) := true.B
   commitBlocked(0)     := false.B
@@ -129,27 +137,35 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     val committable =
       hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
 
-    commitInfo(w).valid             := committable
-    commitInfo(w).pop               := committable
-    commitInfo(w).pc                := entry.pc
-    commitInfo(w).instr             := entry.instr
-    commitInfo(w).rd                := entry.rd
-    commitInfo(w).rd_write          := entry.rd_write
-    commitInfo(w).data              := entry.data
-    commitInfo(w).flush_pipeline    := entry.flush_pipeline
-    commitInfo(w).flush_target      := entry.flush_target
-    commitInfo(w).is_branch         := entry.is_branch
-    commitInfo(w).is_store          := entry.is_store
-    commitInfo(w).commit_barrier    := entry.commit_barrier
-    commitInfo(w).bpu_pred_taken    := entry.pred_taken
-    commitInfo(w).bpu_pred_target   := entry.pred_target
-    commitInfo(w).bpu_actual_taken  := entry.actual_taken
-    commitInfo(w).bpu_actual_target := entry.actual_target
-    commitInfo(w).bpu_pht_index     := entry.pht_index
-    commitInfo(w).bpu_ghr_snapshot  := entry.ghr_snapshot
-    commitInfo(w).sq_idx            := entry.sq_idx
+    commitInfo(w).valid                  := committable
+    commitInfo(w).pop                    := committable
+    commitInfo(w).pc                     := entry.pc
+    commitInfo(w).instr                  := entry.instr
+    commitInfo(w).rd                     := entry.rd
+    commitInfo(w).rd_write               := entry.rd_write
+    commitInfo(w).data                   := entry.data
+    commitInfo(w).flush_pipeline         := entry.flush_pipeline
+    commitInfo(w).flush_target           := entry.flush_target
+    commitInfo(w).is_branch              := entry.is_branch
+    commitInfo(w).is_store               := entry.is_store
+    commitInfo(w).commit_barrier         := entry.commit_barrier
+    commitInfo(w).sync_valid             := entry.sync_valid
+    commitInfo(w).sync_trap_ret          := entry.sync_trap_ret
+    commitInfo(w).sync_cause             := entry.sync_cause
+    commitInfo(w).sync_write_csr         := entry.sync_write_csr
+    commitInfo(w).sync_requires_csr_idle := entry.sync_requires_csr_idle
+    commitInfo(w).bpu_pred_taken         := entry.pred_taken
+    commitInfo(w).bpu_pred_target        := entry.pred_target
+    commitInfo(w).bpu_actual_taken       := entry.actual_taken
+    commitInfo(w).bpu_actual_target      := entry.actual_target
+    commitInfo(w).bpu_pht_index          := entry.pht_index
+    commitInfo(w).bpu_ghr_snapshot       := entry.ghr_snapshot
+    commitInfo(w).sq_idx                 := entry.sq_idx
 
-    commitPops(w) := commitInfo(w).pop
+    commitPops(w)  := commitInfo(w).pop
+    instretPops(w) := commitInfo(w).pop && !(commitInfo(w).sync_valid && !commitInfo(
+      w
+    ).sync_trap_ret)
 
     val stopYoungerCommit = entry.flush_pipeline || entry.commit_barrier
 
@@ -157,9 +173,10 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     commitBlocked(w + 1)     := commitBlocked(w) || (committable && stopYoungerCommit)
   }
 
-  private val commitCount               = PopCount(commitPops)
+  private val robPopCount               = PopCount(commitPops)
+  private val archCommitCount           = PopCount(instretPops)
   private val availableSlots            = p(RobSize).U(CntW.W) - count
-  private val availableSlotsAfterCommit = availableSlots + commitCount
+  private val availableSlotsAfterCommit = availableSlots + robPopCount
   private val enqFire                   = Wire(Vec(p(IssueWidth), Bool()))
   private val enqOffset                 = Wire(Vec(p(IssueWidth), UInt(p(RobTagWidth).W)))
   private val enqIdx                    = Wire(Vec(p(IssueWidth), UInt(p(RobTagWidth).W)))
@@ -194,30 +211,35 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       val pkt = dispatchReq.in.lanes(w).bits
       val dec = pkt.decoded
 
-      buffer(idx).valid          := true.B
-      buffer(idx).ready          := false.B
-      buffer(idx).pc             := dec.pc
-      buffer(idx).instr          := dec.instr
-      buffer(idx).rd             := dec.rd
-      buffer(idx).rd_write       := dec.rd_write
-      buffer(idx).data           := 0.U
-      buffer(idx).is_branch      := isBru(dec.fu_type)
-      buffer(idx).is_store       := isStore(dec.fu_type)
-      buffer(idx).commit_barrier := dec.commit_barrier
-      buffer(idx).pred_taken     := dec.bpu_pred_taken
-      buffer(idx).pred_target    := dec.bpu_pred_target
-      buffer(idx).pht_index      := dec.bpu_pht_index
-      buffer(idx).ghr_snapshot   := dec.bpu_ghr_snapshot
-      buffer(idx).actual_taken   := false.B
-      buffer(idx).actual_target  := 0.U
-      buffer(idx).flush_pipeline := false.B
-      buffer(idx).flush_target   := 0.U
-      buffer(idx).sq_idx         := pkt.sq_idx
+      buffer(idx).valid                  := true.B
+      buffer(idx).ready                  := false.B
+      buffer(idx).pc                     := dec.pc
+      buffer(idx).instr                  := dec.instr
+      buffer(idx).rd                     := dec.rd
+      buffer(idx).rd_write               := dec.rd_write
+      buffer(idx).data                   := 0.U
+      buffer(idx).is_branch              := isBru(dec.fu_type)
+      buffer(idx).is_store               := isStore(dec.fu_type)
+      buffer(idx).commit_barrier         := dec.commit_barrier
+      buffer(idx).pred_taken             := dec.bpu_pred_taken
+      buffer(idx).pred_target            := dec.bpu_pred_target
+      buffer(idx).pht_index              := dec.bpu_pht_index
+      buffer(idx).ghr_snapshot           := dec.bpu_ghr_snapshot
+      buffer(idx).actual_taken           := false.B
+      buffer(idx).actual_target          := 0.U
+      buffer(idx).flush_pipeline         := false.B
+      buffer(idx).flush_target           := 0.U
+      buffer(idx).sync_valid             := false.B
+      buffer(idx).sync_trap_ret          := false.B
+      buffer(idx).sync_cause             := 0.U
+      buffer(idx).sync_write_csr         := false.B
+      buffer(idx).sync_requires_csr_idle := false.B
+      buffer(idx).sq_idx                 := pkt.sq_idx
     }
 
-  head  := wrapAdd(head, commitCount)
+  head  := wrapAdd(head, robPopCount)
   tail  := wrapAdd(tail, enqCount)
-  count := count + enqCount - commitCount
+  count := count + enqCount - robPopCount
 
   when(exceptionReq.in.flush) {
     head  := 0.U
@@ -244,54 +266,65 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   }
 
   for (w <- 0 until p(CommitWidth)) {
-    regfileWrite.out.lanes(w).valid     := commitInfo(w).pop && commitInfo(w).rd_write
+    val laneCanWrite = commitInfo(w).pop && !commitInfo(w).sync_valid
+
+    regfileWrite.out.lanes(w).valid     := laneCanWrite && commitInfo(w).rd_write
     regfileWrite.out.lanes(w).bits.addr := commitInfo(w).rd
     regfileWrite.out.lanes(w).bits.data := commitInfo(w).data
 
-    sbCommit.out.lanes(w).valid         := commitInfo(w).pop
+    sbCommit.out.lanes(w).valid         := laneCanWrite
     sbCommit.out.lanes(w).bits.is_store := commitInfo(w).is_store
     sbCommit.out.lanes(w).bits.sq_idx   := commitInfo(w).sq_idx
   }
 
-  private val bpuUpdateWire = WireDefault(0.U.asTypeOf(new BpuUpdate))
+  private val bpuUpdateValidVec = Wire(Vec(p(CommitWidth), Bool()))
 
   for (w <- 0 until p(CommitWidth)) {
     val lane               = commitInfo(w)
     val predTakenNonBranch = !lane.is_branch && lane.bpu_pred_taken
-    val shouldUpdateBranch = lane.pop && (lane.is_branch || predTakenNonBranch)
 
-    when(shouldUpdateBranch) {
-      bpuUpdateWire.valid        := true.B
-      bpuUpdateWire.pc           := lane.pc
-      bpuUpdateWire.target       := lane.bpu_actual_target
-      bpuUpdateWire.taken        := lane.bpu_actual_taken
-      bpuUpdateWire.pht_index    := lane.bpu_pht_index
-      bpuUpdateWire.ghr_snapshot := lane.bpu_ghr_snapshot
-      bpuUpdateWire.mispredict   := lane.flush_pipeline
-    }
+    bpuUpdateValidVec(w) := lane.pop && !lane.sync_valid && (lane.is_branch || predTakenNonBranch)
   }
 
-  bpuUpdate.out := bpuUpdateWire
+  private val bpuUpdateAny  = bpuUpdateValidVec.asUInt.orR
+  private val bpuUpdateSlot = PriorityEncoder(bpuUpdateValidVec.asUInt)
+  private val bpuLane       = commitInfo(bpuUpdateSlot)
 
-  flush.out.flushes := VecInit(
-    commitInfo.map(lane => lane.flush_pipeline && lane.pop)
-  )
+  bpuUpdate.out := 0.U.asTypeOf(new BpuUpdate)
 
-  flush.out.targets := VecInit(
-    commitInfo.map(_.flush_target)
-  )
+  bpuUpdate.out.valid        := bpuUpdateAny
+  bpuUpdate.out.pc           := bpuLane.pc
+  bpuUpdate.out.target       := bpuLane.bpu_actual_target
+  bpuUpdate.out.taken        := bpuLane.bpu_actual_taken
+  bpuUpdate.out.pht_index    := bpuLane.bpu_pht_index
+  bpuUpdate.out.ghr_snapshot := bpuLane.bpu_ghr_snapshot
+  bpuUpdate.out.mispredict   := bpuLane.flush_pipeline && !bpuLane.sync_valid
+
+  for (w <- 0 until p(CommitWidth)) {
+    val lane = commitInfo(w)
+
+    flush.out.redirect_valid(w)  := lane.pop && lane.flush_pipeline && !lane.sync_valid
+    flush.out.redirect_target(w) := lane.flush_target
+
+    flush.out.sync(w).valid             := lane.pop && lane.sync_valid
+    flush.out.sync(w).trap_ret          := lane.sync_trap_ret
+    flush.out.sync(w).target            := lane.flush_target
+    flush.out.sync(w).pc                := lane.pc
+    flush.out.sync(w).cause             := lane.sync_cause
+    flush.out.sync(w).write_csr         := lane.sync_write_csr
+    flush.out.sync(w).requires_csr_idle := lane.sync_requires_csr_idle
+  }
 
   exceptionResp.out.empty     := count === 0.U
   exceptionResp.out.commit_pc := commitInfo(0).pc
 
-  debug.out.commit_count  := commitCount
-  debug.out.branch_commit := PopCount(
-    commitInfo.map(lane => lane.pop && lane.is_branch)
-  )
+  debug.out.commit_count  := archCommitCount
+  debug.out.branch_commit := PopCount(commitInfo.map(lane => lane.pop && lane.is_branch))
 
   debug.out.bpu_mispredict := commitInfo
     .map(lane =>
       lane.pop &&
+        !lane.sync_valid &&
         (lane.is_branch || (!lane.is_branch && lane.bpu_pred_taken)) &&
         lane.flush_pipeline
     )
@@ -300,7 +333,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   debug.out.empty := count === 0.U
 
   for (w <- 0 until p(CommitWidth)) {
-    debug.out.instret(w)  := commitInfo(w).pop
+    debug.out.instret(w)  := instretPops(w)
     debug.out.pc(w)       := commitInfo(w).pc
     debug.out.instr(w)    := commitInfo(w).instr
     debug.out.reg_we(w)   := regfileWrite.out.lanes(w).valid

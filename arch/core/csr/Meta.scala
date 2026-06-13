@@ -1,21 +1,37 @@
 package arch.core.csr
 
 import arch.configs._
+import vutils.graph.NodeDims
 import chisel3._
-import vutils.graph.{ NodeDimensionRegistry, NodeDims }
 
 object CsrDims extends NodeDims("csr") {
-  val ISA = dim("isa")
+  val FILE = dim("file")
+  val SYNC = dim("sync")
+  val IR   = dim("ir")
 }
 
-trait CsrIsaImpl extends CsrDims.ISA.Impl {
+trait CsrFileImpl extends CsrDims.FILE.Impl {
   def addrWidth: Int
   def opWidth: Int
 
-  def getAddr(instr: UInt)(implicit p: Parameters): UInt
-  def decode(uop: UInt): CsrCtrl
-  def fn(op: UInt, csrData: UInt, srcData: UInt)(implicit p: Parameters): UInt
   def table(implicit p: Parameters): Seq[(CsrRegister, CsrUpdateBehavior)]
+
+  def command(
+    instr: UInt,
+    uop: UInt,
+    rs1: UInt,
+    rd: UInt,
+    rs1Data: UInt,
+    imm: UInt
+  )(implicit p: Parameters): CsrFileCmd
+
+  def write(old: UInt, cmd: CsrFileCmd)(implicit p: Parameters): UInt
+}
+
+trait CsrSyncImpl extends CsrDims.SYNC.Impl {
+  def command(instr: UInt, uop: UInt)(implicit p: Parameters): CsrSyncCmd
+
+  def illegalAccessCause(cmd: CsrFileCmd)(implicit p: Parameters): UInt
 
   def view(
     regs: Map[String, UInt],
@@ -26,11 +42,9 @@ trait CsrIsaImpl extends CsrDims.ISA.Impl {
     out
   }
 
-  def trapEntryUpdates(
-    regs: Map[String, UInt],
-    pc: UInt,
-    cause: UInt
-  )(implicit p: Parameters): Map[String, UInt] =
+  def trapEntryUpdates(regs: Map[String, UInt], update: CsrTrapUpdate)(implicit
+    p: Parameters
+  ): Map[String, UInt] =
     Map.empty[String, UInt]
 
   def trapReturnTarget(regs: Map[String, UInt])(implicit p: Parameters): UInt =
@@ -39,22 +53,25 @@ trait CsrIsaImpl extends CsrDims.ISA.Impl {
   def trapReturnUpdates(regs: Map[String, UInt])(implicit p: Parameters): Map[String, UInt] =
     Map.empty[String, UInt]
 
-  def isTrapReturn(instr: UInt, uop: UInt)(implicit p: Parameters): Bool =
-    false.B
-
-  def hasSyncException(instr: UInt, uop: UInt)(implicit p: Parameters): Bool =
-    false.B
-
-  def syncExceptionCause(instr: UInt, uop: UInt)(implicit p: Parameters): UInt =
-    0.U(p(XLen).W)
-
-  def trapTarget(view: CsrTrapView): UInt =
+  def trapTarget(view: CsrTrapView)(implicit p: Parameters): UInt =
     view.trapVector
 }
 
-object CsrIsaFactory extends CsrDims.ISA.Registry[CsrIsaImpl]
+trait CsrIrImpl extends CsrDims.IR.Impl {
+  def command(regs: Map[String, UInt], extra: Map[String, UInt])(implicit p: Parameters): CsrIrCmd
+}
+
+object CsrFileFactory extends CsrDims.FILE.Registry[CsrFileImpl]
+object CsrSyncFactory extends CsrDims.SYNC.Registry[CsrSyncImpl]
+object CsrIrFactory   extends CsrDims.IR.Registry[CsrIrImpl]
 
 object CsrInit {
-  val rv32i  = impls.isa.rv32i.CsrRv32iIsa.registered
-  val rv32im = impls.isa.rv32im.CsrRv32imIsa.registered
+  val rv32iFile  = impls.file.rv32i.CsrRv32iFile.registered
+  val rv32imFile = impls.file.rv32im.CsrRv32imFile.registered
+
+  val rv32iSync  = impls.sync.rv32i.CsrRv32iSync.registered
+  val rv32imSync = impls.sync.rv32im.CsrRv32imSync.registered
+
+  val rv32iIr  = impls.ir.rv32i.CsrRv32iIr.registered
+  val rv32imIr = impls.ir.rv32im.CsrRv32imIr.registered
 }

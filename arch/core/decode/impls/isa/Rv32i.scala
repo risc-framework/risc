@@ -3,7 +3,7 @@ package arch.core.decode.impls.isa.rv32i
 import arch.configs._
 import arch.core.alu.impls.isa.rv32i.Rv32iAluUopConsts
 import arch.core.bru.impls.isa.rv32i.Rv32iBruUopConsts
-import arch.core.csr.impls.isa.rv32i.Rv32iCsrUOpConsts
+import arch.core.csr.impls.file.rv32i.Rv32iCsrUopConsts
 import arch.core.decode._
 import arch.core.fupool.FunctionalUnitType
 import arch.core.ld.impls.isa.rv32i.Rv32iMemUopConsts
@@ -15,7 +15,7 @@ import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 trait Rv32iDecodeConsts
     extends Rv32iAluUopConsts
     with Rv32iMemUopConsts
-    with Rv32iCsrUOpConsts
+    with Rv32iCsrUopConsts
     with Rv32iBruUopConsts {
   def X = BitPat("b?")
   def Y = BitPat("b1")

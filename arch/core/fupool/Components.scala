@@ -50,6 +50,7 @@ class FuResp(implicit p: Parameters) extends Bundle {
   val rob_tag = UInt(p(RobTagWidth).W)
 
   val trap_req     = Bool()
+  val trap_cause   = UInt(p(XLen).W)
   val trap_target  = UInt(p(XLen).W)
   val trap_ret     = Bool()
   val trap_ret_tgt = UInt(p(XLen).W)

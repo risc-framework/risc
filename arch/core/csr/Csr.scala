@@ -2,13 +2,15 @@ package arch.core.csr
 
 import arch.configs._
 import arch.core.fupool.{ FuFlushReq, FuReq, FuResp }
-import chisel3._
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
+import chisel3._
 
 class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
-      CsrDims.ISA -> p(ISA).name
+      CsrDims.FILE -> p(ISA).name,
+      CsrDims.SYNC -> p(ISA).name,
+      CsrDims.IR   -> p(ISA).name
     )
   )
 
@@ -19,20 +21,24 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   val ctrlReq  = in[CsrCtrlReq]
   val ctrlResp = out[CsrCtrlResp]
 
-  private val isaImpl = CsrIsaFactory.select(cfg)
+  override def desiredName: String = s"csr_${cfg.selector.canonicalName}"
+
+  private val fileImpl = CsrFileFactory.select(cfg)
+  private val syncImpl = CsrSyncFactory.select(cfg)
+  private val irImpl   = CsrIrFactory.select(cfg)
 
   private val busy   = RegInit(false.B)
   private val uopReg = RegInit(0.U.asTypeOf(new FuReq))
 
-  private val csrTable = isaImpl.table
+  private val csrTable = fileImpl.table
   private val csrRegs  = csrTable.map { case (reg, _) =>
     val r = RegInit(reg.initValue.U(p(XLen).W))
     r.suggestName(reg.name)
     r
   }
 
-  private val addrMap    = csrTable.map { case (reg, _) => reg.addr.U(isaImpl.addrWidth.W) }
-  private val regNameMap = csrTable.map(_._1.name).zip(csrRegs).toMap
+  private val addrMap = csrTable.map { case (reg, _) => reg.addr.U(fileImpl.addrWidth.W) }
+  private val regMap  = csrTable.map(_._1.name).zip(csrRegs).toMap
 
   private val extraMap = Map(
     "cycle"     -> ctrlReq.in.cycle,
@@ -57,79 +63,86 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
 
   private val activeInstr = Mux(busy, uopReg.instr, 0.U(p(ILen).W))
   private val activeUop   = Mux(busy, uopReg.uop, 0.U.asTypeOf(uopReg.uop))
-  private val ctrl        = isaImpl.decode(activeUop)
 
-  private val trapRet       = busy && isaImpl.isTrapReturn(activeInstr, activeUop)
-  private val syncException = busy && isaImpl.hasSyncException(activeInstr, activeUop)
-  private val syncCause     = isaImpl.syncExceptionCause(activeInstr, activeUop)
-
-  private val localTrapUpdate = Wire(new CsrTrapUpdate)
-
-  localTrapUpdate.valid := syncException
-  localTrapUpdate.pc    := uopReg.pc
-  localTrapUpdate.cause := syncCause
-
-  private val trapUpdate = Wire(new CsrTrapUpdate)
-
-  trapUpdate.valid := localTrapUpdate.valid || ctrlReq.in.trap_update.valid
-  trapUpdate.pc    := Mux(localTrapUpdate.valid, localTrapUpdate.pc, ctrlReq.in.trap_update.pc)
-  trapUpdate.cause := Mux(
-    localTrapUpdate.valid,
-    localTrapUpdate.cause,
-    ctrlReq.in.trap_update.cause
+  private val fileCmd = fileImpl.command(
+    instr = activeInstr,
+    uop = activeUop,
+    rs1 = uopReg.rs1,
+    rd = uopReg.rd,
+    rs1Data = uopReg.rs1_data,
+    imm = uopReg.imm
   )
 
-  private val csrAddr  = isaImpl.getAddr(activeInstr)
-  private val hits     = addrMap.map(_ === csrAddr)
-  private val hitAny   = hits.reduce(_ || _)
-  private val wrHits   = csrTable.zip(hits).map { case ((reg, _), hit) => hit && reg.writable.B }
-  private val wrHitAny = wrHits.reduce(_ || _)
-  private val wrAllow  = hitAny && wrHitAny && !ctrl.is_sys
-  private val srcData  = Mux(ctrl.is_imm, uopReg.imm, uopReg.rs1_data)
+  private val syncCmd = syncImpl.command(activeInstr, activeUop)
 
-  private val trapUpdates = isaImpl.trapEntryUpdates(regNameMap, trapUpdate.pc, trapUpdate.cause)
-  private val retUpdates  = isaImpl.trapReturnUpdates(regNameMap)
+  private val hits         = addrMap.map(_ === fileCmd.addr)
+  private val hitAny       = hits.reduce(_ || _)
+  private val readableHits =
+    csrTable.zip(hits).map { case ((reg, _), hit) => hit && reg.readable.B }
+  private val writableHits =
+    csrTable.zip(hits).map { case ((reg, _), hit) => hit && reg.writable.B }
+  private val readLegal    = !fileCmd.read || readableHits.reduce(_ || _)
+  private val writeLegal   = !fileCmd.write || writableHits.reduce(_ || _)
 
-  ctrlResp.out.view := isaImpl.view(regNameMap, extraMap)
+  private val illegalFileAccess = busy && fileCmd.valid && (!hitAny || !readLegal || !writeLegal)
+  private val syncException     = busy && (syncCmd.sync_exception || illegalFileAccess)
+  private val syncCause         =
+    Mux(illegalFileAccess, syncImpl.illegalAccessCause(fileCmd), syncCmd.cause)
+  private val trapRet           = busy && syncCmd.trap_ret
+
+  private val view = syncImpl.view(regMap, extraMap)
+  private val ir   = irImpl.command(regMap, extraMap)
+
+  ctrlResp.out.view := view
+  ctrlResp.out.ir   := ir
+
+  private val trapEntryUpdates = syncImpl.trapEntryUpdates(regMap, ctrlReq.in.trap_update)
+  private val trapRetUpdates   = syncImpl.trapReturnUpdates(regMap)
+  private val writeAllowed     =
+    busy && fileCmd.valid && fileCmd.write && !syncException && !trapRet && hitAny && writeLegal
 
   for (((reg, behavior), i) <- csrTable.zipWithIndex) {
-    val trapHit = trapUpdate.valid && trapUpdates.contains(reg.name).B
-    val trapVal = trapUpdates.getOrElse(reg.name, 0.U(p(XLen).W))
-    val retHit  = busy && trapRet && retUpdates.contains(reg.name).B
-    val retVal  = retUpdates.getOrElse(reg.name, 0.U(p(XLen).W))
+    val trapEntryHit =
+      ctrlReq.in.trap_update.valid && !ctrlReq.in.trap_update.is_ret && trapEntryUpdates
+        .contains(reg.name)
+        .B
+    val trapEntryVal = trapEntryUpdates.getOrElse(reg.name, 0.U(p(XLen).W))
+    val trapRetHit   = ctrlReq.in.trap_update.valid && ctrlReq.in.trap_update.is_ret && trapRetUpdates
+      .contains(reg.name)
+      .B
+    val trapRetVal   = trapRetUpdates.getOrElse(reg.name, 0.U(p(XLen).W))
+    val next         = WireDefault(csrRegs(i))
 
     behavior match {
       case AlwaysUpdate(fn) =>
-        csrRegs(i) := fn(extraMap)
+        next := fn(extraMap)
 
       case ConditionalUpdate(fn) =>
-        csrRegs(i) := fn(extraMap)
-
-        when(trapHit) {
-          csrRegs(i) := trapVal
-        }.elsewhen(retHit) {
-          csrRegs(i) := retVal
-        }.elsewhen(busy && wrAllow && hits(i) && reg.writable.B) {
-          csrRegs(i) := isaImpl.fn(ctrl.op, csrRegs(i), srcData)
-        }
+        next := fn(extraMap)
 
       case NormalUpdate =>
-        when(trapHit) {
-          csrRegs(i) := trapVal
-        }.elsewhen(retHit) {
-          csrRegs(i) := retVal
-        }.elsewhen(busy && wrAllow && hits(i) && reg.writable.B) {
-          csrRegs(i) := isaImpl.fn(ctrl.op, csrRegs(i), srcData)
-        }
+        next := csrRegs(i)
     }
+
+    when(trapEntryHit) {
+      next := trapEntryVal
+    }.elsewhen(trapRetHit) {
+      next := trapRetVal
+    }.elsewhen(writeAllowed && hits(i) && reg.writable.B) {
+      next := fileImpl.write(csrRegs(i), fileCmd)
+    }
+
+    csrRegs(i) := next
   }
 
   private val readMasked =
     hits.zip(csrRegs).map { case (hit, data) => Mux(hit, data, 0.U(p(XLen).W)) }
-
-  private val rdData    = Mux(busy && !ctrl.is_sys, readMasked.reduce(_ | _), 0.U(p(XLen).W))
-  private val retTarget = isaImpl.trapReturnTarget(regNameMap)
-  private val resp      = WireDefault(0.U.asTypeOf(new FuResp))
+  private val rdData     = Mux(
+    busy && fileCmd.valid && fileCmd.read && !syncException && !trapRet,
+    readMasked.reduce(_ | _),
+    0.U(p(XLen).W)
+  )
+  private val resp       = WireDefault(0.U.asTypeOf(new FuResp))
 
   resp.result       := rdData
   resp.rd           := uopReg.rd
@@ -137,9 +150,10 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   resp.instr        := uopReg.instr
   resp.rob_tag      := uopReg.rob_tag
   resp.trap_req     := syncException
-  resp.trap_target  := isaImpl.trapTarget(ctrlResp.out.view)
+  resp.trap_cause   := syncCause
+  resp.trap_target  := syncImpl.trapTarget(view)
   resp.trap_ret     := trapRet
-  resp.trap_ret_tgt := retTarget
+  resp.trap_ret_tgt := syncImpl.trapReturnTarget(regMap)
 
   fuResp.out.bits := resp
 }

@@ -1,21 +1,20 @@
 package arch.core.cpu
 
+import arch.configs._
 import arch.core.bpu.Bpu
 import arch.core.caches.{ L1DCache, L1ICache, MmioBridge }
 import arch.core.csr.InterruptLines
 import arch.core.decode.Decode
+import arch.core.dispatch.Dispatch
 import arch.core.exception.Exception
+import arch.core.flush.Flush
 import arch.core.fupool.FuPool
 import arch.core.ifu.Ifu
-import arch.core.interrupt.Interrupt
 import arch.core.memarb.MemoryArbiter
 import arch.core.regfile.Regfile
 import arch.core.rob.Rob
 import arch.core.sb.StoreBuffer
 import arch.core.scheduler.Scheduler
-import arch.core.flush.Flush
-import arch.core.dispatch.Dispatch
-import arch.configs._
 import vutils.graph.Node
 import chisel3._
 import chisel3.util.PopCount
@@ -45,7 +44,6 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   private val scheduler     = subnode(new Scheduler)
   private val fuPool        = subnode(new FuPool)
   private val rob           = subnode(new Rob)
-  private val interrupt     = subnode(new Interrupt)
   private val exception     = subnode(new Exception)
   private val storeBuffer   = subnode(new StoreBuffer)
   private val dispatch      = subnode(new Dispatch)
@@ -60,8 +58,6 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
 
   cycleCount   := cycleCount + 1.U
   instretCount := instretCount + rob.debug.out.commit_count
-
-  interrupt.cpu.in.irq := irq.in
 
   fuPool.cpu.in.cycle   := cycleCount
   fuPool.cpu.in.instret := instretCount
@@ -108,21 +104,23 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     storeBuffer.fwdResp        -> fuPool.storeForwardResp,
     storeBuffer.status         -> fuPool.storeBufferStatus,
     fuPool.storeWrite          -> storeBuffer.storeWrite,
-    exception.fuPoolReq        -> fuPool.exceptionReq,
-    fuPool.exceptionResp       -> exception.fuPoolResp,
-    fuPool.interruptResp       -> interrupt.fuPool,
+    exception.csrReq           -> fuPool.exceptionReq,
+    fuPool.exceptionStatus     -> exception.csrStatus,
+    fuPool.asyncException      -> exception.asyncReq,
+    fuPool.robDone             -> rob.fuDone,
+    fuPool.bruResolved         -> rob.bruResolved,
     rob.regfileWrite           -> regfile.robWrite,
     rob.sbCommit               -> storeBuffer.robCommit,
     rob.flush                  -> flush.rob,
+    flush.redirect             -> exception.redirectReq,
+    flush.sync                 -> exception.syncReq,
     exception.robReq           -> rob.exceptionReq,
     rob.exceptionResp          -> exception.robResp,
     storeBuffer.memReq         -> memoryArbiter.sbMemReq,
     memoryArbiter.sbMemResp    -> storeBuffer.memResp,
     storeBuffer.mmioReq        -> memoryArbiter.sbMmioReq,
     memoryArbiter.sbMmioResp   -> storeBuffer.mmioResp,
-    exception.storeBufferReq   -> storeBuffer.exception,
-    flush.exception            -> exception.flushReq,
-    interrupt.exception        -> exception.interruptReq
+    exception.storeBufferReq   -> storeBuffer.exception
   )
 
   debug.out.cycle_count   := cycleCount
@@ -150,9 +148,9 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   debug.out.l1_dcache_access := l1DCache.upperResp.out.valid && l1DCache.upperResp.out.ready
   debug.out.l1_dcache_miss   := l1DCache.upperResp.out.valid && l1DCache.upperResp.out.ready && !l1DCache.upperResp.out.bits.hit
 
+  debug.out.flush_cycle    := exception.debug.out.redirect_valid
   debug.out.bpu_mispredict := rob.debug.out.bpu_mispredict
   debug.out.branch_commit  := rob.debug.out.branch_commit
-  debug.out.flush_cycle    := exception.debug.out.redirect.valid
   debug.out.rob_empty      := rob.debug.out.empty
   debug.out.issue_count    := PopCount(
     Seq.tabulate(p(IssueWidth))(w => dispatch.schedulerReq.out.lanes(w).fire)

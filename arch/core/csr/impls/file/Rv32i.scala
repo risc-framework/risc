@@ -1,13 +1,12 @@
-package arch.core.csr.impls.isa.rv32i
+package arch.core.csr.impls.file.rv32i
 
 import arch.configs._
 import arch.core.csr._
-import arch.isa._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ BitPat, Cat, MuxLookup }
+import chisel3.util.{ BitPat, MuxLookup }
 
-trait Rv32iCsrUOpConsts {
+trait Rv32iCsrUopConsts {
   private def cat(bps: BitPat*): BitPat = bps.reduce(_ ## _)
   private def X                         = BitPat("b?")
   private def N                         = BitPat("b0")
@@ -15,10 +14,10 @@ trait Rv32iCsrUOpConsts {
   private def P_X                       = BitPat("b????")
 
   def C_X  = BitPat("b??")
-  def SZ_C = C_X.getWidth
   def C_RW = BitPat("b00")
   def C_RS = BitPat("b01")
   def C_RC = BitPat("b10")
+  def SZ_C = C_X.getWidth
 
   def UOP_CSRRW  = cat(P_X, N, N, C_RW)
   def UOP_CSRRS  = cat(P_X, N, N, C_RS)
@@ -29,7 +28,7 @@ trait Rv32iCsrUOpConsts {
   def UOP_MRET   = cat(P_X, Y, X, C_X)
 }
 
-trait Rv32iCsrMap {
+trait Rv32iCsrFileMap {
   def CSR_CYCLE    = BitPat("b1100_0000_0000")
   def CSR_INSTRET  = BitPat("b1100_0000_0010")
   def CSR_CYCLEH   = BitPat("b1100_1000_0000")
@@ -55,45 +54,14 @@ trait Rv32iCsrMap {
   def SZ_CSR = CSR_CYCLE.getWidth
 }
 
-object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConsts with Rv32iCsrMap {
-  override def utils: CsrIsaImpl = new CsrIsaImpl with Rv32iCsrUOpConsts with Rv32iCsrMap {
-    private def enc(name: String): InstructionEncoding =
-      IsaFactory
-        .instrSet(value)
-        .all
-        .find(_.name == name)
-        .getOrElse {
-          throw new NoSuchElementException(s"Instruction '$name' not found in ISA '$value'")
-        }
-
-    private def isInstr(instr: UInt, name: String)(implicit p: Parameters): Bool = {
-      val e = enc(name)
-      (instr & e.mask.U(p(ILen).W)) === e.value.U(p(ILen).W)
-    }
-
+object CsrRv32iFile
+    extends RegisteredNodeUtils[CsrFileImpl]
+    with Rv32iCsrUopConsts
+    with Rv32iCsrFileMap {
+  override def utils: CsrFileImpl = new CsrFileImpl with Rv32iCsrUopConsts with Rv32iCsrFileMap {
     override def value: String  = "rv32i"
     override def addrWidth: Int = SZ_CSR
     override def opWidth: Int   = SZ_C
-
-    override def getAddr(instr: UInt)(implicit p: Parameters): UInt =
-      instr(31, 20)
-
-    override def decode(uop: UInt): CsrCtrl = {
-      val ctrl = Wire(new CsrCtrl(opWidth))
-      ctrl.is_sys := uop(3)
-      ctrl.is_imm := uop(2)
-      ctrl.op     := uop(1, 0)
-      ctrl
-    }
-
-    override def fn(op: UInt, csrData: UInt, srcData: UInt)(implicit p: Parameters): UInt =
-      MuxLookup(op, 0.U(p(XLen).W))(
-        Seq(
-          C_RW.value.U(SZ_C.W) -> srcData,
-          C_RS.value.U(SZ_C.W) -> (csrData | srcData),
-          C_RC.value.U(SZ_C.W) -> (csrData & ~srcData)
-        )
-      )
 
     override def table(implicit p: Parameters): Seq[(CsrRegister, CsrUpdateBehavior)] = Seq(
       (
@@ -150,62 +118,44 @@ object CsrRv32iIsa extends RegisteredNodeUtils[CsrIsaImpl] with Rv32iCsrUOpConst
       )
     )
 
-    private def get(regs: Map[String, UInt], name: String)(implicit p: Parameters): UInt =
-      regs.getOrElse(name, 0.U(p(XLen).W))
+    override def command(
+      instr: UInt,
+      uop: UInt,
+      rs1: UInt,
+      rd: UInt,
+      rs1Data: UInt,
+      imm: UInt
+    )(implicit p: Parameters): CsrFileCmd = {
+      val cmd       = Wire(new CsrFileCmd(addrWidth, opWidth))
+      val isSys     = uop(3)
+      val isImm     = uop(2)
+      val op        = uop(1, 0)
+      val isRW      = op === C_RW.value.U(SZ_C.W)
+      val isRS      = op === C_RS.value.U(SZ_C.W)
+      val isRC      = op === C_RC.value.U(SZ_C.W)
+      val src       = Mux(isImm, imm, rs1Data)
+      val srcIsZero = Mux(isImm, imm === 0.U, rs1 === 0.U)
 
-    override def view(regs: Map[String, UInt], extra: Map[String, UInt])(implicit
-      p: Parameters
-    ): CsrTrapView = {
-      val v = Wire(new CsrTrapView)
-      v.status           := get(regs, "mstatus")
-      v.interruptEnable  := get(regs, "mie")
-      v.interruptPending := get(regs, "mip")
-      v.trapVector       := get(regs, "mtvec")
-      v.epc              := get(regs, "mepc")
-      v
+      cmd.valid := !isSys
+      cmd.read  := !isSys && !(isRW && rd === 0.U)
+      cmd.write := !isSys && (isRW || ((isRS || isRC) && !srcIsZero))
+      cmd.addr  := instr(31, 20)
+      cmd.op    := op
+      cmd.data  := src
+
+      cmd
     }
 
-    override def trapEntryUpdates(
-      regs: Map[String, UInt],
-      pc: UInt,
-      cause: UInt
-    )(implicit p: Parameters): Map[String, UInt] = {
-      val mstatus    = get(regs, "mstatus")
-      val mie        = mstatus(3)
-      val newMstatus = Cat(mstatus(31, 8), mie, mstatus(6, 4), 0.U(1.W), mstatus(2, 0))
-
-      Map(
-        "mstatus" -> newMstatus,
-        "mepc"    -> pc,
-        "mcause"  -> cause
+    override def write(old: UInt, cmd: CsrFileCmd)(implicit p: Parameters): UInt =
+      MuxLookup(cmd.op, old)(
+        Seq(
+          C_RW.value.U(SZ_C.W) -> cmd.data,
+          C_RS.value.U(SZ_C.W) -> (old | cmd.data),
+          C_RC.value.U(SZ_C.W) -> (old & ~cmd.data)
+        )
       )
-    }
-
-    override def trapReturnTarget(regs: Map[String, UInt])(implicit p: Parameters): UInt =
-      get(regs, "mepc")
-
-    override def trapReturnUpdates(
-      regs: Map[String, UInt]
-    )(implicit p: Parameters): Map[String, UInt] = {
-      val mstatus    = get(regs, "mstatus")
-      val mpie       = mstatus(7)
-      val newMstatus = Cat(mstatus(31, 8), 1.U(1.W), mstatus(6, 4), mpie, mstatus(2, 0))
-
-      Map("mstatus" -> newMstatus)
-    }
-
-    override def isTrapReturn(instr: UInt, uop: UInt)(implicit p: Parameters): Bool =
-      isInstr(instr, "MRET")
-
-    override def hasSyncException(instr: UInt, uop: UInt)(implicit p: Parameters): Bool =
-      isInstr(instr, "ECALL") || isInstr(instr, "EBREAK")
-
-    override def syncExceptionCause(instr: UInt, uop: UInt)(implicit p: Parameters): UInt = {
-      val isEbreak = isInstr(instr, "EBREAK")
-      Mux(isEbreak, 3.U(p(XLen).W), 11.U(p(XLen).W))
-    }
   }
 
-  override def registry: NodeDimensionRegistry[CsrIsaImpl] =
-    CsrIsaFactory
+  override def registry: NodeDimensionRegistry[CsrFileImpl] =
+    CsrFileFactory
 }

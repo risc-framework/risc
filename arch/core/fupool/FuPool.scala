@@ -5,8 +5,7 @@ import arch.core.alu.Alu
 import arch.core.bru.Bru
 import arch.core.csr.Csr
 import arch.core.div.Div
-import arch.core.exception.{ ExceptionFuPoolReq, ExceptionFuPoolResp }
-import arch.core.interrupt.InterruptFuPoolResp
+import arch.core.exception.{ ExceptionAsyncReq, ExceptionCsrReq, ExceptionCsrStatus }
 import arch.core.ld.Ld
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.mult.Mult
@@ -20,9 +19,9 @@ import vutils.graph.Node
 class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
   val cpu = in[FuPoolCpuReq]
 
-  val exceptionReq  = in[ExceptionFuPoolReq]
-  val exceptionResp = out[ExceptionFuPoolResp]
-  val interruptResp = out[InterruptFuPoolResp]
+  val exceptionReq    = in[ExceptionCsrReq]
+  val exceptionStatus = out[ExceptionCsrStatus]
+  val asyncException  = out[ExceptionAsyncReq]
 
   val schedulerReq  = inDVec[FuReq](p => p(NumFUs))
   val schedulerDone = outVVec[FuResp](p => p(NumFUs))
@@ -129,9 +128,6 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
     storeWrite.out.lanes(i).bits  := 0.U.asTypeOf(new StoreWriteBundle)
   }
 
-  interruptResp.out.view     := 0.U.asTypeOf(interruptResp.out.view)
-  exceptionResp.out.csr_busy := false.B
-
   private val units = p(FunctionalUnits).zipWithIndex.map { case (desc, idx) =>
     subnode(build(desc)) -> idx
   }
@@ -195,8 +191,15 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
         csr.ctrlReq.in.arch_pc     := exceptionReq.in.arch_pc
         csr.ctrlReq.in.trap_update := exceptionReq.in.trap_update
 
-        interruptResp.out.view     := csr.ctrlResp.out.view
-        exceptionResp.out.csr_busy := csr.ctrlResp.out.busy
+        csr.flush.in.flush := exceptionReq.in.flush
+
+        exceptionStatus.out.busy := csr.ctrlResp.out.busy
+
+        asyncException.out.valid             := csr.ctrlResp.out.ir.valid
+        asyncException.out.target            := csr.ctrlResp.out.ir.target
+        asyncException.out.cause             := csr.ctrlResp.out.ir.cause
+        asyncException.out.write_csr         := true.B
+        asyncException.out.requires_csr_idle := true.B
 
       case _ =>
     }
