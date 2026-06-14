@@ -2,10 +2,9 @@ package arch.core.dispatch
 
 import arch.configs._
 import arch.core.decode.DecodedPacket
-import arch.core.fupool.FuReq
 import arch.core.sb.StoreBufferTicket
 import chisel3._
-import chisel3.util.{ Decoupled, log2Ceil }
+import chisel3.util.log2Ceil
 
 class DispatchRegfileReq(implicit p: Parameters) extends Bundle {
   val rs1_addr = Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W))
