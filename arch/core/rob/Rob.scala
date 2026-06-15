@@ -2,9 +2,10 @@ package arch.core.rob
 
 import arch.configs._
 import arch.core.bpu.BpuUpdate
+import arch.core.bru.BruResolveBundle
 import arch.core.dispatch.{ DispatchRobPacket, DispatchRobResp }
 import arch.core.flush.FlushRobReq
-import arch.core.fupool.FunctionalUnitType
+import arch.core.fupool.{ FunctionalUnitType, FuResp }
 import arch.core.regfile.RegfileWrite
 import vutils.graph.Node
 import chisel3._
@@ -13,8 +14,8 @@ import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val dispatchReq   = inDVec[DispatchRobPacket](p => p(IssueWidth))
   val dispatchResp  = outVec[DispatchRobResp](p => p(IssueWidth))
-  val fuDone        = inVVec[RobFuDone](p => p(NumFUs))
-  val bruResolved   = inVVec[RobBruResolved](p => p(NumBRUs))
+  val fuDone        = inDVec[FuResp](p => p(NumFUs))
+  val bruResolved   = inVVec[BruResolveBundle](p => p(NumBRUs))
   val regfileWrite  = outVVec[RegfileWrite](p => p(CommitWidth))
   val sbCommit      = outVVec[RobSbCommit](p => p(CommitWidth))
   val bpuUpdate     = out[BpuUpdate]
@@ -29,6 +30,9 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   private val head   = RegInit(0.U(p(RobTagWidth).W))
   private val tail   = RegInit(0.U(p(RobTagWidth).W))
   private val count  = RegInit(0.U(CntW.W))
+
+  for (i <- 0 until p(NumFUs))
+    fuDone.in.lanes(i).ready := true.B
 
   private def isBru(fuType: UInt): Bool =
     fuType === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU.index.U(p(FuTypeWidth).W)
@@ -71,7 +75,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   }
 
   for (i <- 0 until p(NumFUs))
-    when(fuDone.in.lanes(i).valid) {
+    when(fuDone.in.lanes(i).fire) {
       val done             = fuDone.in.lanes(i).bits
       val idx              = done.rob_tag
       val oldPc            = buffer(idx).pc

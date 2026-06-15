@@ -27,9 +27,6 @@ class BusBridge(implicit p: Parameters) extends Node[Parameters]("bus_bridge") {
   val dbus = IO(impl.busType)
   val mbus = IO(impl.busType)
 
-  override def desiredName: String =
-    s"bus_bridge_${cfg.selector.canonicalName}"
-
   dontTouch(imemReq.in)
   dontTouch(imemResp.out)
   dontTouch(dmemReq.in)

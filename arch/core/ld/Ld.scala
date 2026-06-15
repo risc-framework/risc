@@ -1,8 +1,8 @@
 package arch.core.ld
 
 import arch.core.pma.PmaModeFactory
-import arch.core.fupool.{ FuFlushReq, FuResp }
-import arch.core.fupool.FuReq
+import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.exception.ExceptionCsrReq
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.sb.{ StoreBufferStatus, StoreForwardReq, StoreForwardResp }
 import arch.configs._
@@ -24,7 +24,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
 
   val fuReq  = inD[FuReq]
   val fuResp = outD[FuResp]
-  val flush  = in[FuFlushReq]
+  val flush  = in[ExceptionCsrReq]
 
   val memReq   = outD[MemoryArbiterCacheReq]
   val memResp  = inD[MemoryArbiterCacheResp]

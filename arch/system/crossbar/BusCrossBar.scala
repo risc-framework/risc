@@ -18,9 +18,6 @@ class BusCrossbar(implicit p: Parameters) extends Node[Parameters]("bus_crossbar
   val mbus    = IO(impl.masterType)
   val devices = IO(Vec(p(BusAddressMap).length, impl.slaveType))
 
-  override def desiredName: String =
-    s"bus_crossbar_${cfg.selector.canonicalName}"
-
   dontTouch(ibus)
   dontTouch(dbus)
   dontTouch(mbus)

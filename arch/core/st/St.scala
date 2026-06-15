@@ -1,7 +1,8 @@
 package arch.core.st
 
 import arch.core.pma.PmaModeFactory
-import arch.core.fupool.{ FuResp, FuReq, FuFlushReq }
+import arch.core.fupool.{ FuResp, FuReq }
+import arch.core.exception.ExceptionCsrReq
 import arch.core.sb.StoreWriteBundle
 import arch.configs._
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
@@ -21,7 +22,7 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") {
 
   val fuReq      = inD[FuReq]
   val fuResp     = outD[FuResp]
-  val flush      = in[FuFlushReq]
+  val flush      = in[ExceptionCsrReq]
   val storeWrite = outV[StoreWriteBundle]
 
   private val isaImpl = StIsaFactory.select(cfg)

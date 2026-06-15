@@ -1,7 +1,8 @@
 package arch.core.csr
 
 import arch.configs._
-import arch.core.fupool.{ FuFlushReq, FuReq, FuResp }
+import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.exception.ExceptionCsrReq
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
 
@@ -16,7 +17,7 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
 
   val fuReq    = inD[FuReq]
   val fuResp   = outD[FuResp]
-  val flush    = in[FuFlushReq]
+  val flush    = in[ExceptionCsrReq]
   val ctrlReq  = in[CsrCtrlReq]
   val ctrlResp = out[CsrCtrlResp]
 

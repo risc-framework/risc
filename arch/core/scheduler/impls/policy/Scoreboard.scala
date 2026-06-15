@@ -1,11 +1,11 @@
 package arch.core.scheduler.impls.policy.scoreboard
 
 import arch.configs._
-import arch.core.scheduler._
 import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.scheduler._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder, ValidIO, log2Ceil }
+import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder, log2Ceil }
 
 class ScoreboardEntry(implicit p: Parameters) extends Bundle {
   val valid = Bool()
@@ -30,7 +30,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       exception: SchedulerExceptionReq,
       dispatchReq: Int => DecoupledIO[FuReq],
       fuReq: Int => DecoupledIO[FuReq],
-      fuDone: Int => ValidIO[FuResp]
+      fuDone: Int => DecoupledIO[FuResp]
     )(implicit p: Parameters): Unit = {
       val numRegs = p(NumArchRegs)
 
@@ -47,11 +47,16 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         for (w <- 0 until p(IssueWidth))
           dispatchReq(w).ready := false.B
 
+      def defaultFuDoneReady(): Unit =
+        for (i <- 0 until p(NumFUs))
+          fuDone(i).ready := true.B
+
       def olderLaneAccepted(w: Int, accepted: Vec[Bool]): Bool =
         if (w == 0) true.B else !dispatchReq(w - 1).valid || accepted(w - 1)
 
       defaultFuReqs()
       defaultDispatchReady()
+      defaultFuDoneReady()
 
       val reg_pending_valid   = RegInit(VecInit(Seq.fill(numRegs)(false.B)))
       val reg_pending_rob     = RegInit(VecInit(Seq.fill(numRegs)(0.U(p(RobTagWidth).W))))
@@ -67,7 +72,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       val cdb_rd      = Wire(Vec(p(NumFUs), UInt(log2Ceil(p(NumArchRegs)).W)))
 
       for (i <- 0 until p(NumFUs)) {
-        cdb_valid(i)   := fuDone(i).valid
+        cdb_valid(i)   := fuDone(i).fire
         cdb_data(i)    := fuDone(i).bits.result
         cdb_rob_tag(i) := fuDone(i).bits.rob_tag
         cdb_rd(i)      := fuDone(i).bits.rd

@@ -1,7 +1,7 @@
 package arch.core.bru
 
-import arch.core.fupool.{ FuFlushReq, FuResp }
-import arch.core.fupool.FuReq
+import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.exception.ExceptionCsrReq
 import arch.configs._
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
@@ -15,7 +15,7 @@ class Bru(implicit p: Parameters) extends Node[Parameters]("bru") {
 
   val fuReq    = inD[FuReq]
   val fuResp   = outD[FuResp]
-  val flush    = in[FuFlushReq]
+  val flush    = in[ExceptionCsrReq]
   val resolved = outV[BruResolveBundle]
 
   private val isaImpl  = BruIsaFactory.select(cfg)

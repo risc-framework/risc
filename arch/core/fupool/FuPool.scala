@@ -2,19 +2,17 @@ package arch.core.fupool
 
 import arch.configs._
 import arch.core.alu.Alu
-import arch.core.bru.Bru
+import arch.core.bru.{ Bru, BruResolveBundle }
 import arch.core.csr.Csr
 import arch.core.div.Div
 import arch.core.exception.{ ExceptionAsyncReq, ExceptionCsrReq, ExceptionCsrStatus }
 import arch.core.ld.Ld
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.mult.Mult
-import arch.core.rob.{ RobBruResolved, RobFuDone }
 import arch.core.sb.{ StoreBufferStatus, StoreForwardReq, StoreForwardResp, StoreWriteBundle }
 import arch.core.st.St
 import vutils.graph.Node
 import chisel3._
-import chisel3.util.DecoupledIO
 
 class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
   val cpu = in[FuPoolCpuReq]
@@ -24,10 +22,10 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
   val asyncException  = out[ExceptionAsyncReq]
 
   val schedulerReq  = inDVec[FuReq](p => p(NumFUs))
-  val schedulerDone = outVVec[FuResp](p => p(NumFUs))
+  val schedulerDone = outDVec[FuResp](p => p(NumFUs))
+  val robDone       = outDVec[FuResp](p => p(NumFUs))
 
-  val robDone     = outVVec[RobFuDone](p => p(NumFUs))
-  val bruResolved = outVVec[RobBruResolved](p => p(NumBRUs))
+  val bruResolved = outVVec[BruResolveBundle](p => p(NumBRUs))
 
   val loadMemReq   = outDVec[MemoryArbiterCacheReq](p => p(NumLDs))
   val loadMemResp  = inDVec[MemoryArbiterCacheResp](p => p(NumLDs))
@@ -54,85 +52,25 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
         )
     }
 
-  private def defaultOut[T <: Data](port: DecoupledIO[T]): Unit = {
-    port.valid := false.B
-    port.bits  := 0.U.asTypeOf(port.bits)
-  }
-
-  private def defaultIn[T <: Data](port: DecoupledIO[T]): Unit =
-    port.ready := false.B
-
-  private def forward[T <: Data](sink: DecoupledIO[T], source: DecoupledIO[T]): Unit = {
-    sink.valid   := source.valid
-    sink.bits    := source.bits
-    source.ready := sink.ready
-  }
-
-  private def connectFu(
-    fuReq: DecoupledIO[FuReq],
-    fuResp: DecoupledIO[FuResp],
-    fuFlush: FuFlushReq,
-    idx: Int
-  ): Unit = {
-    fuFlush.flush := exceptionReq.in.flush
-
-    forward(fuReq, schedulerReq.in.lanes(idx))
-
-    fuResp.ready := true.B
-
-    schedulerDone.out.lanes(idx).valid := fuResp.valid && !exceptionReq.in.flush
-    schedulerDone.out.lanes(idx).bits  := fuResp.bits
-
-    robDone.out.lanes(idx).valid             := fuResp.valid && !exceptionReq.in.flush
-    robDone.out.lanes(idx).bits.rob_tag      := fuResp.bits.rob_tag
-    robDone.out.lanes(idx).bits.result       := fuResp.bits.result
-    robDone.out.lanes(idx).bits.trap_req     := fuResp.bits.trap_req
-    robDone.out.lanes(idx).bits.trap_kind    := fuResp.bits.trap_kind
-    robDone.out.lanes(idx).bits.trap_target  := fuResp.bits.trap_target
-    robDone.out.lanes(idx).bits.trap_ret     := fuResp.bits.trap_ret
-    robDone.out.lanes(idx).bits.trap_ret_tgt := fuResp.bits.trap_ret_tgt
-  }
+  private val fuDescs = p(FunctionalUnits)
+  private val numLd   = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
+  private val numSt   = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
+  private val numBru  = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
+  private val numCsr  = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
 
   require(
-    p(FunctionalUnits).length == p(NumFUs),
-    s"FuPool: FunctionalUnits length ${p(FunctionalUnits).length} != NumFUs ${p(NumFUs)}"
+    fuDescs.length == p(NumFUs),
+    s"FuPool: FunctionalUnits length ${fuDescs.length} != NumFUs ${p(NumFUs)}"
   )
-
-  for (i <- 0 until p(NumFUs)) {
-    schedulerReq.in.lanes(i).ready := false.B
-
-    schedulerDone.out.lanes(i).valid := false.B
-    schedulerDone.out.lanes(i).bits  := 0.U.asTypeOf(new FuResp)
-
-    robDone.out.lanes(i).valid := false.B
-    robDone.out.lanes(i).bits  := 0.U.asTypeOf(new RobFuDone)
-  }
-
-  for (i <- 0 until p(NumBRUs)) {
-    bruResolved.out.lanes(i).valid := false.B
-    bruResolved.out.lanes(i).bits  := 0.U.asTypeOf(new RobBruResolved)
-  }
-
-  for (i <- 0 until p(NumLDs)) {
-    defaultOut(loadMemReq.out.lanes(i))
-    defaultIn(loadMemResp.in.lanes(i))
-
-    defaultOut(loadMmioReq.out.lanes(i))
-    defaultIn(loadMmioResp.in.lanes(i))
-
-    defaultOut(storeForwardReq.out.lanes(i))
-    defaultIn(storeForwardResp.in.lanes(i))
-  }
-
-  for (i <- 0 until p(NumSTs)) {
-    storeWrite.out.lanes(i).valid := false.B
-    storeWrite.out.lanes(i).bits  := 0.U.asTypeOf(new StoreWriteBundle)
-  }
+  require(numLd == p(NumLDs), s"FuPool: LD descriptor count $numLd != NumLDs ${p(NumLDs)}")
+  require(numSt == p(NumSTs), s"FuPool: ST descriptor count $numSt != NumSTs ${p(NumSTs)}")
+  require(numBru == p(NumBRUs), s"FuPool: BRU descriptor count $numBru != NumBRUs ${p(NumBRUs)}")
+  require(numCsr <= 1, s"FuPool: at most one CSR FU is supported, got $numCsr")
 
   exceptionStatus.out.busy := false.B
   asyncException.out       := 0.U.asTypeOf(new ExceptionAsyncReq)
 
-  private val units = p(FunctionalUnits).zipWithIndex.map { case (desc, idx) =>
+  private val units = fuDescs.zipWithIndex.map { case (desc, idx) =>
     subnode(build(desc)) -> idx
   }
 
@@ -143,59 +81,81 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
   for ((unit, fuIdx) <- units)
     unit match {
       case alu: Alu =>
-        connectFu(alu.fuReq.in, alu.fuResp.out, alu.flush.in, fuIdx)
+        link(
+          schedulerReq.lanes(fuIdx) -> alu.fuReq,
+          exceptionReq              -> alu.flush,
+          alu.fuResp                -> schedulerDone.lanes(fuIdx),
+          alu.fuResp                -> robDone.lanes(fuIdx)
+        )
 
       case mult: Mult =>
-        connectFu(mult.fuReq.in, mult.fuResp.out, mult.flush.in, fuIdx)
+        link(
+          schedulerReq.lanes(fuIdx) -> mult.fuReq,
+          exceptionReq              -> mult.flush,
+          mult.fuResp               -> schedulerDone.lanes(fuIdx),
+          mult.fuResp               -> robDone.lanes(fuIdx)
+        )
 
       case div: Div =>
-        connectFu(div.fuReq.in, div.fuResp.out, div.flush.in, fuIdx)
+        link(
+          schedulerReq.lanes(fuIdx) -> div.fuReq,
+          exceptionReq              -> div.flush,
+          div.fuResp                -> schedulerDone.lanes(fuIdx),
+          div.fuResp                -> robDone.lanes(fuIdx)
+        )
 
       case ld: Ld =>
-        connectFu(ld.fuReq.in, ld.fuResp.out, ld.flush.in, fuIdx)
-
-        forward(loadMemReq.out.lanes(ldIdx), ld.memReq.out)
-        forward(ld.memResp.in, loadMemResp.in.lanes(ldIdx))
-
-        forward(loadMmioReq.out.lanes(ldIdx), ld.mmioReq.out)
-        forward(ld.mmioResp.in, loadMmioResp.in.lanes(ldIdx))
-
-        forward(storeForwardReq.out.lanes(ldIdx), ld.fwdReq.out)
-        forward(ld.fwdResp.in, storeForwardResp.in.lanes(ldIdx))
-
-        ld.sbStatus.in := storeBufferStatus.in
+        link(
+          schedulerReq.lanes(fuIdx)     -> ld.fuReq,
+          exceptionReq                  -> ld.flush,
+          ld.fuResp                     -> schedulerDone.lanes(fuIdx),
+          ld.fuResp                     -> robDone.lanes(fuIdx),
+          ld.memReq                     -> loadMemReq.lanes(ldIdx),
+          loadMemResp.lanes(ldIdx)      -> ld.memResp,
+          ld.mmioReq                    -> loadMmioReq.lanes(ldIdx),
+          loadMmioResp.lanes(ldIdx)     -> ld.mmioResp,
+          ld.fwdReq                     -> storeForwardReq.lanes(ldIdx),
+          storeForwardResp.lanes(ldIdx) -> ld.fwdResp,
+          storeBufferStatus             -> ld.sbStatus
+        )
 
         ldIdx += 1
 
       case st: St =>
-        connectFu(st.fuReq.in, st.fuResp.out, st.flush.in, fuIdx)
-
-        storeWrite.out.lanes(stIdx).valid := st.storeWrite.out.valid
-        storeWrite.out.lanes(stIdx).bits  := st.storeWrite.out.bits
+        link(
+          schedulerReq.lanes(fuIdx) -> st.fuReq,
+          exceptionReq              -> st.flush,
+          st.fuResp                 -> schedulerDone.lanes(fuIdx),
+          st.fuResp                 -> robDone.lanes(fuIdx),
+          st.storeWrite             -> storeWrite.lanes(stIdx)
+        )
 
         stIdx += 1
 
       case bru: Bru =>
-        connectFu(bru.fuReq.in, bru.fuResp.out, bru.flush.in, fuIdx)
-
-        bruResolved.out.lanes(bruIdx).valid            := bru.resolved.out.valid && !exceptionReq.in.flush
-        bruResolved.out.lanes(bruIdx).bits.rob_tag     := bru.resolved.out.bits.rob_tag
-        bruResolved.out.lanes(bruIdx).bits.taken       := bru.resolved.out.bits.taken
-        bruResolved.out.lanes(bruIdx).bits.target      := bru.resolved.out.bits.target
-        bruResolved.out.lanes(bruIdx).bits.fallthrough := bru.resolved.out.bits.fallthrough
+        link(
+          schedulerReq.lanes(fuIdx) -> bru.fuReq,
+          exceptionReq              -> bru.flush,
+          bru.fuResp                -> schedulerDone.lanes(fuIdx),
+          bru.fuResp                -> robDone.lanes(fuIdx),
+          bru.resolved              -> bruResolved.lanes(bruIdx)
+        )
 
         bruIdx += 1
 
       case csr: Csr =>
-        connectFu(csr.fuReq.in, csr.fuResp.out, csr.flush.in, fuIdx)
+        link(
+          schedulerReq.lanes(fuIdx) -> csr.fuReq,
+          exceptionReq              -> csr.flush,
+          csr.fuResp                -> schedulerDone.lanes(fuIdx),
+          csr.fuResp                -> robDone.lanes(fuIdx),
+        )
 
         csr.ctrlReq.in.cycle       := cpu.in.cycle
         csr.ctrlReq.in.instret     := cpu.in.instret
         csr.ctrlReq.in.irq         := cpu.in.irq
         csr.ctrlReq.in.arch_pc     := exceptionReq.in.arch_pc
         csr.ctrlReq.in.trap_update := exceptionReq.in.trap_update
-
-        csr.flush.in.flush := exceptionReq.in.flush
 
         exceptionStatus.out.busy := csr.ctrlResp.out.busy
 

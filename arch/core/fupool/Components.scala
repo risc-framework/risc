@@ -60,10 +60,6 @@ class FuResp(implicit p: Parameters) extends Bundle {
   val trap_ret_tgt = UInt(p(XLen).W)
 }
 
-class FuFlushReq extends Bundle {
-  val flush = Bool()
-}
-
 class FuPoolCpuReq extends Bundle {
   val cycle   = UInt(64.W)
   val instret = UInt(64.W)

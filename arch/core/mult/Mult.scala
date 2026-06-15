@@ -1,7 +1,8 @@
 package arch.core.mult
 
 import arch.configs._
-import arch.core.fupool.{ FuFlushReq, FuResp, FuReq }
+import arch.core.fupool.{ FuResp, FuReq }
+import arch.core.exception.ExceptionCsrReq
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import vutils.math.mul.IntegerMultiplier
 import chisel3._
@@ -20,7 +21,7 @@ class Mult(implicit p: Parameters) extends Node[Parameters]("mult") {
 
   val fuReq  = inD[FuReq]
   val fuResp = outD[FuResp]
-  val flush  = in[FuFlushReq]
+  val flush  = in[ExceptionCsrReq]
 
   private val isaImpl    = MultIsaFactory.select(cfg)
   private val multiplier = Module(new IntegerMultiplier(p(XLen), p(MultPipelineStages)))

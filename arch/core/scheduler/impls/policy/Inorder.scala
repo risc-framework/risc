@@ -1,11 +1,11 @@
 package arch.core.scheduler.impls.policy.inorder
 
 import arch.configs._
-import arch.core.scheduler._
 import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.scheduler._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder, ValidIO }
+import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder }
 
 object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
   override def utils: SchedulerPolicyImpl = new SchedulerPolicyImpl {
@@ -15,7 +15,7 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
       exception: SchedulerExceptionReq,
       dispatchReq: Int => DecoupledIO[FuReq],
       fuReq: Int => DecoupledIO[FuReq],
-      fuDone: Int => ValidIO[FuResp]
+      fuDone: Int => DecoupledIO[FuResp]
     )(implicit p: Parameters): Unit = {
       val numRegs = p(NumArchRegs)
 
@@ -31,6 +31,10 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
       def defaultDispatchReady(): Unit =
         for (w <- 0 until p(IssueWidth))
           dispatchReq(w).ready := false.B
+
+      def defaultFuDoneReady(): Unit =
+        for (i <- 0 until p(NumFUs))
+          fuDone(i).ready := true.B
 
       def fuMatchMask(op: FuReq, used: Vec[Bool]): Vec[Bool] = {
         val mask = Wire(Vec(p(NumFUs), Bool()))
@@ -55,6 +59,7 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
 
       defaultFuReqs()
       defaultDispatchReady()
+      defaultFuDoneReady()
 
       val cdb_hit   = Wire(Vec(numRegs, Vec(p(NumFUs), Bool())))
       val cdb_valid = Wire(Vec(numRegs, Bool()))
@@ -62,7 +67,7 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
 
       for (r <- 0 until numRegs) {
         for (f <- 0 until p(NumFUs))
-          cdb_hit(r)(f) := fuDone(f).valid && fuDone(f).bits.rd === r.U
+          cdb_hit(r)(f) := fuDone(f).fire && fuDone(f).bits.rd === r.U
 
         cdb_valid(r) := cdb_hit(r).asUInt.orR
         cdb_data(r)  := Mux1H(cdb_hit(r), (0 until p(NumFUs)).map(f => fuDone(f).bits.result))

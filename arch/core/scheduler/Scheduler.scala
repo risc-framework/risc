@@ -14,7 +14,7 @@ class Scheduler(implicit p: Parameters) extends Node[Parameters]("scheduler") {
   val exception   = in[SchedulerExceptionReq]
   val dispatchReq = inDVec[FuReq](p => p(IssueWidth))
   val fuReq       = outDVec[FuReq](p => p(NumFUs))
-  val fuDone      = inVVec[FuResp](p => p(NumFUs))
+  val fuDone      = inDVec[FuResp](p => p(NumFUs))
 
   private val policy = SchedulerPolicyFactory.select(cfg)
 

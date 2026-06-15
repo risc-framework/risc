@@ -1,7 +1,8 @@
 package arch.core.div
 
 import arch.configs._
-import arch.core.fupool.{ FuFlushReq, FuResp, FuReq }
+import arch.core.fupool.{ FuResp, FuReq }
+import arch.core.exception.ExceptionCsrReq
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import vutils.math.div.RestoringDivider
 import chisel3._
@@ -20,7 +21,7 @@ class Div(implicit p: Parameters) extends Node[Parameters]("div") {
 
   val fuReq  = inD[FuReq]
   val fuResp = outD[FuResp]
-  val flush  = in[FuFlushReq]
+  val flush  = in[ExceptionCsrReq]
 
   private val isaImpl   = DivIsaFactory.select(cfg)
   private val divider   = Module(new RestoringDivider(p(XLen)))

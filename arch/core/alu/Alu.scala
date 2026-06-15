@@ -1,7 +1,8 @@
 package arch.core.alu
 
 import arch.configs._
-import arch.core.fupool.{ FuFlushReq, FuResp, FuReq }
+import arch.core.fupool.{ FuResp, FuReq }
+import arch.core.exception.ExceptionCsrReq
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
 
@@ -14,7 +15,7 @@ class Alu(implicit p: Parameters) extends Node[Parameters]("alu") {
 
   val fuReq  = inD[FuReq]
   val fuResp = outD[FuResp]
-  val flush  = in[FuFlushReq]
+  val flush  = in[ExceptionCsrReq]
 
   private val isaImpl  = AluIsaFactory.select(cfg)
   private val validReg = RegInit(false.B)
