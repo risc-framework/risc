@@ -1,19 +1,25 @@
 package arch.core.st
 
-import arch.core.pma.PmaModeFactory
-import arch.core.fupool.{ FuResp, FuReq }
 import arch.core.exception.ExceptionCsrReq
+import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.pma.PmaModeFactory
 import arch.core.sb.StoreWriteBundle
 import arch.configs._
+import vutils.fsm.ElasticGraphSyntax
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
-import chisel3.util.{ is, switch }
+import chisel3.util.Decoupled
 
-object StState extends ChiselEnum {
-  val IDLE, WRITE_SB, DONE = Value
+object StPipeNode extends ChiselEnum {
+  val WRITE_SB, RESP = Value
 }
 
-class St(implicit p: Parameters) extends Node[Parameters]("st") {
+private class StPipeEntry(implicit p: Parameters) extends Bundle {
+  val store = new StoreWriteBundle
+  val resp  = new FuResp
+}
+
+class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGraphSyntax {
   override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       StDims.ISA -> p(ISA).name
@@ -23,68 +29,66 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") {
   val fuReq      = inD[FuReq]
   val fuResp     = outD[FuResp]
   val flush      = in[ExceptionCsrReq]
-  val storeWrite = outV[StoreWriteBundle]
+  val storeWrite = outD[StoreWriteBundle]
 
   private val isaImpl = StIsaFactory.select(cfg)
   private val pma     = PmaModeFactory.getOrThrow("default")
-  private val state   = RegInit(StState.IDLE)
-  private val uopReg  = Reg(new FuReq)
 
-  private val ctrl        = isaImpl.decode(uopReg.uop)
-  private val addr        = uopReg.rs1_data + uopReg.imm
-  private val alignedAddr = isaImpl.alignedAddr(addr)
-  private val storeData   = isaImpl.alignedStoreData(ctrl, addr, uopReg.rs2_data)
-  private val storeMask   = isaImpl.shiftedStoreMask(ctrl, addr)
-  private val pmaResult   = pma.check(addr)
+  private def emptyEntry: StPipeEntry = 0.U.asTypeOf(new StPipeEntry)
 
-  fuReq.in.ready := !flush.in.flush && (state === StState.IDLE || (state === StState.DONE && fuResp.out.ready))
+  private val acceptCtrl        = isaImpl.decode(fuReq.in.bits.uop)
+  private val acceptAddr        = fuReq.in.bits.rs1_data + fuReq.in.bits.imm
+  private val acceptAlignedAddr = isaImpl.alignedAddr(acceptAddr)
+  private val acceptStoreData   =
+    isaImpl.alignedStoreData(acceptCtrl, acceptAddr, fuReq.in.bits.rs2_data)
+  private val acceptStoreMask   = isaImpl.shiftedStoreMask(acceptCtrl, acceptAddr)
+  private val acceptPmaResult   = pma.check(acceptAddr)
 
-  private val acceptFire = fuReq.in.fire && !flush.in.flush
+  private val acceptEntry = WireDefault(emptyEntry)
 
-  storeWrite.out.valid          := state === StState.WRITE_SB && !flush.in.flush
-  storeWrite.out.bits.sq_idx    := uopReg.sq_idx
-  storeWrite.out.bits.rob_tag   := uopReg.rob_tag
-  storeWrite.out.bits.addr      := alignedAddr
-  storeWrite.out.bits.data      := storeData
-  storeWrite.out.bits.mask      := storeMask
-  storeWrite.out.bits.cacheable := pmaResult.cacheable
+  acceptEntry.store.sq_idx    := fuReq.in.bits.sq_idx
+  acceptEntry.store.rob_tag   := fuReq.in.bits.rob_tag
+  acceptEntry.store.addr      := acceptAlignedAddr
+  acceptEntry.store.data      := acceptStoreData
+  acceptEntry.store.mask      := acceptStoreMask
+  acceptEntry.store.cacheable := acceptPmaResult.cacheable
 
-  private val resp = Wire(new FuResp)
+  acceptEntry.resp.result       := 0.U
+  acceptEntry.resp.rd           := 0.U
+  acceptEntry.resp.pc           := fuReq.in.bits.pc
+  acceptEntry.resp.instr        := fuReq.in.bits.instr
+  acceptEntry.resp.rob_tag      := fuReq.in.bits.rob_tag
+  acceptEntry.resp.trap_req     := false.B
+  acceptEntry.resp.trap_kind    := 0.U
+  acceptEntry.resp.trap_target  := 0.U
+  acceptEntry.resp.trap_ret     := false.B
+  acceptEntry.resp.trap_ret_tgt := 0.U
 
-  resp.result       := 0.U
-  resp.rd           := 0.U
-  resp.pc           := uopReg.pc
-  resp.instr        := uopReg.instr
-  resp.rob_tag      := uopReg.rob_tag
-  resp.trap_req     := false.B
-  resp.trap_kind    := 0.U
-  resp.trap_target  := 0.U
-  resp.trap_ret     := false.B
-  resp.trap_ret_tgt := 0.U
+  private val acceptIn = Wire(Decoupled(new StPipeEntry))
+  private val respOut  = Wire(Decoupled(new StPipeEntry))
 
-  fuResp.out.valid := state === StState.DONE && !flush.in.flush
-  fuResp.out.bits  := resp
+  acceptIn.valid := fuReq.in.valid && !flush.in.flush
+  acceptIn.bits  := acceptEntry
+  fuReq.in.ready := acceptIn.ready && !flush.in.flush
 
-  when(flush.in.flush) {
-    state := StState.IDLE
-  }.otherwise {
-    switch(state) {
-      is(StState.IDLE) {}
+  respOut.ready := fuResp.out.ready && !flush.in.flush
 
-      is(StState.WRITE_SB) {
-        state := StState.DONE
-      }
+  private val pipe = elastic(new StPipeEntry, StPipeNode.WRITE_SB, clear = flush.in.flush) { g =>
+    import g._
 
-      is(StState.DONE) {
-        when(fuResp.out.fire) {
-          state := StState.IDLE
-        }
-      }
-    }
+    val WRITE_SB = stage(StPipeNode.WRITE_SB)
+    val RESP     = stage(StPipeNode.RESP)
 
-    when(acceptFire) {
-      uopReg := fuReq.in.bits
-      state  := StState.WRITE_SB
-    }
+    source(acceptIn, WRITE_SB)
+    connect(WRITE_SB, RESP, trigger = storeWrite.out.ready)
+    sink(RESP, respOut)
   }
+
+  storeWrite.out.valid := pipe(StPipeNode.WRITE_SB).valid && pipe(
+    StPipeNode.RESP
+  ).ready && !flush.in.flush
+  storeWrite.out.bits  := pipe(StPipeNode.WRITE_SB).bits.store
+
+  fuResp.out.valid := respOut.valid && !flush.in.flush
+  fuResp.out.bits  := respOut.bits.resp
 }

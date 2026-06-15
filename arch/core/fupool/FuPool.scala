@@ -35,7 +35,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
   val storeForwardReq   = outDVec[StoreForwardReq](p => p(NumLDs))
   val storeForwardResp  = inDVec[StoreForwardResp](p => p(NumLDs))
   val storeBufferStatus = in[StoreBufferStatus]
-  val storeWrite        = outVVec[StoreWriteBundle](p => p(NumSTs))
+  val storeWrite        = outDVec[StoreWriteBundle](p => p(NumSTs))
 
   private def build(desc: FunctionalUnitDescriptor): Node[Parameters] =
     desc.`type` match {

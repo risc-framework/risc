@@ -4,10 +4,10 @@ import arch.configs._
 import arch.core.dispatch.{ DispatchStoreBufferReq, DispatchStoreBufferResp }
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.rob.RobSbCommit
-import chisel3._
-import chisel3.util.{ Cat, Mux1H, PopCount, log2Ceil }
 import vcache.CacheCommand
 import vutils.graph.Node
+import chisel3._
+import chisel3.util.{ Cat, Mux1H, PopCount, log2Ceil }
 
 class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer") {
   val exception = in[StoreBufferExceptionReq]
@@ -22,7 +22,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
 
   val status = out[StoreBufferStatus]
 
-  val storeWrite = inVVec[StoreWriteBundle](p => p(NumSTs))
+  val storeWrite = inDVec[StoreWriteBundle](p => p(NumSTs))
 
   val memReq   = outD[MemoryArbiterCacheReq]
   val memResp  = inD[MemoryArbiterCacheResp]
@@ -54,6 +54,9 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
 
   status.out.oldest_valid := count =/= 0.U
   status.out.oldest_seq   := entries(head).seq
+
+  for (s <- 0 until numStorePorts)
+    storeWrite.in.lanes(s).ready := !exception.in.flush
 
   private val laneIsStore = Wire(Vec(p(IssueWidth), Bool()))
 
@@ -211,7 +214,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     val allocHit    = Wire(Vec(p(IssueWidth), Bool()))
 
     for (s <- 0 until numStorePorts)
-      writeHit(s) := storeWrite.in.lanes(s).valid &&
+      writeHit(s) := storeWrite.in.lanes(s).fire &&
         storeWrite.in.lanes(s).bits.sq_idx === i.U &&
         entries(i).valid &&
         entries(i).rob_tag === storeWrite.in.lanes(s).bits.rob_tag &&
