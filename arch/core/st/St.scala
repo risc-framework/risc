@@ -36,59 +36,52 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
 
   private def emptyEntry: StPipeEntry = 0.U.asTypeOf(new StPipeEntry)
 
-  private val acceptCtrl        = isaImpl.decode(fuReq.in.bits.uop)
-  private val acceptAddr        = fuReq.in.bits.rs1_data + fuReq.in.bits.imm
-  private val acceptAlignedAddr = isaImpl.alignedAddr(acceptAddr)
-  private val acceptStoreData   =
-    isaImpl.alignedStoreData(acceptCtrl, acceptAddr, fuReq.in.bits.rs2_data)
-  private val acceptStoreMask   = isaImpl.shiftedStoreMask(acceptCtrl, acceptAddr)
-  private val acceptPmaResult   = pma.check(acceptAddr)
+  private def buildEntry(req: FuReq): StPipeEntry = {
+    val ctrl  = isaImpl.decode(req.uop)
+    val addr  = req.rs1_data + req.imm
+    val entry = WireDefault(emptyEntry)
 
-  private val acceptEntry = WireDefault(emptyEntry)
+    entry.store.sq_idx    := req.sq_idx
+    entry.store.rob_tag   := req.rob_tag
+    entry.store.addr      := isaImpl.alignedAddr(addr)
+    entry.store.data      := isaImpl.alignedStoreData(ctrl, addr, req.rs2_data)
+    entry.store.mask      := isaImpl.shiftedStoreMask(ctrl, addr)
+    entry.store.cacheable := pma.check(addr).cacheable
 
-  acceptEntry.store.sq_idx    := fuReq.in.bits.sq_idx
-  acceptEntry.store.rob_tag   := fuReq.in.bits.rob_tag
-  acceptEntry.store.addr      := acceptAlignedAddr
-  acceptEntry.store.data      := acceptStoreData
-  acceptEntry.store.mask      := acceptStoreMask
-  acceptEntry.store.cacheable := acceptPmaResult.cacheable
+    entry.resp.result       := 0.U
+    entry.resp.rd           := 0.U
+    entry.resp.pc           := req.pc
+    entry.resp.instr        := req.instr
+    entry.resp.rob_tag      := req.rob_tag
+    entry.resp.trap_req     := false.B
+    entry.resp.trap_kind    := 0.U
+    entry.resp.trap_target  := 0.U
+    entry.resp.trap_ret     := false.B
+    entry.resp.trap_ret_tgt := 0.U
 
-  acceptEntry.resp.result       := 0.U
-  acceptEntry.resp.rd           := 0.U
-  acceptEntry.resp.pc           := fuReq.in.bits.pc
-  acceptEntry.resp.instr        := fuReq.in.bits.instr
-  acceptEntry.resp.rob_tag      := fuReq.in.bits.rob_tag
-  acceptEntry.resp.trap_req     := false.B
-  acceptEntry.resp.trap_kind    := 0.U
-  acceptEntry.resp.trap_target  := 0.U
-  acceptEntry.resp.trap_ret     := false.B
-  acceptEntry.resp.trap_ret_tgt := 0.U
+    entry
+  }
 
   private val acceptIn = Wire(Decoupled(new StPipeEntry))
-  private val respOut  = Wire(Decoupled(new StPipeEntry))
 
   acceptIn.valid := fuReq.in.valid && !flush.in.flush
-  acceptIn.bits  := acceptEntry
+  acceptIn.bits  := buildEntry(fuReq.in.bits)
   fuReq.in.ready := acceptIn.ready && !flush.in.flush
 
-  respOut.ready := fuResp.out.ready && !flush.in.flush
-
-  private val pipe = elastic(new StPipeEntry, StPipeNode.WRITE_SB, clear = flush.in.flush) { g =>
+  elastic(new StPipeEntry, StPipeNode.WRITE_SB, clear = flush.in.flush) { g =>
     import g._
 
     val WRITE_SB = stage(StPipeNode.WRITE_SB)
     val RESP     = stage(StPipeNode.RESP)
 
     source(acceptIn, WRITE_SB)
-    connect(WRITE_SB, RESP, trigger = storeWrite.out.ready)
-    sink(RESP, respOut)
+
+    request(WRITE_SB, storeWrite.out, RESP) { store =>
+      store := WRITE_SB.bits.store
+    }
+
+    sinkMap(RESP, fuResp.out) { resp =>
+      resp := RESP.bits.resp
+    }
   }
-
-  storeWrite.out.valid := pipe(StPipeNode.WRITE_SB).valid && pipe(
-    StPipeNode.RESP
-  ).ready && !flush.in.flush
-  storeWrite.out.bits  := pipe(StPipeNode.WRITE_SB).bits.store
-
-  fuResp.out.valid := respOut.valid && !flush.in.flush
-  fuResp.out.bits  := respOut.bits.resp
 }
