@@ -26,6 +26,8 @@ trait Rv32iAluUopConsts extends AluConsts {
   def AFN_OR   = BitPat("b110")
   def AFN_AND  = BitPat("b111")
 
+  def AFN(fn: BitPat): UInt = fn.value.asUInt(SZ_AFN.W)
+
   def UOP_ADD  = cat(A1_RS1, A2_RS2, AM_0, AFN_ADD)
   def UOP_SUB  = cat(A1_RS1, A2_RS2, AM_1, AFN_ADD)
   def UOP_SLL  = cat(A1_RS1, A2_RS2, AM_0, AFN_SLL)
@@ -72,18 +74,18 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
 
       val src1 = MuxLookup(ctrl.sel1, 0.U(p(XLen).W))(
         Seq(
-          A1_ZERO.value.U(SZ_A1.W) -> 0.U(p(XLen).W),
-          A1_RS1.value.U(SZ_A1.W)  -> uop.rs1_data,
-          A1_PC.value.U(SZ_A1.W)   -> uop.pc
+          A1(A1_ZERO) -> 0.U(p(XLen).W),
+          A1(A1_RS1)  -> uop.rs1_data,
+          A1(A1_PC)   -> uop.pc
         )
       )
 
       val src2 = MuxLookup(ctrl.sel2, 0.U(p(XLen).W))(
         Seq(
-          A2_ZERO.value.U(SZ_A2.W)   -> 0.U(p(XLen).W),
-          A2_RS2.value.U(SZ_A2.W)    -> uop.rs2_data,
-          A2_IMM.value.U(SZ_A2.W)    -> uop.imm,
-          A2_PCSTEP.value.U(SZ_A2.W) -> p(PCStep).U(p(XLen).W)
+          A2(A2_ZERO)   -> 0.U(p(XLen).W),
+          A2(A2_RS2)    -> uop.rs2_data,
+          A2(A2_IMM)    -> uop.imm,
+          A2(A2_PCSTEP) -> p(PCStep).U(p(XLen).W)
         )
       )
 
@@ -97,14 +99,14 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
 
       MuxLookup(ctrl.fn, 0.U(p(XLen).W))(
         Seq(
-          AFN_ADD.value.U(SZ_AFN.W)  -> adderOut,
-          AFN_SLL.value.U(SZ_AFN.W)  -> sllOut,
-          AFN_SLT.value.U(SZ_AFN.W)  -> lt.asUInt,
-          AFN_SLTU.value.U(SZ_AFN.W) -> ltu.asUInt,
-          AFN_XOR.value.U(SZ_AFN.W)  -> (src1 ^ src2),
-          AFN_SRL.value.U(SZ_AFN.W)  -> srlOut,
-          AFN_OR.value.U(SZ_AFN.W)   -> (src1 | src2),
-          AFN_AND.value.U(SZ_AFN.W)  -> (src1 & src2)
+          AFN(AFN_ADD)  -> adderOut,
+          AFN(AFN_SLL)  -> sllOut,
+          AFN(AFN_SLT)  -> lt.asUInt,
+          AFN(AFN_SLTU) -> ltu.asUInt,
+          AFN(AFN_XOR)  -> (src1 ^ src2),
+          AFN(AFN_SRL)  -> srlOut,
+          AFN(AFN_OR)   -> (src1 | src2),
+          AFN(AFN_AND)  -> (src1 & src2)
         )
       )
     }

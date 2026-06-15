@@ -28,6 +28,8 @@ trait Rv32iDecodeConsts
   def RF_RS2  = BitPat("b10")
   def RF_RD   = BitPat("b11")
 
+  def RF(sel: BitPat): UInt = sel.value.U(SZ_RF.W)
+
   def IMM_X   = BitPat("b???")
   def SZ_IMM  = IMM_X.getWidth
   def IMM_I   = BitPat("b000")
@@ -36,6 +38,8 @@ trait Rv32iDecodeConsts
   def IMM_U   = BitPat("b011")
   def IMM_J   = BitPat("b100")
   def IMM_CSR = BitPat("b101")
+
+  def IMM(sel: BitPat): UInt = sel.value.U(SZ_IMM.W)
 
   def UOP_X  = BitPat("b????????")
   def SZ_UOP = UOP_X.getWidth
@@ -130,10 +134,10 @@ object DecodeRv32iIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32iDecod
 
       MuxLookup(sel, 0.U(regW.W))(
         Seq(
-          RF_ZERO.value.U(SZ_RF.W) -> 0.U(regW.W),
-          RF_RS1.value.U(SZ_RF.W)  -> instr(19, 15),
-          RF_RS2.value.U(SZ_RF.W)  -> instr(24, 20),
-          RF_RD.value.U(SZ_RF.W)   -> instr(11, 7)
+          RF(RF_ZERO) -> 0.U(regW.W),
+          RF(RF_RS1)  -> instr(19, 15),
+          RF(RF_RS2)  -> instr(24, 20),
+          RF(RF_RD)   -> instr(11, 7)
         )
       )
     }
@@ -147,10 +151,9 @@ object DecodeRv32iIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32iDecod
     override def imm(sel: UInt, instr: UInt)(implicit p: Parameters): UInt =
       MuxLookup(sel, 0.U(p(XLen).W))(
         Seq(
-          IMM_I.value.U(SZ_IMM.W)   -> Cat(Fill(p(XLen) - 12, instr(31)), instr(31, 20)),
-          IMM_S.value
-            .U(SZ_IMM.W)            -> Cat(Fill(p(XLen) - 12, instr(31)), instr(31, 25), instr(11, 7)),
-          IMM_B.value.U(SZ_IMM.W)   -> Cat(
+          IMM(IMM_I)   -> Cat(Fill(p(XLen) - 12, instr(31)), instr(31, 20)),
+          IMM(IMM_S)   -> Cat(Fill(p(XLen) - 12, instr(31)), instr(31, 25), instr(11, 7)),
+          IMM(IMM_B)   -> Cat(
             Fill(p(XLen) - 13, instr(31)),
             instr(31),
             instr(7),
@@ -158,8 +161,8 @@ object DecodeRv32iIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32iDecod
             instr(11, 8),
             0.U(1.W)
           ),
-          IMM_U.value.U(SZ_IMM.W)   -> Cat(instr(31, 12), Fill(12, 0.U)),
-          IMM_J.value.U(SZ_IMM.W)   -> Cat(
+          IMM(IMM_U)   -> Cat(instr(31, 12), Fill(12, 0.U)),
+          IMM(IMM_J)   -> Cat(
             Fill(p(XLen) - 21, instr(31)),
             instr(31),
             instr(19, 12),
@@ -167,7 +170,7 @@ object DecodeRv32iIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32iDecod
             instr(30, 21),
             0.U(1.W)
           ),
-          IMM_CSR.value.U(SZ_IMM.W) -> Cat(Fill(p(XLen) - 5, 0.U), instr(19, 15))
+          IMM(IMM_CSR) -> Cat(Fill(p(XLen) - 5, 0.U), instr(19, 15))
         )
       )
   }

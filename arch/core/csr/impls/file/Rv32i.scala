@@ -19,6 +19,8 @@ trait Rv32iCsrUopConsts {
   def C_RC = BitPat("b10")
   def SZ_C = C_X.getWidth
 
+  def C(op: BitPat): UInt = op.value.U(SZ_C.W)
+
   def UOP_CSRRW  = cat(P_X, N, N, C_RW)
   def UOP_CSRRS  = cat(P_X, N, N, C_RS)
   def UOP_CSRRC  = cat(P_X, N, N, C_RC)
@@ -125,9 +127,9 @@ object Rv32iCsrFile
       val isSys     = uop(3)
       val isImm     = uop(2)
       val op        = uop(1, 0)
-      val isRW      = op === C_RW.value.U(SZ_C.W)
-      val isRS      = op === C_RS.value.U(SZ_C.W)
-      val isRC      = op === C_RC.value.U(SZ_C.W)
+      val isRW      = op === C(C_RW)
+      val isRS      = op === C(C_RS)
+      val isRC      = op === C(C_RC)
       val src       = Mux(isImm, imm, rs1Data)
       val srcIsZero = Mux(isImm, imm === 0.U, rs1 === 0.U)
 
@@ -144,9 +146,9 @@ object Rv32iCsrFile
     override def write(old: UInt, cmd: CsrFileCmd)(implicit p: Parameters): UInt =
       MuxLookup(cmd.op, old)(
         Seq(
-          C_RW.value.U(SZ_C.W) -> cmd.data,
-          C_RS.value.U(SZ_C.W) -> (old | cmd.data),
-          C_RC.value.U(SZ_C.W) -> (old & ~cmd.data)
+          C(C_RW) -> cmd.data,
+          C(C_RS) -> (old | cmd.data),
+          C(C_RC) -> (old & ~cmd.data)
         )
       )
   }

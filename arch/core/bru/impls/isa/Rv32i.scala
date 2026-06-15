@@ -22,6 +22,8 @@ trait Rv32iBruUopConsts {
   def B_GEU = BitPat("b101")
   def B_AL  = BitPat("b111")
 
+  def B(op: BitPat): UInt = op.value.U(SZ_B.W)
+
   def UOP_BEQ  = cat(P_X, N, N, B_EQ)
   def UOP_BNE  = cat(P_X, N, N, B_NE)
   def UOP_BLT  = cat(P_X, N, N, B_LT)
@@ -67,13 +69,13 @@ object BruRv32iIsa extends RegisteredNodeUtils[BruIsaImpl] with Rv32iBruUopConst
 
       MuxLookup(op, false.B)(
         Seq(
-          B_EQ.value.U(SZ_B.W)  -> eq,
-          B_NE.value.U(SZ_B.W)  -> ne,
-          B_LT.value.U(SZ_B.W)  -> lt,
-          B_GE.value.U(SZ_B.W)  -> !lt,
-          B_LTU.value.U(SZ_B.W) -> ltu,
-          B_GEU.value.U(SZ_B.W) -> !ltu,
-          B_AL.value.U(SZ_B.W)  -> true.B
+          B(B_EQ)  -> eq,
+          B(B_NE)  -> ne,
+          B(B_LT)  -> lt,
+          B(B_GE)  -> !lt,
+          B(B_LTU) -> ltu,
+          B(B_GEU) -> !ltu,
+          B(B_AL)  -> true.B
         )
       )
     }
