@@ -22,5 +22,4 @@ object SchedulerPolicyFactory extends SchedulerDims.POLICY.Registry[SchedulerPol
 
 object SchedulerInit {
   val inorder    = impls.policy.inorder.InorderSchedulerPolicy.registered
-  val scoreboard = impls.policy.scoreboard.ScoreboardSchedulerPolicy.registered
 }
