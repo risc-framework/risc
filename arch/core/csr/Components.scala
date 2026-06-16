@@ -23,11 +23,14 @@ case class AlwaysUpdate(fn: CsrUpdateBehavior.CsrUpdateFn)      extends CsrUpdat
 case class ConditionalUpdate(fn: CsrUpdateBehavior.CsrUpdateFn) extends CsrUpdateBehavior
 
 class CsrFileCmd(val addrWidth: Int, val opWidth: Int)(implicit p: Parameters) extends Bundle {
+  private val cfg  = NodeConfig(selector = NodeSelector(CsrDims.FILE -> p(ISA).name))
+  private val file = CsrFileFactory.select(cfg)
+
   val valid = Bool()
   val read  = Bool()
   val write = Bool()
-  val addr  = UInt(addrWidth.W)
-  val op    = UInt(opWidth.W)
+  val addr  = UInt(file.addrWidth.W)
+  val op    = UInt(file.opWidth.W)
   val data  = UInt(p(XLen).W)
 }
 
@@ -35,9 +38,9 @@ class CsrSyncCmd(implicit p: Parameters) extends Bundle {
   private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
   private val isa = ExceptionIsaFactory.select(cfg)
 
-  val trap_ret       = Bool()
-  val sync_exception = Bool()
-  val kind           = UInt(isa.kindWidth.W)
+  val valid  = Bool()
+  val kind   = UInt(isa.kindWidth.W)
+  val target = UInt(p(XLen).W)
 }
 
 class CsrIrCmd(implicit p: Parameters) extends Bundle {
@@ -45,8 +48,8 @@ class CsrIrCmd(implicit p: Parameters) extends Bundle {
   private val isa = ExceptionIsaFactory.select(cfg)
 
   val valid  = Bool()
-  val target = UInt(p(XLen).W)
   val kind   = UInt(isa.kindWidth.W)
+  val target = UInt(p(XLen).W)
 }
 
 class InterruptLines extends Bundle {

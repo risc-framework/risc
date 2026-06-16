@@ -22,7 +22,7 @@ trait CsrFileImpl extends CsrDims.FILE.Impl {
 }
 
 trait CsrSyncImpl extends CsrDims.SYNC.Impl {
-  def command(instr: UInt, uop: UInt)(implicit p: Parameters): CsrSyncCmd
+  def command(instr: UInt, uop: UInt, view: CsrTrapView)(implicit p: Parameters): CsrSyncCmd
   def illegalAccessKind(cmd: CsrFileCmd)(implicit p: Parameters): UInt
 
   def view(
@@ -34,15 +34,9 @@ trait CsrSyncImpl extends CsrDims.SYNC.Impl {
     out
   }
 
-  def trapEntryUpdates(regs: Map[String, UInt], update: ExceptionTrapUpdate)(implicit
+  def trapUpdates(regs: Map[String, UInt], update: ExceptionTrapUpdate)(implicit
     p: Parameters
   ): Map[String, UInt] =
-    Map.empty[String, UInt]
-
-  def trapReturnTarget(regs: Map[String, UInt])(implicit p: Parameters): UInt =
-    0.U(p(XLen).W)
-
-  def trapReturnUpdates(regs: Map[String, UInt])(implicit p: Parameters): Map[String, UInt] =
     Map.empty[String, UInt]
 
   def trapTarget(view: CsrTrapView)(implicit p: Parameters): UInt =
