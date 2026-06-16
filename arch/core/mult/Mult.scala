@@ -70,16 +70,14 @@ class Mult(implicit p: Parameters) extends Node[Parameters]("mult") {
 
   private val resp = Wire(new FuResp)
 
-  resp.result       := resultReg
-  resp.rd           := uopReg.rd
-  resp.pc           := uopReg.pc
-  resp.instr        := uopReg.instr
-  resp.rob_tag      := uopReg.rob_tag
-  resp.trap_req     := false.B
-  resp.trap_kind    := 0.U
-  resp.trap_target  := 0.U
-  resp.trap_ret     := false.B
-  resp.trap_ret_tgt := 0.U
+  resp.result      := resultReg
+  resp.rd          := uopReg.rd
+  resp.pc          := uopReg.pc
+  resp.instr       := uopReg.instr
+  resp.rob_tag     := uopReg.rob_tag
+  resp.trap_req    := false.B
+  resp.trap_kind   := 0.U
+  resp.trap_target := 0.U
 
   fuResp.out.valid := state === MultState.DONE && !flush.in.flush
   fuResp.out.bits  := resp

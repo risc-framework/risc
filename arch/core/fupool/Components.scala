@@ -53,11 +53,9 @@ class FuResp(implicit p: Parameters) extends Bundle {
   val instr   = UInt(p(ILen).W)
   val rob_tag = UInt(p(RobTagWidth).W)
 
-  val trap_req     = Bool()
-  val trap_kind    = UInt(isa.kindWidth.W)
-  val trap_target  = UInt(p(XLen).W)
-  val trap_ret     = Bool()
-  val trap_ret_tgt = UInt(p(XLen).W)
+  val trap_req    = Bool()
+  val trap_kind   = UInt(isa.kindWidth.W)
+  val trap_target = UInt(p(XLen).W)
 }
 
 class FuPoolCpuReq extends Bundle {

@@ -1,8 +1,8 @@
 package arch.core.csr
 
 import arch.configs._
-import arch.core.fupool.{ FuReq, FuResp }
 import arch.core.exception.ExceptionCsrReq
+import arch.core.fupool.{ FuReq, FuResp }
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
 
@@ -77,8 +77,8 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   private val illegalFileAccess = busy && fileCmd.valid && (!hitAny || !readLegal || !writeLegal)
   private val syncException     = busy && (syncCmd.sync_exception || illegalFileAccess)
   private val trapRet           = busy && syncCmd.trap_ret
+  private val syncValid         = syncException || trapRet
   private val syncKind          = Mux(illegalFileAccess, syncImpl.illegalAccessKind(fileCmd), syncCmd.kind)
-  private val respKind          = Mux(trapRet, syncCmd.kind, syncKind)
 
   private val view = syncImpl.view(regMap, extraMap)
   private val ir   = irImpl.command(regMap, extraMap)
@@ -89,7 +89,7 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   private val trapEntryUpdates = syncImpl.trapEntryUpdates(regMap, ctrlReq.in.trap_update)
   private val trapRetUpdates   = syncImpl.trapReturnUpdates(regMap)
   private val writeAllowed     =
-    busy && fileCmd.valid && fileCmd.write && !syncException && !trapRet && hitAny && writeLegal
+    busy && fileCmd.valid && fileCmd.write && !syncValid && hitAny && writeLegal
 
   for (((reg, behavior), i) <- csrTable.zipWithIndex) {
     val trapEntryHit =
@@ -123,22 +123,20 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   private val readMasked =
     hits.zip(csrRegs).map { case (hit, data) => Mux(hit, data, 0.U(p(XLen).W)) }
   private val rdData     = Mux(
-    busy && fileCmd.valid && fileCmd.read && !syncException && !trapRet,
+    busy && fileCmd.valid && fileCmd.read && !syncValid,
     readMasked.reduce(_ | _),
     0.U(p(XLen).W)
   )
   private val resp       = WireDefault(0.U.asTypeOf(new FuResp))
 
-  resp.result       := rdData
-  resp.rd           := uopReg.rd
-  resp.pc           := uopReg.pc
-  resp.instr        := uopReg.instr
-  resp.rob_tag      := uopReg.rob_tag
-  resp.trap_req     := syncException
-  resp.trap_kind    := respKind
-  resp.trap_target  := syncImpl.trapTarget(view)
-  resp.trap_ret     := trapRet
-  resp.trap_ret_tgt := syncImpl.trapReturnTarget(regMap)
+  resp.result      := rdData
+  resp.rd          := uopReg.rd
+  resp.pc          := uopReg.pc
+  resp.instr       := uopReg.instr
+  resp.rob_tag     := uopReg.rob_tag
+  resp.trap_req    := syncValid
+  resp.trap_kind   := syncKind
+  resp.trap_target := Mux(trapRet, syncImpl.trapReturnTarget(regMap), syncImpl.trapTarget(view))
 
   fuResp.out.bits := resp
 }

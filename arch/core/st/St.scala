@@ -48,16 +48,14 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
     entry.store.mask      := isaImpl.shiftedStoreMask(ctrl, addr)
     entry.store.cacheable := pma.check(addr).cacheable
 
-    entry.resp.result       := 0.U
-    entry.resp.rd           := 0.U
-    entry.resp.pc           := req.pc
-    entry.resp.instr        := req.instr
-    entry.resp.rob_tag      := req.rob_tag
-    entry.resp.trap_req     := false.B
-    entry.resp.trap_kind    := 0.U
-    entry.resp.trap_target  := 0.U
-    entry.resp.trap_ret     := false.B
-    entry.resp.trap_ret_tgt := 0.U
+    entry.resp.result      := 0.U
+    entry.resp.rd          := 0.U
+    entry.resp.pc          := req.pc
+    entry.resp.instr       := req.instr
+    entry.resp.rob_tag     := req.rob_tag
+    entry.resp.trap_req    := false.B
+    entry.resp.trap_kind   := 0.U
+    entry.resp.trap_target := 0.U
 
     entry
   }

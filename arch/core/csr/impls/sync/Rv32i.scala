@@ -4,6 +4,7 @@ import arch.configs._
 import arch.core.csr._
 import arch.core.exception.ExceptionTrapUpdate
 import arch.core.exception.impls.isa.rv32i.Rv32iExceptionKindConsts
+import arch.isa.Rv32i
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.Cat
@@ -15,9 +16,9 @@ object Rv32iCsrSync extends RegisteredNodeUtils[CsrSyncImpl] with Rv32iException
     override def command(instr: UInt, uop: UInt)(implicit p: Parameters): CsrSyncCmd = {
       val cmd      = Wire(new CsrSyncCmd)
       val isSys    = uop(3)
-      val isEcall  = isSys && instr === "h00000073".U(p(ILen).W)
-      val isEbreak = isSys && instr === "h00100073".U(p(ILen).W)
-      val isMret   = isSys && instr === "h30200073".U(p(ILen).W)
+      val isEcall  = isSys && instr === Rv32i.isa.bitPat("ECALL").value.U(p(ILen).W)
+      val isEbreak = isSys && instr === Rv32i.isa.bitPat("EBREAK").value.U(p(ILen).W)
+      val isMret   = isSys && instr === Rv32i.isa.bitPat("MRET").value.U(p(ILen).W)
 
       cmd.trap_ret       := isMret
       cmd.sync_exception := isEcall || isEbreak

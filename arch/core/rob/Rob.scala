@@ -92,9 +92,9 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
         buffer(idx).flush_target   := nonBruRedirect
       }
 
-      when(done.trap_req || done.trap_ret) {
+      when(done.trap_req) {
         buffer(idx).flush_pipeline         := true.B
-        buffer(idx).flush_target           := Mux(done.trap_req, done.trap_target, done.trap_ret_tgt)
+        buffer(idx).flush_target           := done.trap_target
         buffer(idx).sync_valid             := true.B
         buffer(idx).sync_kind              := done.trap_kind
         buffer(idx).sync_requires_csr_idle := true.B
