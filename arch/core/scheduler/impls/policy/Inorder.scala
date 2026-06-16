@@ -17,8 +17,6 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
       fuReq: Int => DecoupledIO[FuReq],
       fuDone: Int => DecoupledIO[FuResp]
     )(implicit p: Parameters): Unit = {
-      val numRegs = p(NumArchRegs)
-
       val fuTypes =
         p(FunctionalUnits).map(_.`type`.index.U(p(FuTypeWidth).W))
 
@@ -53,19 +51,19 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
       def olderLaneAccepted(w: Int, accepted: Vec[Bool]): Bool =
         if (w == 0) true.B else !dispatchReq(w - 1).valid || accepted(w - 1)
 
-      val reg_pending         = RegInit(VecInit(Seq.fill(numRegs)(false.B)))
-      val reg_completed_valid = RegInit(VecInit(Seq.fill(numRegs)(false.B)))
-      val reg_completed_data  = RegInit(VecInit(Seq.fill(numRegs)(0.U(p(XLen).W))))
+      val reg_pending         = RegInit(VecInit(Seq.fill(p(NumArchRegs))(false.B)))
+      val reg_completed_valid = RegInit(VecInit(Seq.fill(p(NumArchRegs))(false.B)))
+      val reg_completed_data  = RegInit(VecInit(Seq.fill(p(NumArchRegs))(0.U(p(XLen).W))))
 
       defaultFuReqs()
       defaultDispatchReady()
       defaultFuDoneReady()
 
-      val cdb_hit   = Wire(Vec(numRegs, Vec(p(NumFUs), Bool())))
-      val cdb_valid = Wire(Vec(numRegs, Bool()))
-      val cdb_data  = Wire(Vec(numRegs, UInt(p(XLen).W)))
+      val cdb_hit   = Wire(Vec(p(NumArchRegs), Vec(p(NumFUs), Bool())))
+      val cdb_valid = Wire(Vec(p(NumArchRegs), Bool()))
+      val cdb_data  = Wire(Vec(p(NumArchRegs), UInt(p(XLen).W)))
 
-      for (r <- 0 until numRegs) {
+      for (r <- 0 until p(NumArchRegs)) {
         for (f <- 0 until p(NumFUs))
           cdb_hit(r)(f) := fuDone(f).fire && fuDone(f).bits.rd === r.U
 
@@ -73,13 +71,13 @@ object InorderSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
         cdb_data(r)  := Mux1H(cdb_hit(r), (0 until p(NumFUs)).map(f => fuDone(f).bits.result))
       }
 
-      val temp_pending         = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, Bool())))
-      val temp_completed_valid = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, Bool())))
-      val temp_completed_data  = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, UInt(p(XLen).W))))
+      val temp_pending         = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumArchRegs), Bool())))
+      val temp_completed_valid = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumArchRegs), Bool())))
+      val temp_completed_data  = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumArchRegs), UInt(p(XLen).W))))
       val temp_fu_used         = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumFUs), Bool())))
       val accepted             = Wire(Vec(p(IssueWidth), Bool()))
 
-      for (r <- 0 until numRegs) {
+      for (r <- 0 until p(NumArchRegs)) {
         temp_pending(0)(r)         := reg_pending(r) && !cdb_valid(r)
         temp_completed_valid(0)(r) := Mux(cdb_valid(r), true.B, reg_completed_valid(r))
         temp_completed_data(0)(r)  := Mux(cdb_valid(r), cdb_data(r), reg_completed_data(r))

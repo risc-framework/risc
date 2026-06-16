@@ -1,11 +1,11 @@
 package arch.core.scheduler.impls.policy.scoreboard
 
 import arch.configs._
-import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.fupool.{ FuReq, FuResp, FunctionalUnitType }
 import arch.core.scheduler._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder, log2Ceil }
+import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder, UIntToOH, log2Ceil }
 
 class ScoreboardEntry(implicit p: Parameters) extends Bundle {
   val valid = Bool()
@@ -32,10 +32,16 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       fuReq: Int => DecoupledIO[FuReq],
       fuDone: Int => DecoupledIO[FuResp]
     )(implicit p: Parameters): Unit = {
-      val numRegs = p(NumArchRegs)
+      val numEntries = math.max(p(NumFUs) * 2, p(IssueWidth) * 4)
 
       val fuTypes =
         p(FunctionalUnits).map(_.`type`.index.U(p(FuTypeWidth).W))
+
+      def isLoad(fuType: UInt): Bool =
+        fuType === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD.index.U(p(FuTypeWidth).W)
+
+      def isStore(fuType: UInt): Bool =
+        fuType === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U(p(FuTypeWidth).W)
 
       def defaultFuReqs(): Unit =
         for (i <- 0 until p(NumFUs)) {
@@ -54,17 +60,40 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       def olderLaneAccepted(w: Int, accepted: Vec[Bool]): Bool =
         if (w == 0) true.B else !dispatchReq(w - 1).valid || accepted(w - 1)
 
+      def fuTypeSupported(op: FuReq): Bool =
+        VecInit(fuTypes.map(t => t === op.fu_type)).asUInt.orR
+
+      def noOlderCandidate(candidate: Vec[Bool], e: Int, table: Vec[ScoreboardEntry]): Bool = {
+        val older = Wire(Vec(numEntries, Bool()))
+
+        for (j <- 0 until numEntries)
+          older(j) := candidate(j) && table(j).seq < table(e).seq
+
+        !older.asUInt.orR
+      }
+
+      def noOlderStore(table: Vec[ScoreboardEntry], e: Int, alreadyTaken: Vec[Bool]): Bool = {
+        val olderStore = Wire(Vec(numEntries, Bool()))
+
+        for (j <- 0 until numEntries)
+          olderStore(j) := table(j).valid &&
+            !alreadyTaken(j) &&
+            isStore(table(j).op.fu_type) &&
+            table(j).seq < table(e).seq
+
+        !olderStore.asUInt.orR
+      }
+
       defaultFuReqs()
       defaultDispatchReady()
       defaultFuDoneReady()
 
-      val reg_pending_valid   = RegInit(VecInit(Seq.fill(numRegs)(false.B)))
-      val reg_pending_rob     = RegInit(VecInit(Seq.fill(numRegs)(0.U(p(RobTagWidth).W))))
-      val reg_completed_valid = RegInit(VecInit(Seq.fill(numRegs)(false.B)))
-      val reg_completed_data  = RegInit(VecInit(Seq.fill(numRegs)(0.U(p(XLen).W))))
+      val reg_pending_valid   = RegInit(VecInit(Seq.fill(p(NumArchRegs))(false.B)))
+      val reg_pending_rob     = RegInit(VecInit(Seq.fill(p(NumArchRegs))(0.U(p(RobTagWidth).W))))
+      val reg_completed_valid = RegInit(VecInit(Seq.fill(p(NumArchRegs))(false.B)))
+      val reg_completed_data  = RegInit(VecInit(Seq.fill(p(NumArchRegs))(0.U(p(XLen).W))))
       val dispatch_seq        = RegInit(0.U(64.W))
-
-      val entries = RegInit(VecInit(Seq.fill(p(NumFUs))(0.U.asTypeOf(new ScoreboardEntry))))
+      val entries             = RegInit(VecInit(Seq.fill(numEntries)(0.U.asTypeOf(new ScoreboardEntry))))
 
       val cdb_valid   = Wire(Vec(p(NumFUs), Bool()))
       val cdb_data    = Wire(Vec(p(NumFUs), UInt(p(XLen).W)))
@@ -78,12 +107,12 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         cdb_rd(i)      := fuDone(i).bits.rd
       }
 
-      val base_pending_valid   = Wire(Vec(numRegs, Bool()))
-      val base_pending_rob     = Wire(Vec(numRegs, UInt(p(RobTagWidth).W)))
-      val base_completed_valid = Wire(Vec(numRegs, Bool()))
-      val base_completed_data  = Wire(Vec(numRegs, UInt(p(XLen).W)))
+      val base_pending_valid   = Wire(Vec(p(NumArchRegs), Bool()))
+      val base_pending_rob     = Wire(Vec(p(NumArchRegs), UInt(p(RobTagWidth).W)))
+      val base_completed_valid = Wire(Vec(p(NumArchRegs), Bool()))
+      val base_completed_data  = Wire(Vec(p(NumArchRegs), UInt(p(XLen).W)))
 
-      for (r <- 0 until numRegs) {
+      for (r <- 0 until p(NumArchRegs)) {
         val hits = Wire(Vec(p(NumFUs), Bool()))
 
         for (c <- 0 until p(NumFUs))
@@ -104,61 +133,89 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       base_completed_valid(0) := false.B
       base_completed_data(0)  := 0.U
 
-      val snooped_entries = Wire(Vec(p(NumFUs), new ScoreboardEntry))
-      snooped_entries := entries
+      val wakeup_entries = Wire(Vec(numEntries, new ScoreboardEntry))
+      wakeup_entries := entries
 
-      for (i <- 0 until p(NumFUs)) {
-        when(entries(i).valid && !entries(i).q1_ready) {
+      for (e <- 0 until numEntries) {
+        when(entries(e).valid && !entries(e).q1_ready) {
           val hits = Wire(Vec(p(NumFUs), Bool()))
 
           for (c <- 0 until p(NumFUs))
-            hits(c) := cdb_valid(c) && entries(i).q1_tag === cdb_rob_tag(c)
+            hits(c) := cdb_valid(c) && entries(e).q1_tag === cdb_rob_tag(c)
 
           when(hits.asUInt.orR) {
-            snooped_entries(i).q1_ready := true.B
-            snooped_entries(i).v1       := Mux1H(hits, cdb_data)
+            wakeup_entries(e).q1_ready := true.B
+            wakeup_entries(e).v1       := Mux1H(hits, cdb_data)
           }
         }
 
-        when(entries(i).valid && !entries(i).q2_ready) {
+        when(entries(e).valid && !entries(e).q2_ready) {
           val hits = Wire(Vec(p(NumFUs), Bool()))
 
           for (c <- 0 until p(NumFUs))
-            hits(c) := cdb_valid(c) && entries(i).q2_tag === cdb_rob_tag(c)
+            hits(c) := cdb_valid(c) && entries(e).q2_tag === cdb_rob_tag(c)
 
           when(hits.asUInt.orR) {
-            snooped_entries(i).q2_ready := true.B
-            snooped_entries(i).v2       := Mux1H(hits, cdb_data)
+            wakeup_entries(e).q2_ready := true.B
+            wakeup_entries(e).v2       := Mux1H(hits, cdb_data)
           }
         }
       }
 
-      val issued_entries = Wire(Vec(p(NumFUs), new ScoreboardEntry))
-      issued_entries := snooped_entries
+      val issueTaken    = Wire(Vec(p(NumFUs) + 1, Vec(numEntries, Bool())))
+      val issuedEntries = Wire(Vec(numEntries, new ScoreboardEntry))
 
-      for (i <- 0 until p(NumFUs)) {
-        val entry         = snooped_entries(i)
-        val ready_to_exec = entry.valid && entry.q1_ready && entry.q2_ready
+      issuedEntries := wakeup_entries
 
-        fuReq(i).valid         := ready_to_exec
-        fuReq(i).bits          := entry.op
-        fuReq(i).bits.fu_id    := i.U
-        fuReq(i).bits.rs1_data := entry.v1
-        fuReq(i).bits.rs2_data := entry.v2
+      for (e <- 0 until numEntries)
+        issueTaken(0)(e) := false.B
 
-        when(ready_to_exec && fuReq(i).ready) {
-          issued_entries(i).valid := false.B
+      for (f <- 0 until p(NumFUs)) {
+        val candidate = Wire(Vec(numEntries, Bool()))
+        val oldest    = Wire(Vec(numEntries, Bool()))
+
+        for (e <- 0 until numEntries) {
+          val entryReady =
+            wakeup_entries(e).valid && wakeup_entries(e).q1_ready && wakeup_entries(e).q2_ready
+          val typeMatch  = wakeup_entries(e).op.fu_type === fuTypes(f)
+          val memSafe    =
+            !isLoad(wakeup_entries(e).op.fu_type) || noOlderStore(wakeup_entries, e, issueTaken(f))
+
+          candidate(e) := entryReady && typeMatch && memSafe && !issueTaken(f)(e)
+        }
+
+        for (e <- 0 until numEntries)
+          oldest(e) := candidate(e) && noOlderCandidate(candidate, e, wakeup_entries)
+
+        val selValid = oldest.asUInt.orR
+        val selIdx   = PriorityEncoder(oldest)
+        val selOH    = UIntToOH(selIdx, numEntries)
+        val selEntry = Mux1H((0 until numEntries).map(e => selOH(e) -> wakeup_entries(e)))
+
+        fuReq(f).valid         := selValid
+        fuReq(f).bits          := selEntry.op
+        fuReq(f).bits.fu_id    := f.U
+        fuReq(f).bits.rs1_data := selEntry.v1
+        fuReq(f).bits.rs2_data := selEntry.v2
+
+        issueTaken(f + 1) := issueTaken(f)
+
+        when(selValid && fuReq(f).ready) {
+          issuedEntries(selIdx).valid := false.B
+          issueTaken(f + 1)(selIdx)   := true.B
         }
       }
 
-      val dispatched_entries = Wire(Vec(p(NumFUs), new ScoreboardEntry))
-      dispatched_entries := issued_entries
+      val dispatchedEntries = Wire(Vec(numEntries, new ScoreboardEntry))
+      dispatchedEntries := issuedEntries
 
-      val temp_pending_valid   = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, Bool())))
-      val temp_pending_rob     = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, UInt(p(RobTagWidth).W))))
-      val temp_completed_valid = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, Bool())))
-      val temp_completed_data  = Wire(Vec(p(IssueWidth) + 1, Vec(numRegs, UInt(p(XLen).W))))
-      val temp_fu_avail        = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumFUs), Bool())))
+      val temp_pending_valid   = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumArchRegs), Bool())))
+      val temp_pending_rob     = Wire(
+        Vec(p(IssueWidth) + 1, Vec(p(NumArchRegs), UInt(p(RobTagWidth).W)))
+      )
+      val temp_completed_valid = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumArchRegs), Bool())))
+      val temp_completed_data  = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumArchRegs), UInt(p(XLen).W))))
+      val temp_entry_free      = Wire(Vec(p(IssueWidth) + 1, Vec(numEntries, Bool())))
       val temp_seq             = Wire(Vec(p(IssueWidth) + 1, UInt(64.W)))
       val accepted             = Wire(Vec(p(IssueWidth), Bool()))
 
@@ -168,38 +225,39 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       temp_completed_data(0)  := base_completed_data
       temp_seq(0)             := dispatch_seq
 
-      for (i <- 0 until p(NumFUs))
-        temp_fu_avail(0)(i) := !issued_entries(i).valid
+      for (e <- 0 until numEntries)
+        temp_entry_free(0)(e) := !issuedEntries(e).valid
 
       for (w <- 0 until p(IssueWidth)) {
         val dis = dispatchReq(w)
         val op  = dis.bits
 
-        val fu_match_mask = Wire(Vec(p(NumFUs), Bool()))
+        val freeMask = Wire(Vec(numEntries, Bool()))
 
-        for (i <- 0 until p(NumFUs))
-          fu_match_mask(i) := temp_fu_avail(w)(i) && fuTypes(i) === op.fu_type
+        for (e <- 0 until numEntries)
+          freeMask(e) := temp_entry_free(w)(e)
 
-        val target_fu_idx = PriorityEncoder(fu_match_mask)
-        val fu_available  = fu_match_mask.asUInt.orR
-        val writes_rd     = op.rd_write
-        val prev_ok       = olderLaneAccepted(w, accepted)
-        val can_accept    = fu_available && prev_ok
+        val targetEntry = PriorityEncoder(freeMask)
+        val hasFree     = freeMask.asUInt.orR
+        val prevOk      = olderLaneAccepted(w, accepted)
+        val supported   = fuTypeSupported(op)
+        val writesRd    = op.rd_write && op.rd =/= 0.U
+        val canAccept   = prevOk && hasFree && supported
 
-        dis.ready   := can_accept
-        accepted(w) := dis.valid && can_accept
+        dis.ready   := canAccept
+        accepted(w) := dis.valid && canAccept
 
         temp_pending_valid(w + 1)   := temp_pending_valid(w)
         temp_pending_rob(w + 1)     := temp_pending_rob(w)
         temp_completed_valid(w + 1) := temp_completed_valid(w)
         temp_completed_data(w + 1)  := temp_completed_data(w)
-        temp_fu_avail(w + 1)        := temp_fu_avail(w)
+        temp_entry_free(w + 1)      := temp_entry_free(w)
         temp_seq(w + 1)             := temp_seq(w)
 
         when(accepted(w)) {
-          temp_fu_avail(w + 1)(target_fu_idx) := false.B
+          temp_entry_free(w + 1)(targetEntry) := false.B
 
-          when(writes_rd) {
+          when(writesRd) {
             temp_pending_valid(w + 1)(op.rd)   := true.B
             temp_pending_rob(w + 1)(op.rd)     := op.rob_tag
             temp_completed_valid(w + 1)(op.rd) := false.B
@@ -208,66 +266,66 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
 
           val entryOp = Wire(new FuReq)
           entryOp       := op
-          entryOp.fu_id := target_fu_idx
+          entryOp.fu_id := 0.U
 
-          dispatched_entries(target_fu_idx).valid := true.B
-          dispatched_entries(target_fu_idx).op    := entryOp
-          dispatched_entries(target_fu_idx).seq   := temp_seq(w)
+          dispatchedEntries(targetEntry).valid := true.B
+          dispatchedEntries(targetEntry).op    := entryOp
+          dispatchedEntries(targetEntry).seq   := temp_seq(w)
 
           temp_seq(w + 1) := temp_seq(w) + 1.U
 
-          val r1_used      = op.rs1_read
-          val r1_pending   = r1_used && temp_pending_valid(w)(op.rs1)
-          val r1_completed = r1_used && !r1_pending && temp_completed_valid(w)(op.rs1)
-          val r1_rob_tag   = temp_pending_rob(w)(op.rs1)
-          val r1_hits      = Wire(Vec(p(NumFUs), Bool()))
+          val r1Used      = op.rs1_read
+          val r1Pending   = r1Used && temp_pending_valid(w)(op.rs1)
+          val r1Completed = r1Used && !r1Pending && temp_completed_valid(w)(op.rs1)
+          val r1RobTag    = temp_pending_rob(w)(op.rs1)
+          val r1Hits      = Wire(Vec(p(NumFUs), Bool()))
 
           for (c <- 0 until p(NumFUs))
-            r1_hits(c) := cdb_valid(c) && r1_rob_tag === cdb_rob_tag(c)
+            r1Hits(c) := cdb_valid(c) && r1RobTag === cdb_rob_tag(c)
 
-          val r1_cdb_valid = r1_pending && r1_hits.asUInt.orR
-          val r1_cdb_data  = Mux1H(r1_hits, cdb_data)
+          val r1CdbValid = r1Pending && r1Hits.asUInt.orR
+          val r1CdbData  = Mux1H(r1Hits, cdb_data)
 
-          dispatched_entries(target_fu_idx).q1_ready := !r1_pending || r1_cdb_valid
-          dispatched_entries(target_fu_idx).q1_tag   := r1_rob_tag
-          dispatched_entries(target_fu_idx).v1       := Mux(
-            r1_cdb_valid,
-            r1_cdb_data,
-            Mux(r1_completed, temp_completed_data(w)(op.rs1), op.rs1_data)
+          dispatchedEntries(targetEntry).q1_ready := !r1Pending || r1CdbValid
+          dispatchedEntries(targetEntry).q1_tag   := r1RobTag
+          dispatchedEntries(targetEntry).v1       := Mux(
+            r1CdbValid,
+            r1CdbData,
+            Mux(r1Completed, temp_completed_data(w)(op.rs1), op.rs1_data)
           )
 
-          val r2_used      = op.rs2_read
-          val r2_pending   = r2_used && temp_pending_valid(w)(op.rs2)
-          val r2_completed = r2_used && !r2_pending && temp_completed_valid(w)(op.rs2)
-          val r2_rob_tag   = temp_pending_rob(w)(op.rs2)
-          val r2_hits      = Wire(Vec(p(NumFUs), Bool()))
+          val r2Used      = op.rs2_read
+          val r2Pending   = r2Used && temp_pending_valid(w)(op.rs2)
+          val r2Completed = r2Used && !r2Pending && temp_completed_valid(w)(op.rs2)
+          val r2RobTag    = temp_pending_rob(w)(op.rs2)
+          val r2Hits      = Wire(Vec(p(NumFUs), Bool()))
 
           for (c <- 0 until p(NumFUs))
-            r2_hits(c) := cdb_valid(c) && r2_rob_tag === cdb_rob_tag(c)
+            r2Hits(c) := cdb_valid(c) && r2RobTag === cdb_rob_tag(c)
 
-          val r2_cdb_valid = r2_pending && r2_hits.asUInt.orR
-          val r2_cdb_data  = Mux1H(r2_hits, cdb_data)
+          val r2CdbValid = r2Pending && r2Hits.asUInt.orR
+          val r2CdbData  = Mux1H(r2Hits, cdb_data)
 
-          dispatched_entries(target_fu_idx).q2_ready := !r2_pending || r2_cdb_valid
-          dispatched_entries(target_fu_idx).q2_tag   := r2_rob_tag
-          dispatched_entries(target_fu_idx).v2       := Mux(
-            r2_cdb_valid,
-            r2_cdb_data,
-            Mux(r2_completed, temp_completed_data(w)(op.rs2), op.rs2_data)
+          dispatchedEntries(targetEntry).q2_ready := !r2Pending || r2CdbValid
+          dispatchedEntries(targetEntry).q2_tag   := r2RobTag
+          dispatchedEntries(targetEntry).v2       := Mux(
+            r2CdbValid,
+            r2CdbData,
+            Mux(r2Completed, temp_completed_data(w)(op.rs2), op.rs2_data)
           )
         }
       }
 
       when(exception.flush) {
-        for (r <- 0 until numRegs) {
+        for (r <- 0 until p(NumArchRegs)) {
           reg_pending_valid(r)   := false.B
           reg_pending_rob(r)     := 0.U
           reg_completed_valid(r) := false.B
           reg_completed_data(r)  := 0.U
         }
 
-        for (i <- 0 until p(NumFUs))
-          entries(i).valid := false.B
+        for (e <- 0 until numEntries)
+          entries(e).valid := false.B
 
         dispatch_seq := 0.U
       }.otherwise {
@@ -275,7 +333,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         reg_pending_rob     := temp_pending_rob(p(IssueWidth))
         reg_completed_valid := temp_completed_valid(p(IssueWidth))
         reg_completed_data  := temp_completed_data(p(IssueWidth))
-        entries             := dispatched_entries
+        entries             := dispatchedEntries
         dispatch_seq        := temp_seq(p(IssueWidth))
       }
     }

@@ -3,7 +3,7 @@ package arch.core.dispatch
 import arch.core.decode.DecodedPacket
 import arch.core.fupool.FuReq
 import arch.configs._
-import vutils.graph.{ Node, NodeType }
+import vutils.graph.Node
 import chisel3._
 
 class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
