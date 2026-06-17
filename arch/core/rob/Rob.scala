@@ -34,12 +34,6 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   for (i <- 0 until p(NumFUs))
     fuDone.in.lanes(i).ready := true.B
 
-  private def isBru(fuType: UInt): Bool =
-    fuType === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU.index.U(p(FuTypeWidth).W)
-
-  private def isStore(fuType: UInt): Bool =
-    fuType === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U(p(FuTypeWidth).W)
-
   private def wrapAdd(x: UInt, y: UInt): UInt = {
     val sum = x +& y
     Mux(sum >= p(RobSize).U, sum - p(RobSize).U, sum)(p(RobTagWidth) - 1, 0)
@@ -211,8 +205,8 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       buffer(idx).rd                     := dec.rd
       buffer(idx).rd_write               := dec.rd_write
       buffer(idx).data                   := 0.U
-      buffer(idx).is_branch              := isBru(dec.fu_type)
-      buffer(idx).is_store               := isStore(dec.fu_type)
+      buffer(idx).is_branch              := dec.isBru
+      buffer(idx).is_store               := dec.isStore
       buffer(idx).commit_barrier         := dec.commit_barrier
       buffer(idx).pred_taken             := dec.bpu_pred_taken
       buffer(idx).pred_target            := dec.bpu_pred_target
