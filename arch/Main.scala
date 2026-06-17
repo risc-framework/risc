@@ -50,7 +50,7 @@ object MainSystem extends App {
       ResetVector                   -> 0x80000000L,
       IsRegfileUseBypass            -> true,
       NumPhyRegs                    -> 64,
-      ScheduleType                  -> "in-order",
+      ScheduleType                  -> "scoreboard",
       IssueWidth                    -> 2,
       CommitWidth                   -> 2,
       FunctionalUnits               -> Seq(
