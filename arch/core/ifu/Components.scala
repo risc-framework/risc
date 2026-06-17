@@ -32,3 +32,7 @@ class IfuExceptionReq(implicit p: Parameters) extends Bundle {
 class IfuExceptionResp(implicit p: Parameters) extends Bundle {
   val fetch_pc = UInt(p(XLen).W)
 }
+
+class IfuDebugInfo extends Bundle {
+  val ibuffer_full = Bool()
+}

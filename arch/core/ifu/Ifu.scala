@@ -25,6 +25,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
 
   val exceptionReq  = in[IfuExceptionReq]
   val exceptionResp = out[IfuExceptionResp]
+  val debug         = out[IfuDebugInfo]
 
   private val ibuffer = subnode(new IBuffer)
   private val pc      = RegInit(p(ResetVector).U(p(XLen).W))
@@ -160,6 +161,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   }
 
   ibuffer.flush.in.flush := doRedirect
+  debug.out.ibuffer_full := ibuffer.status.out.full
 
   link(
     ibuffer.deq -> decode

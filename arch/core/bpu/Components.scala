@@ -79,3 +79,7 @@ class BpuUpdate(implicit p: Parameters) extends Bundle {
   val ghr_snapshot = UInt(p(GShareGhrWidth).W)
   val mispredict   = Bool()
 }
+
+class BpuDebugInfo extends Bundle {
+  val ras_wait = Bool()
+}

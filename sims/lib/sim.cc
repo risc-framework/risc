@@ -159,6 +159,15 @@ void DemuSimulator::reset() {
   _issue_count = 0;
   _frontend_stalls = 0;
   _backend_stalls = 0;
+  _stall_if_redirect = 0;
+  _stall_if_ras_wait = 0;
+  _stall_ibuffer_full = 0;
+  _stall_decode_not_ready = 0;
+  _stall_dispatch_not_ready = 0;
+  _stall_rob_full = 0;
+  _stall_issue_queue_full = 0;
+  _stall_lsq_full = 0;
+  _stall_flush_recovery = 0;
 
   _terminate = false;
   _register_values.fill(0);
@@ -216,6 +225,24 @@ void DemuSimulator::run(uint64_t max_cycles) {
             frontend_starvation_rate() * 100);
   DEMU_INFO("  Frontend Stalled:   {:.2f} % of cycles (Hazards/Full)",
             frontend_stall_rate() * 100);
+  DEMU_INFO("    stall_if_redirect:        {:.2f} % of cycles",
+            stall_rate(_stall_if_redirect) * 100);
+  DEMU_INFO("    stall_if_ras_wait:        {:.2f} % of cycles",
+            stall_rate(_stall_if_ras_wait) * 100);
+  DEMU_INFO("    stall_ibuffer_full:       {:.2f} % of cycles",
+            stall_rate(_stall_ibuffer_full) * 100);
+  DEMU_INFO("    stall_decode_not_ready:   {:.2f} % of cycles",
+            stall_rate(_stall_decode_not_ready) * 100);
+  DEMU_INFO("    stall_dispatch_not_ready: {:.2f} % of cycles",
+            stall_rate(_stall_dispatch_not_ready) * 100);
+  DEMU_INFO("    stall_rob_full:           {:.2f} % of cycles",
+            stall_rate(_stall_rob_full) * 100);
+  DEMU_INFO("    stall_issue_queue_full:   {:.2f} % of cycles",
+            stall_rate(_stall_issue_queue_full) * 100);
+  DEMU_INFO("    stall_lsq_full:           {:.2f} % of cycles",
+            stall_rate(_stall_lsq_full) * 100);
+  DEMU_INFO("    stall_flush_recovery:     {:.2f} % of cycles",
+            stall_rate(_stall_flush_recovery) * 100);
   DEMU_INFO("  Backend Stalled:    {:.2f} % of cycles (Waiting Exe/Mem)",
             backend_stall_rate() * 100);
   DEMU_INFO("")
@@ -316,6 +343,19 @@ void DemuSimulator::handle_performance_profiling() {
   _issue_count += static_cast<uint64_t>(dut_->debug_issue_count);
   _frontend_stalls += static_cast<uint64_t>(dut_->debug_frontend_stall);
   _backend_stalls += static_cast<uint64_t>(dut_->debug_backend_stall);
+  _stall_if_redirect += static_cast<uint64_t>(dut_->debug_stall_if_redirect);
+  _stall_if_ras_wait += static_cast<uint64_t>(dut_->debug_stall_if_ras_wait);
+  _stall_ibuffer_full += static_cast<uint64_t>(dut_->debug_stall_ibuffer_full);
+  _stall_decode_not_ready +=
+      static_cast<uint64_t>(dut_->debug_stall_decode_not_ready);
+  _stall_dispatch_not_ready +=
+      static_cast<uint64_t>(dut_->debug_stall_dispatch_not_ready);
+  _stall_rob_full += static_cast<uint64_t>(dut_->debug_stall_rob_full);
+  _stall_issue_queue_full +=
+      static_cast<uint64_t>(dut_->debug_stall_issue_queue_full);
+  _stall_lsq_full += static_cast<uint64_t>(dut_->debug_stall_lsq_full);
+  _stall_flush_recovery +=
+      static_cast<uint64_t>(dut_->debug_stall_flush_recovery);
 }
 
 } // namespace demu

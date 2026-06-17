@@ -156,11 +156,51 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   )
   debug.out.commit_count   := rob.debug.out.commit_count
 
-  debug.out.frontend_stall := Seq
+  debug.out.stall_if_redirect  := flush.ifuReq.out.redirect
+  debug.out.stall_if_ras_wait  := bpu.debug.out.ras_wait
+  debug.out.stall_ibuffer_full := ifu.debug.out.ibuffer_full
+
+  debug.out.stall_decode_not_ready := Seq
+    .tabulate(p(IssueWidth))(w => ifu.decode.out.lanes(w).valid && !ifu.decode.out.lanes(w).ready)
+    .reduce(_ || _)
+
+  debug.out.stall_dispatch_not_ready := Seq
     .tabulate(p(IssueWidth))(w =>
       decode.dispatch.out.lanes(w).valid && !decode.dispatch.out.lanes(w).ready
     )
     .reduce(_ || _)
+
+  debug.out.stall_rob_full := Seq
+    .tabulate(p(IssueWidth))(w =>
+      decode.dispatch.out.lanes(w).valid && !dispatch.robReq.out.lanes(w).ready
+    )
+    .reduce(_ || _)
+
+  debug.out.stall_issue_queue_full := Seq
+    .tabulate(p(IssueWidth))(w =>
+      dispatch.schedulerReq.out.lanes(w).valid && !dispatch.schedulerReq.out.lanes(w).ready
+    )
+    .reduce(_ || _)
+
+  debug.out.stall_lsq_full := Seq
+    .tabulate(p(IssueWidth))(w =>
+      dispatch.sbReq.out.lanes(w).valid &&
+        dispatch.sbReq.out.lanes(w).bits.isStore &&
+        !storeBuffer.dispatchResp.out.lanes(w).ready
+    )
+    .reduce(_ || _)
+
+  debug.out.stall_flush_recovery := exception.debug.out.flush_valid
+
+  debug.out.frontend_stall := debug.out.stall_if_redirect ||
+    debug.out.stall_if_ras_wait ||
+    debug.out.stall_ibuffer_full ||
+    debug.out.stall_decode_not_ready ||
+    debug.out.stall_dispatch_not_ready ||
+    debug.out.stall_rob_full ||
+    debug.out.stall_issue_queue_full ||
+    debug.out.stall_lsq_full ||
+    debug.out.stall_flush_recovery
 
   debug.out.backend_stall := !rob.debug.out.empty && rob.debug.out.commit_count === 0.U
 }

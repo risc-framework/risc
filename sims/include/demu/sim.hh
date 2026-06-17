@@ -91,6 +91,11 @@ public:
                ? static_cast<double>(_frontend_stalls) / dut_->debug_cycle_count
                : 0.0;
   }
+  [[nodiscard]] auto stall_rate(uint64_t cycles) const noexcept -> double {
+    return dut_->debug_cycle_count > 0
+               ? static_cast<double>(cycles) / dut_->debug_cycle_count
+               : 0.0;
+  }
   [[nodiscard]] auto backend_stall_rate() const noexcept -> double {
     return dut_->debug_cycle_count > 0
                ? static_cast<double>(_backend_stalls) / dut_->debug_cycle_count
@@ -134,6 +139,15 @@ protected:
   uint64_t _issue_count{0};
   uint64_t _frontend_stalls{0};
   uint64_t _backend_stalls{0};
+  uint64_t _stall_if_redirect{0};
+  uint64_t _stall_if_ras_wait{0};
+  uint64_t _stall_ibuffer_full{0};
+  uint64_t _stall_decode_not_ready{0};
+  uint64_t _stall_dispatch_not_ready{0};
+  uint64_t _stall_rob_full{0};
+  uint64_t _stall_issue_queue_full{0};
+  uint64_t _stall_lsq_full{0};
+  uint64_t _stall_flush_recovery{0};
 
   addr_t last_retire_pc_{0};
   std::array<word_t, isa_def::NUM_ARCH_REGS> _register_values{};

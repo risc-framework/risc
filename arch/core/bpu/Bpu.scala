@@ -9,6 +9,7 @@ class Bpu(implicit p: Parameters) extends Node[Parameters]("bpu") {
   val ifuReq    = in[BpuIfuReq]
   val ifuResp   = out[BpuIfuResp]
   val robUpdate = in[BpuUpdate]
+  val debug     = out[BpuDebugInfo]
 
   private val btb       = subnode(new Btb)
   private val predictor = subnode(new Predictor(p(BpuPredictorKind)))
@@ -80,8 +81,13 @@ class Bpu(implicit p: Parameters) extends Node[Parameters]("bpu") {
   )
   private val selectedAny  = selectedValidVec.asUInt.orR
   private val selectedSlot = PriorityEncoder(selectedValidVec.asUInt)
+  private val selectedIsRet =
+    selectedKindVec(selectedSlot) === BpuBranchKind.RET ||
+      selectedKindVec(selectedSlot) === BpuBranchKind.CALL_RET
 
   ras.req.in.accept      := ifuReq.in.advance_valid && !ifuReq.in.flush && selectedAny
   ras.req.in.predictKind := Mux(selectedAny, selectedKindVec(selectedSlot), BpuBranchKind.NONE)
   ras.req.in.pushAddr    := Mux(selectedAny, selectedPushVec(selectedSlot), 0.U)
+
+  debug.out.ras_wait := ifuReq.in.advance_valid && selectedAny && selectedIsRet && !ras.resp.out.valid
 }
