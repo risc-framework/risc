@@ -13,7 +13,7 @@ object Rv32imCsrIr extends RegisteredNodeUtils[CsrIrImpl] {
 
     override def command(regs: Map[String, chisel3.UInt], extra: Map[String, chisel3.UInt])(implicit
       p: arch.configs.Parameters
-    ): CsrIrCmd =
+    ): CsrSysCmd =
       rv32i.command(regs, extra)
   }
 

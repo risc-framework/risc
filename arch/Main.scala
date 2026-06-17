@@ -13,6 +13,7 @@ import arch.core.scheduler.SchedulerInit
 import arch.core.st.StInit
 import arch.core.csr.CsrInit
 import arch.core.exception.ExceptionInit
+import arch.core.rob.RobInit
 import arch.system.soc.Soc
 import arch.system.bridge.BusBridgeInit
 import arch.system.crossbar.BusCrossbarInit
@@ -38,6 +39,7 @@ object MainSystem extends App {
   StInit
   SchedulerInit
   ExceptionInit
+  RobInit
 
   BusBridgeInit
   BusCrossbarInit
@@ -50,7 +52,7 @@ object MainSystem extends App {
       ResetVector                   -> 0x80000000L,
       IsRegfileUseBypass            -> true,
       NumPhyRegs                    -> 64,
-      ScheduleType                  -> "in-order",
+      ScheduleType                  -> "scoreboard",
       IssueWidth                    -> 2,
       CommitWidth                   -> 2,
       FunctionalUnits               -> Seq(
@@ -97,6 +99,7 @@ object MainSystem extends App {
       ),
       DecodeKind                    -> "table",
       MultPipelineStages            -> 2,
+      RobStorageType                -> "reg",
       RobSize                       -> 16,
       StoreBufferSize               -> 8,
       BpuPredictorKind              -> "gshare",

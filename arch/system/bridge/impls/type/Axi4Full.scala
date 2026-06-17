@@ -3,7 +3,7 @@ package arch.system.bridge.impls.bus.axif
 import arch.configs._
 import arch.system.bridge._
 import vamba.axi4.full.{ Axi4FullBurst, Axi4FullMasterPort, Axi4FullParams }
-import vcache.{ CacheCommand, CacheReq, CacheResp }
+import vcache.{ CacheCommand, CacheReq, CacheReadReq, CacheResp }
 import chisel3._
 import chisel3.util.{ Cat, is, log2Ceil, switch, DecoupledIO }
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
@@ -54,12 +54,11 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      req.ready        := false.B
-      resp.valid       := false.B
-      resp.bits.data   := DontCare
-      resp.bits.last   := false.B
-      resp.bits.hit    := false.B
-      resp.bits.source := 0.U
+      req.ready      := false.B
+      resp.valid     := false.B
+      resp.bits.data := DontCare
+      resp.bits.last := false.B
+      resp.bits.hit  := false.B
 
       switch(state) {
         is(Axi4BridgeState.Idle) {
@@ -214,12 +213,11 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
         is(Axi4BridgeState.B) {
           val bDone = RegInit(false.B)
 
-          axi.b.ready      := !bDone
-          resp.valid       := bDone || axi.b.valid
-          resp.bits.data   := 0.U.asTypeOf(gen)
-          resp.bits.last   := true.B
-          resp.bits.hit    := false.B
-          resp.bits.source := 0.U
+          axi.b.ready    := !bDone
+          resp.valid     := bDone || axi.b.valid
+          resp.bits.data := 0.U.asTypeOf(gen)
+          resp.bits.last := true.B
+          resp.bits.hit  := false.B
 
           when(axi.b.fire) {
             bDone := true.B
@@ -237,7 +235,7 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
     override def createBridgeReadOnly[T <: Data](
       gen: T,
-      req: DecoupledIO[CacheReq[T]],
+      req: DecoupledIO[CacheReadReq],
       resp: DecoupledIO[CacheResp[T]],
       isMmio: Boolean = false
     )(implicit p: Parameters): Bundle = {
@@ -262,12 +260,11 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      req.ready        := false.B
-      resp.valid       := false.B
-      resp.bits.data   := DontCare
-      resp.bits.last   := false.B
-      resp.bits.hit    := false.B
-      resp.bits.source := 0.U
+      req.ready      := false.B
+      resp.valid     := false.B
+      resp.bits.data := DontCare
+      resp.bits.last := false.B
+      resp.bits.hit  := false.B
 
       switch(state) {
         is(Axi4BridgeState.Idle) {

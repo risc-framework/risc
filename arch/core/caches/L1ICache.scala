@@ -3,7 +3,7 @@ package arch.core.caches
 import arch.configs._
 import arch.core.cpu.{ CpuImemReq, CpuImemResp }
 import vcache.{ CacheReadReq, CacheResp }
-import vcache.nonblocking.ReadOnlyNonBlockingCache
+import vcache.nonblocking.NonBlockingReadOnlyCache
 import vutils.graph.Node
 import chisel3._
 
@@ -20,7 +20,7 @@ class L1ICache(implicit p: Parameters) extends Node[Parameters]("l1_icache") {
   val lowerResp = inD[CpuImemResp]
 
   private val cache = Module(
-    new ReadOnlyNonBlockingCache(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))
+    new NonBlockingReadOnlyCache(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))
   )
 
   cache.upper.req <> upperReq.in

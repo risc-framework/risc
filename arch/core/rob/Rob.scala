@@ -5,13 +5,19 @@ import arch.core.bpu.BpuUpdate
 import arch.core.bru.BruResolveBundle
 import arch.core.dispatch.{ DispatchRobPacket, DispatchRobResp }
 import arch.core.flush.FlushRobReq
-import arch.core.fupool.{ FunctionalUnitType, FuResp }
+import arch.core.fupool.FuResp
 import arch.core.regfile.RegfileWrite
-import vutils.graph.Node
+import vutils.graph.{ NodeConfig, NodeSelector, Node }
 import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 
 class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
+  override protected def cfg: NodeConfig = NodeConfig(
+    selector = NodeSelector(
+      RobDims.STORAGE -> p(RobStorageType)
+    )
+  )
+
   val dispatchReq   = inDVec[DispatchRobPacket](p => p(IssueWidth))
   val dispatchResp  = outVec[DispatchRobResp](p => p(IssueWidth))
   val fuDone        = inDVec[FuResp](p => p(NumFUs))
@@ -33,12 +39,6 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
 
   for (i <- 0 until p(NumFUs))
     fuDone.in.lanes(i).ready := true.B
-
-  private def isBru(fuType: UInt): Bool =
-    fuType === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU.index.U(p(FuTypeWidth).W)
-
-  private def isStore(fuType: UInt): Bool =
-    fuType === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U(p(FuTypeWidth).W)
 
   private def wrapAdd(x: UInt, y: UInt): UInt = {
     val sum = x +& y
@@ -213,8 +213,8 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       buffer(idx).rd_write               := dec.rd_write
       buffer(idx).data                   := 0.U
       buffer(idx).fu_type                := dec.fu_type
-      buffer(idx).is_branch              := isBru(dec.fu_type)
-      buffer(idx).is_store               := isStore(dec.fu_type)
+      buffer(idx).is_branch              := dec.isBru
+      buffer(idx).is_store               := dec.isStore
       buffer(idx).commit_barrier         := dec.commit_barrier
       buffer(idx).pred_taken             := dec.bpu_pred_taken
       buffer(idx).pred_target            := dec.bpu_pred_target

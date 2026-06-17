@@ -179,19 +179,17 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   private val canDrain  =
     headEntry.valid && headEntry.committed && headEntry.addrValid && !drainOutstanding
 
-  memReq.out.valid       := canDrain && headEntry.cacheable
-  memReq.out.bits.cmd    := CacheCommand.Write
-  memReq.out.bits.addr   := headEntry.addr
-  memReq.out.bits.data   := headEntry.data
-  memReq.out.bits.strb   := headEntry.mask
-  memReq.out.bits.source := 0.U
+  memReq.out.valid     := canDrain && headEntry.cacheable
+  memReq.out.bits.cmd  := CacheCommand.Write
+  memReq.out.bits.addr := headEntry.addr
+  memReq.out.bits.data := headEntry.data
+  memReq.out.bits.strb := headEntry.mask
 
-  mmioReq.out.valid       := canDrain && !headEntry.cacheable
-  mmioReq.out.bits.cmd    := CacheCommand.Write
-  mmioReq.out.bits.addr   := headEntry.addr
-  mmioReq.out.bits.data   := headEntry.data
-  mmioReq.out.bits.strb   := headEntry.mask
-  mmioReq.out.bits.source := 0.U
+  mmioReq.out.valid     := canDrain && !headEntry.cacheable
+  mmioReq.out.bits.cmd  := CacheCommand.Write
+  mmioReq.out.bits.addr := headEntry.addr
+  mmioReq.out.bits.data := headEntry.data
+  mmioReq.out.bits.strb := headEntry.mask
 
   memResp.in.ready  := drainOutstanding && drainIsCacheable
   mmioResp.in.ready := drainOutstanding && !drainIsCacheable

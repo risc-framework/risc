@@ -115,19 +115,17 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val memReqAddr      = Mux(memReqFromAccept, acceptAlignedAddr, alignedAddrReg)
   private val memReqMask      = Mux(memReqFromAccept, acceptLoadMask, loadMaskReg)
 
-  memReq.out.valid       := memReqActive && memReqCacheable && !flush.in.flush
-  memReq.out.bits.cmd    := CacheCommand.Read
-  memReq.out.bits.addr   := memReqAddr
-  memReq.out.bits.data   := 0.U
-  memReq.out.bits.strb   := memReqMask
-  memReq.out.bits.source := 0.U
+  memReq.out.valid     := memReqActive && memReqCacheable && !flush.in.flush
+  memReq.out.bits.cmd  := CacheCommand.Read
+  memReq.out.bits.addr := memReqAddr
+  memReq.out.bits.data := 0.U
+  memReq.out.bits.strb := memReqMask
 
-  mmioReq.out.valid       := memReqActive && !memReqCacheable && !flush.in.flush
-  mmioReq.out.bits.cmd    := CacheCommand.Read
-  mmioReq.out.bits.addr   := memReqAddr
-  mmioReq.out.bits.data   := 0.U
-  mmioReq.out.bits.strb   := memReqMask
-  mmioReq.out.bits.source := 0.U
+  mmioReq.out.valid     := memReqActive && !memReqCacheable && !flush.in.flush
+  mmioReq.out.bits.cmd  := CacheCommand.Read
+  mmioReq.out.bits.addr := memReqAddr
+  mmioReq.out.bits.data := 0.U
+  mmioReq.out.bits.strb := memReqMask
 
   private val respResult = Mux(fwdCompleteNow, fwdResult, Mux(memCompleteNow, memResult, resultReg))
   private val resp       = WireDefault(0.U.asTypeOf(new FuResp))

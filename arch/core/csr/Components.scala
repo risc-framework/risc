@@ -34,16 +34,7 @@ class CsrFileCmd(val addrWidth: Int, val opWidth: Int)(implicit p: Parameters) e
   val data  = UInt(p(XLen).W)
 }
 
-class CsrSyncCmd(implicit p: Parameters) extends Bundle {
-  private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
-  private val isa = ExceptionIsaFactory.select(cfg)
-
-  val valid  = Bool()
-  val kind   = UInt(isa.kindWidth.W)
-  val target = UInt(p(XLen).W)
-}
-
-class CsrIrCmd(implicit p: Parameters) extends Bundle {
+class CsrSysCmd(implicit p: Parameters) extends Bundle {
   private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
   private val isa = ExceptionIsaFactory.select(cfg)
 
@@ -76,6 +67,6 @@ class CsrCtrlReq(implicit p: Parameters) extends Bundle {
 
 class CsrCtrlResp(implicit p: Parameters) extends Bundle {
   val view = new CsrTrapView
-  val ir   = new CsrIrCmd
+  val ir   = new CsrSysCmd
   val busy = Bool()
 }

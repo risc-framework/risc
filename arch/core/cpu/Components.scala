@@ -1,12 +1,11 @@
 package arch.core.cpu
 
 import arch.configs._
-import vcache.{ CacheReq, CacheResp }
+import vcache.{ CacheReq, CacheReadReq, CacheResp }
 import chisel3._
 import chisel3.util.log2Ceil
 
-class CpuImemReq(implicit p: Parameters)
-    extends CacheReq(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))
+class CpuImemReq(implicit p: Parameters) extends CacheReadReq(p(L1ICacheParams))
 
 class CpuImemResp(implicit p: Parameters)
     extends CacheResp(Vec(p(IssueWidth), UInt(p(ILen).W)), p(L1ICacheParams))

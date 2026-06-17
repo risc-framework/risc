@@ -21,5 +21,5 @@ trait SchedulerPolicyImpl extends SchedulerDims.POLICY.Impl {
 object SchedulerPolicyFactory extends SchedulerDims.POLICY.Registry[SchedulerPolicyImpl]
 
 object SchedulerInit {
-  val inorder    = impls.policy.inorder.InorderSchedulerPolicy.registered
+  val scoreboard = impls.policy.scoreboard.ScoreboardSchedulerPolicy.registered
 }

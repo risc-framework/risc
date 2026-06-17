@@ -1,10 +1,10 @@
 package arch.system.bridge
 
 import arch.configs._
-import vcache.{ CacheReq, CacheResp }
+import vcache.{ CacheReq, CacheReadReq, CacheResp }
+import vutils.graph.NodeDims
 import chisel3._
 import chisel3.util.DecoupledIO
-import vutils.graph.NodeDims
 
 object BusBridgeDims extends NodeDims("bus_bridge") {
   val TYPE = dim("type")
@@ -22,7 +22,7 @@ trait BusBridgeTypeImpl extends BusBridgeDims.TYPE.Impl {
 
   def createBridgeReadOnly[T <: Data](
     gen: T,
-    req: DecoupledIO[CacheReq[T]],
+    req: DecoupledIO[CacheReadReq],
     resp: DecoupledIO[CacheResp[T]],
     isMmio: Boolean = false
   )(implicit p: Parameters): Bundle

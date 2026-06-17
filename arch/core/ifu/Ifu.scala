@@ -106,9 +106,8 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
 
   metaQ.io.flush.get := doRedirect
 
-  icacheReq.out.valid       := metaQ.io.enq.ready && ibuffer.status.out.enq_ready && !doRedirect
-  icacheReq.out.bits.addr   := alignedPc
-  icacheReq.out.bits.source := 0.U
+  icacheReq.out.valid     := metaQ.io.enq.ready && ibuffer.status.out.enq_ready && !doRedirect
+  icacheReq.out.bits.addr := alignedPc
 
   icacheResp.in.ready := ibuffer.status.out.enq_ready
 

@@ -3,7 +3,7 @@ package arch.system.bridge.impls.bus.axil
 import arch.configs._
 import arch.system.bridge._
 import vamba.axi4.lite.{ Axi4LiteMasterPort, Axi4LiteParams }
-import vcache.{ CacheCommand, CacheReq, CacheResp }
+import vcache.{ CacheCommand, CacheReq, CacheReadReq, CacheResp }
 import chisel3._
 import chisel3.util.{ Cat, is, log2Ceil, switch, DecoupledIO }
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
@@ -47,12 +47,11 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.w.bits   := DontCare
       axi.b.ready  := false.B
 
-      req.ready        := false.B
-      resp.valid       := false.B
-      resp.bits.data   := DontCare
-      resp.bits.hit    := false.B
-      resp.bits.last   := true.B
-      resp.bits.source := 0.U
+      req.ready      := false.B
+      resp.valid     := false.B
+      resp.bits.data := DontCare
+      resp.bits.hit  := false.B
+      resp.bits.last := true.B
 
       switch(state) {
         is(Axi4BridgeState.Idle) {
@@ -142,7 +141,7 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
     override def createBridgeReadOnly[T <: Data](
       gen: T,
-      req: DecoupledIO[CacheReq[T]],
+      req: DecoupledIO[CacheReadReq],
       resp: DecoupledIO[CacheResp[T]],
       isMmio: Boolean = false
     )(implicit p: Parameters): Bundle = {
@@ -170,12 +169,11 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      req.ready        := false.B
-      resp.valid       := false.B
-      resp.bits.data   := DontCare
-      resp.bits.last   := false.B
-      resp.bits.hit    := false.B
-      resp.bits.source := 0.U
+      req.ready      := false.B
+      resp.valid     := false.B
+      resp.bits.data := DontCare
+      resp.bits.last := false.B
+      resp.bits.hit  := false.B
 
       switch(state) {
         is(Axi4BridgeState.Idle) {
