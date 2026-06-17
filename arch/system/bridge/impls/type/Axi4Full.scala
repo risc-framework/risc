@@ -3,7 +3,7 @@ package arch.system.bridge.impls.bus.axif
 import arch.configs._
 import arch.system.bridge._
 import vamba.axi4.full.{ Axi4FullBurst, Axi4FullMasterPort, Axi4FullParams }
-import vcache.{ CacheCommand, CacheReq, CacheResp }
+import vcache.{ CacheCommand, CacheReq, CacheReadReq, CacheResp }
 import chisel3._
 import chisel3.util.{ Cat, is, log2Ceil, switch, DecoupledIO }
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
@@ -235,7 +235,7 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
 
     override def createBridgeReadOnly[T <: Data](
       gen: T,
-      req: DecoupledIO[CacheReq[T]],
+      req: DecoupledIO[CacheReadReq],
       resp: DecoupledIO[CacheResp[T]],
       isMmio: Boolean = false
     )(implicit p: Parameters): Bundle = {
