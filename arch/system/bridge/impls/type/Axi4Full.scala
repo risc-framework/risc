@@ -54,12 +54,11 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      req.ready        := false.B
-      resp.valid       := false.B
-      resp.bits.data   := DontCare
-      resp.bits.last   := false.B
-      resp.bits.hit    := false.B
-      resp.bits.source := 0.U
+      req.ready      := false.B
+      resp.valid     := false.B
+      resp.bits.data := DontCare
+      resp.bits.last := false.B
+      resp.bits.hit  := false.B
 
       switch(state) {
         is(Axi4BridgeState.Idle) {
@@ -214,12 +213,11 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
         is(Axi4BridgeState.B) {
           val bDone = RegInit(false.B)
 
-          axi.b.ready      := !bDone
-          resp.valid       := bDone || axi.b.valid
-          resp.bits.data   := 0.U.asTypeOf(gen)
-          resp.bits.last   := true.B
-          resp.bits.hit    := false.B
-          resp.bits.source := 0.U
+          axi.b.ready    := !bDone
+          resp.valid     := bDone || axi.b.valid
+          resp.bits.data := 0.U.asTypeOf(gen)
+          resp.bits.last := true.B
+          resp.bits.hit  := false.B
 
           when(axi.b.fire) {
             bDone := true.B
@@ -262,12 +260,11 @@ object BusBridgeAxifType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      req.ready        := false.B
-      resp.valid       := false.B
-      resp.bits.data   := DontCare
-      resp.bits.last   := false.B
-      resp.bits.hit    := false.B
-      resp.bits.source := 0.U
+      req.ready      := false.B
+      resp.valid     := false.B
+      resp.bits.data := DontCare
+      resp.bits.last := false.B
+      resp.bits.hit  := false.B
 
       switch(state) {
         is(Axi4BridgeState.Idle) {

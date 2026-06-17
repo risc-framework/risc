@@ -47,12 +47,11 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.w.bits   := DontCare
       axi.b.ready  := false.B
 
-      req.ready        := false.B
-      resp.valid       := false.B
-      resp.bits.data   := DontCare
-      resp.bits.hit    := false.B
-      resp.bits.last   := true.B
-      resp.bits.source := 0.U
+      req.ready      := false.B
+      resp.valid     := false.B
+      resp.bits.data := DontCare
+      resp.bits.hit  := false.B
+      resp.bits.last := true.B
 
       switch(state) {
         is(Axi4BridgeState.Idle) {
@@ -170,12 +169,11 @@ object BusBridgeAxilType extends RegisteredNodeUtils[BusBridgeTypeImpl] {
       axi.ar.bits  := DontCare
       axi.r.ready  := false.B
 
-      req.ready        := false.B
-      resp.valid       := false.B
-      resp.bits.data   := DontCare
-      resp.bits.last   := false.B
-      resp.bits.hit    := false.B
-      resp.bits.source := 0.U
+      req.ready      := false.B
+      resp.valid     := false.B
+      resp.bits.data := DontCare
+      resp.bits.last := false.B
+      resp.bits.hit  := false.B
 
       switch(state) {
         is(Axi4BridgeState.Idle) {

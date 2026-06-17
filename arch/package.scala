@@ -116,8 +116,7 @@ package object configs {
           numWays = p(L1ICacheWays),
           access = CacheAccess.ReadOnly,
           missMode = CacheMissMode.NonBlocking,
-          replPolicy = p(L1ICacheReplPolicy),
-          sourceWidth = 1
+          replPolicy = p(L1ICacheReplPolicy)
         )
       )
 
@@ -131,8 +130,7 @@ package object configs {
           numWays = p(L1DCacheWays),
           access = CacheAccess.ReadWrite,
           missMode = CacheMissMode.NonBlocking,
-          replPolicy = p(L1DCacheReplPolicy),
-          sourceWidth = 1
+          replPolicy = p(L1DCacheReplPolicy)
         )
       )
 
