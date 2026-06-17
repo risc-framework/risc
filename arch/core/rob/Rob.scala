@@ -5,13 +5,19 @@ import arch.core.bpu.BpuUpdate
 import arch.core.bru.BruResolveBundle
 import arch.core.dispatch.{ DispatchRobPacket, DispatchRobResp }
 import arch.core.flush.FlushRobReq
-import arch.core.fupool.{ FunctionalUnitType, FuResp }
+import arch.core.fupool.FuResp
 import arch.core.regfile.RegfileWrite
-import vutils.graph.Node
+import vutils.graph.{ NodeConfig, NodeSelector, Node }
 import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 
 class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
+  override protected def cfg: NodeConfig = NodeConfig(
+    selector = NodeSelector(
+      RobDims.STORAGE -> p(RobStorageType)
+    )
+  )
+
   val dispatchReq   = inDVec[DispatchRobPacket](p => p(IssueWidth))
   val dispatchResp  = outVec[DispatchRobResp](p => p(IssueWidth))
   val fuDone        = inDVec[FuResp](p => p(NumFUs))
