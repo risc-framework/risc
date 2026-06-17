@@ -13,6 +13,12 @@ class LoadCtrl(implicit p: Parameters) extends Bundle {
   val strb        = UInt(p(BytesPerWord).W)
 }
 
+class LdDebugInfo extends Bundle {
+  val busy         = Bool()
+  val wait_mem     = Bool()
+  val wait_forward = Bool()
+}
+
 trait LoadDataHelpers {
   def alignedAddr(addr: UInt)(implicit p: Parameters): UInt =
     Cat(addr(p(XLen) - 1, p(BytesOffsetWidth)), 0.U(p(BytesOffsetWidth).W))

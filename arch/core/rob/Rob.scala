@@ -212,6 +212,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       buffer(idx).rd                     := dec.rd
       buffer(idx).rd_write               := dec.rd_write
       buffer(idx).data                   := 0.U
+      buffer(idx).fu_type                := dec.fu_type
       buffer(idx).is_branch              := isBru(dec.fu_type)
       buffer(idx).is_store               := isStore(dec.fu_type)
       buffer(idx).commit_barrier         := dec.commit_barrier
@@ -322,6 +323,12 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     .reduce(_ || _)
 
   debug.out.empty := count === 0.U
+
+  private val headEntry = buffer(head)
+  private val headValid = count =/= 0.U && headEntry.valid
+
+  debug.out.head_not_ready := headValid && !headEntry.ready
+  debug.out.head_fu_type   := Mux(headValid, headEntry.fu_type, 0.U)
 
   for (w <- 0 until p(CommitWidth)) {
     debug.out.instret(w)  := commitInfo(w).pop && !commitInfo(w).sync_valid

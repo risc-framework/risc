@@ -148,6 +148,14 @@ protected:
   uint64_t _stall_issue_queue_full{0};
   uint64_t _stall_lsq_full{0};
   uint64_t _stall_flush_recovery{0};
+  uint64_t _mul_wait{0};
+  uint64_t _div_wait{0};
+  uint64_t _load_use_wait{0};
+  uint64_t _lsu_busy{0};
+  uint64_t _dcache_wait{0};
+  uint64_t _store_wait{0};
+  uint64_t _wb_conflict{0};
+  uint64_t _rob_head_not_ready{0};
 
   addr_t last_retire_pc_{0};
   std::array<word_t, isa_def::NUM_ARCH_REGS> _register_values{};

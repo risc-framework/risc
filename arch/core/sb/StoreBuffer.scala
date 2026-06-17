@@ -21,6 +21,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   val fwdResp = outDVec[StoreForwardResp](p => p(NumLDs))
 
   val status = out[StoreBufferStatus]
+  val debug  = out[StoreBufferDebugInfo]
 
   val storeWrite = inDVec[StoreWriteBundle](p => p(NumSTs))
 
@@ -197,6 +198,9 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
 
   private val drainReqFire  = memReq.out.fire || mmioReq.out.fire
   private val drainRespFire = memResp.in.fire || mmioResp.in.fire
+
+  debug.out.busy       := count =/= 0.U || drainOutstanding
+  debug.out.wait_drain := drainOutstanding || (canDrain && !drainReqFire)
 
   private val allocCount      = PopCount(allocValid)
   private val afterDrainHead  = Mux(drainRespFire, wrapAdd(head, 1.U), head)

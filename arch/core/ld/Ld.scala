@@ -34,6 +34,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   val fwdReq   = outD[StoreForwardReq]
   val fwdResp  = inD[StoreForwardResp]
   val sbStatus = in[StoreBufferStatus]
+  val debug    = out[LdDebugInfo]
 
   private val isaImpl = LdIsaFactory.select(cfg)
   private val pma     = PmaModeFactory.getOrThrow("default")
@@ -149,6 +150,10 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   }
 
   private val willHaveOutstanding = (reqOutstanding && !memRespFire) || memReqFire
+
+  debug.out.busy         := state =/= LdState.IDLE
+  debug.out.wait_mem     := state === LdState.MEM_REQ || state === LdState.WAIT_MEM
+  debug.out.wait_forward := state === LdState.FWD_REQ || state === LdState.FWD_RESP
 
   when(flush.in.flush) {
     when(willHaveOutstanding) {

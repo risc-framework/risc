@@ -54,4 +54,13 @@ class CpuDebugInfo(implicit p: Parameters) extends Bundle {
   val stall_issue_queue_full   = Bool()
   val stall_lsq_full           = Bool()
   val stall_flush_recovery     = Bool()
+
+  val mul_wait           = Bool()
+  val div_wait           = Bool()
+  val load_use_wait      = Bool()
+  val lsu_busy           = Bool()
+  val dcache_wait        = Bool()
+  val store_wait         = Bool()
+  val wb_conflict        = Bool()
+  val rob_head_not_ready = Bool()
 }

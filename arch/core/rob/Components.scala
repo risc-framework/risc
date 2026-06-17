@@ -47,6 +47,8 @@ class RobDebugInfo(implicit p: Parameters) extends Bundle {
   val branch_commit  = UInt(log2Ceil(p(CommitWidth) + 1).W)
   val bpu_mispredict = Bool()
   val empty          = Bool()
+  val head_not_ready = Bool()
+  val head_fu_type   = UInt(p(FuTypeWidth).W)
 
   val instret  = Vec(p(CommitWidth), Bool())
   val pc       = Vec(p(CommitWidth), UInt(p(XLen).W))
@@ -67,6 +69,7 @@ class RobEntry(implicit p: Parameters) extends Bundle {
   val rd             = UInt(log2Ceil(p(NumArchRegs)).W)
   val rd_write       = Bool()
   val data           = UInt(p(XLen).W)
+  val fu_type        = UInt(p(FuTypeWidth).W)
   val is_branch      = Bool()
   val is_store       = Bool()
   val commit_barrier = Bool()

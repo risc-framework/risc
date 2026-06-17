@@ -36,6 +36,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
   val storeForwardResp  = inDVec[StoreForwardResp](p => p(NumLDs))
   val storeBufferStatus = in[StoreBufferStatus]
   val storeWrite        = outDVec[StoreWriteBundle](p => p(NumSTs))
+  val debug             = out[FuPoolDebugInfo]
 
   private def build(desc: FunctionalUnitDescriptor): Node[Parameters] =
     desc.`type` match {
@@ -73,6 +74,14 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
   private val units = fuDescs.zipWithIndex.map { case (desc, idx) =>
     subnode(build(desc)) -> idx
   }
+
+  private val loadBusy        = Wire(Vec(p(NumLDs), Bool()))
+  private val loadWaitMem     = Wire(Vec(p(NumLDs), Bool()))
+  private val loadWaitForward = Wire(Vec(p(NumLDs), Bool()))
+
+  loadBusy.foreach(_ := false.B)
+  loadWaitMem.foreach(_ := false.B)
+  loadWaitForward.foreach(_ := false.B)
 
   private var ldIdx  = 0
   private var stIdx  = 0
@@ -118,6 +127,10 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
           storeForwardResp.lanes(ldIdx) -> ld.fwdResp,
           storeBufferStatus             -> ld.sbStatus
         )
+
+        loadBusy(ldIdx)        := ld.debug.out.busy
+        loadWaitMem(ldIdx)     := ld.debug.out.wait_mem
+        loadWaitForward(ldIdx) := ld.debug.out.wait_forward
 
         ldIdx += 1
 
@@ -166,4 +179,8 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
 
       case _ =>
     }
+
+  debug.out.load_wait_mem     := loadWaitMem.asUInt.orR
+  debug.out.load_wait_forward := loadWaitForward.asUInt.orR
+  debug.out.lsu_busy          := loadBusy.asUInt.orR
 }

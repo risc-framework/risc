@@ -168,6 +168,14 @@ void DemuSimulator::reset() {
   _stall_issue_queue_full = 0;
   _stall_lsq_full = 0;
   _stall_flush_recovery = 0;
+  _mul_wait = 0;
+  _div_wait = 0;
+  _load_use_wait = 0;
+  _lsu_busy = 0;
+  _dcache_wait = 0;
+  _store_wait = 0;
+  _wb_conflict = 0;
+  _rob_head_not_ready = 0;
 
   _terminate = false;
   _register_values.fill(0);
@@ -245,6 +253,22 @@ void DemuSimulator::run(uint64_t max_cycles) {
             stall_rate(_stall_flush_recovery) * 100);
   DEMU_INFO("  Backend Stalled:    {:.2f} % of cycles (Waiting Exe/Mem)",
             backend_stall_rate() * 100);
+  DEMU_INFO("    mul_wait:           {:.2f} % of cycles",
+            stall_rate(_mul_wait) * 100);
+  DEMU_INFO("    div_wait:           {:.2f} % of cycles",
+            stall_rate(_div_wait) * 100);
+  DEMU_INFO("    load_use_wait:      {:.2f} % of cycles",
+            stall_rate(_load_use_wait) * 100);
+  DEMU_INFO("    lsu_busy:           {:.2f} % of cycles",
+            stall_rate(_lsu_busy) * 100);
+  DEMU_INFO("    dcache_wait:        {:.2f} % of cycles",
+            stall_rate(_dcache_wait) * 100);
+  DEMU_INFO("    store_wait:         {:.2f} % of cycles",
+            stall_rate(_store_wait) * 100);
+  DEMU_INFO("    wb_conflict:        {:.2f} % of cycles",
+            stall_rate(_wb_conflict) * 100);
+  DEMU_INFO("    rob_head_not_ready: {:.2f} % of cycles",
+            stall_rate(_rob_head_not_ready) * 100);
   DEMU_INFO("")
 }
 
@@ -356,6 +380,14 @@ void DemuSimulator::handle_performance_profiling() {
   _stall_lsq_full += static_cast<uint64_t>(dut_->debug_stall_lsq_full);
   _stall_flush_recovery +=
       static_cast<uint64_t>(dut_->debug_stall_flush_recovery);
+  _mul_wait += static_cast<uint64_t>(dut_->debug_mul_wait);
+  _div_wait += static_cast<uint64_t>(dut_->debug_div_wait);
+  _load_use_wait += static_cast<uint64_t>(dut_->debug_load_use_wait);
+  _lsu_busy += static_cast<uint64_t>(dut_->debug_lsu_busy);
+  _dcache_wait += static_cast<uint64_t>(dut_->debug_dcache_wait);
+  _store_wait += static_cast<uint64_t>(dut_->debug_store_wait);
+  _wb_conflict += static_cast<uint64_t>(dut_->debug_wb_conflict);
+  _rob_head_not_ready += static_cast<uint64_t>(dut_->debug_rob_head_not_ready);
 }
 
 } // namespace demu

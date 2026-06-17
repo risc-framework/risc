@@ -63,3 +63,9 @@ class FuPoolCpuReq extends Bundle {
   val instret = UInt(64.W)
   val irq     = new InterruptLines
 }
+
+class FuPoolDebugInfo extends Bundle {
+  val load_wait_mem     = Bool()
+  val load_wait_forward = Bool()
+  val lsu_busy          = Bool()
+}

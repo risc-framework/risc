@@ -8,7 +8,7 @@ import arch.core.decode.Decode
 import arch.core.dispatch.Dispatch
 import arch.core.exception.Exception
 import arch.core.flush.Flush
-import arch.core.fupool.FuPool
+import arch.core.fupool.{ FuPool, FunctionalUnitType }
 import arch.core.ifu.Ifu
 import arch.core.memarb.MemoryArbiter
 import arch.core.regfile.Regfile
@@ -203,4 +203,28 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     debug.out.stall_flush_recovery
 
   debug.out.backend_stall := !rob.debug.out.empty && rob.debug.out.commit_count === 0.U
+
+  private def headFuIs(fuType: FunctionalUnitType): Bool =
+    rob.debug.out.head_fu_type === fuType.index.U(p(FuTypeWidth).W)
+
+  private val backendStall = debug.out.backend_stall
+  private val headWait     = backendStall && rob.debug.out.head_not_ready
+  private val dcacheWait   = backendStall && fuPool.debug.out.load_wait_mem
+  private val loadWait =
+    headWait && headFuIs(FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
+  private val storeWait =
+    backendStall &&
+      ((headFuIs(FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST) && rob.debug.out.head_not_ready) ||
+        storeBuffer.debug.out.wait_drain)
+
+  debug.out.mul_wait := headWait &&
+    headFuIs(FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_MULT)
+  debug.out.div_wait := headWait &&
+    headFuIs(FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV)
+  debug.out.load_use_wait      := loadWait && !dcacheWait
+  debug.out.lsu_busy           := backendStall && (fuPool.debug.out.lsu_busy || storeBuffer.debug.out.busy)
+  debug.out.dcache_wait        := dcacheWait
+  debug.out.store_wait         := storeWait
+  debug.out.wb_conflict        := false.B
+  debug.out.rob_head_not_ready := headWait
 }
