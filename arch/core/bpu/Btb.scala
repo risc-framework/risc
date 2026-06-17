@@ -21,6 +21,8 @@ class Btb(implicit p: Parameters) extends Node[Parameters]("btb") with BHTConsts
   private val targetArray =
     Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(p(XLen).W))))
   private val ctrlArray   = Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(SZ_BHT.W))))
+  private val kindArray   =
+    Seq.fill(numReadPorts)(Mem(p(BTBSets), Vec(p(BTBWays), UInt(BpuBranchKind.width.W))))
   private val replStates  = Seq.fill(p(BTBSets))(p(BTBReplPolicy).build(p(BTBWays)))
 
   private def getIndex(pc: UInt): UInt =
@@ -41,6 +43,7 @@ class Btb(implicit p: Parameters) extends Node[Parameters]("btb") with BHTConsts
     val qTags    = tagArray(q).read(qIndex)
     val qTargets = targetArray(q).read(qIndex)
     val qCtrls   = ctrlArray(q).read(qIndex)
+    val qKinds   = kindArray(q).read(qIndex)
     val hitBits  = Wire(Vec(p(BTBWays), Bool()))
 
     for (w <- 0 until p(BTBWays))
@@ -54,6 +57,7 @@ class Btb(implicit p: Parameters) extends Node[Parameters]("btb") with BHTConsts
     queryResp.out.entry_out(q).tag    := Mux(anyHit, qTags(hitWay), 0.U)
     queryResp.out.entry_out(q).target := Mux(anyHit, qTargets(hitWay), 0.U)
     queryResp.out.entry_out(q).ctrl   := Mux(anyHit, qCtrls(hitWay), BHT_WT.value.U(SZ_BHT.W))
+    queryResp.out.entry_out(q).kind   := Mux(anyHit, qKinds(hitWay), BpuBranchKind.NONE)
   }
 
   when(update.in.valid && update.in.taken) {
@@ -63,6 +67,7 @@ class Btb(implicit p: Parameters) extends Node[Parameters]("btb") with BHTConsts
     val uTags    = tagArray(p(IssueWidth)).read(uIndex)
     val uTargets = targetArray(p(IssueWidth)).read(uIndex)
     val uCtrls   = ctrlArray(p(IssueWidth)).read(uIndex)
+    val uKinds   = kindArray(p(IssueWidth)).read(uIndex)
     val uHitBits = Wire(Vec(p(BTBWays), Bool()))
 
     for (w <- 0 until p(BTBWays))
@@ -79,11 +84,13 @@ class Btb(implicit p: Parameters) extends Node[Parameters]("btb") with BHTConsts
     val nextTags    = Wire(Vec(p(BTBWays), UInt(tagWidth.W)))
     val nextTargets = Wire(Vec(p(BTBWays), UInt(p(XLen).W)))
     val nextCtrls   = Wire(Vec(p(BTBWays), UInt(SZ_BHT.W)))
+    val nextKinds   = Wire(Vec(p(BTBWays), UInt(BpuBranchKind.width.W)))
 
     for (w <- 0 until p(BTBWays)) {
       nextTags(w)    := Mux(writeWay === w.U, uTag, uTags(w))
       nextTargets(w) := Mux(writeWay === w.U, update.in.target, uTargets(w))
       nextCtrls(w)   := Mux(writeWay === w.U, nextCtrl, uCtrls(w))
+      nextKinds(w)   := Mux(writeWay === w.U, update.in.branch_kind, uKinds(w))
     }
 
     validBits(uIndex) := nextValid
@@ -92,6 +99,7 @@ class Btb(implicit p: Parameters) extends Node[Parameters]("btb") with BHTConsts
       tagArray(r).write(uIndex, nextTags)
       targetArray(r).write(uIndex, nextTargets)
       ctrlArray(r).write(uIndex, nextCtrls)
+      kindArray(r).write(uIndex, nextKinds)
     }
 
     for (s <- 0 until p(BTBSets))

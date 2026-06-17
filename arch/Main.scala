@@ -104,6 +104,7 @@ object MainSystem extends App {
       BTBSets                       -> 128,
       BTBReplPolicy                 -> ReplPolicy.PseudoLRU,
       GShareGhrWidth                -> 10,
+      RasSize                       -> 16,
       L1ICacheWays                  -> 2,
       L1ICacheSets                  -> 8,
       L1ICacheLineSize              -> 64,

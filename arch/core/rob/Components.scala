@@ -1,6 +1,7 @@
 package arch.core.rob
 
 import arch.configs._
+import arch.core.bpu.BpuBranchKind
 import arch.core.exception.{ ExceptionDims, ExceptionIsaFactory }
 import vutils.graph.{ NodeConfig, NodeSelector }
 import chisel3._
@@ -74,6 +75,7 @@ class RobEntry(implicit p: Parameters) extends Bundle {
   val pred_target   = UInt(p(XLen).W)
   val pht_index     = UInt(p(GShareGhrWidth).W)
   val ghr_snapshot  = UInt(p(GShareGhrWidth).W)
+  val branch_kind   = UInt(BpuBranchKind.width.W)
   val actual_taken  = Bool()
   val actual_target = UInt(p(XLen).W)
 
@@ -110,6 +112,7 @@ class RobCommitInfo(implicit p: Parameters) extends Bundle {
   val bpu_actual_target = UInt(p(XLen).W)
   val bpu_pht_index     = UInt(p(GShareGhrWidth).W)
   val bpu_ghr_snapshot  = UInt(p(GShareGhrWidth).W)
+  val bpu_branch_kind   = UInt(BpuBranchKind.width.W)
 
   val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
 

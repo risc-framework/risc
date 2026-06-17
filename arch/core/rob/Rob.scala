@@ -154,6 +154,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     commitInfo(w).bpu_actual_target      := entry.actual_target
     commitInfo(w).bpu_pht_index          := entry.pht_index
     commitInfo(w).bpu_ghr_snapshot       := entry.ghr_snapshot
+    commitInfo(w).bpu_branch_kind        := entry.branch_kind
     commitInfo(w).sq_idx                 := entry.sq_idx
     commitInfo(w).sync_valid             := entry.sync_valid
     commitInfo(w).sync_kind              := entry.sync_kind
@@ -218,6 +219,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       buffer(idx).pred_target            := dec.bpu_pred_target
       buffer(idx).pht_index              := dec.bpu_pht_index
       buffer(idx).ghr_snapshot           := dec.bpu_ghr_snapshot
+      buffer(idx).branch_kind            := dec.bpu_branch_kind
       buffer(idx).actual_taken           := false.B
       buffer(idx).actual_target          := 0.U
       buffer(idx).flush_pipeline         := false.B
@@ -280,6 +282,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       bpuUpdateWire.pc           := lane.pc
       bpuUpdateWire.target       := lane.bpu_actual_target
       bpuUpdateWire.taken        := lane.bpu_actual_taken
+      bpuUpdateWire.branch_kind  := lane.bpu_branch_kind
       bpuUpdateWire.pht_index    := lane.bpu_pht_index
       bpuUpdateWire.ghr_snapshot := lane.bpu_ghr_snapshot
       bpuUpdateWire.mispredict   := lane.flush_pipeline

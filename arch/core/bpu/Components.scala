@@ -4,6 +4,20 @@ import arch.configs._
 import chisel3._
 import chisel3.util.BitPat
 
+object BpuBranchKind {
+  val width = 3
+
+  def NONE   = 0.U(width.W)
+  def BRANCH = 1.U(width.W)
+  def JUMP   = 2.U(width.W)
+  def CALL   = 3.U(width.W)
+  def RET    = 4.U(width.W)
+  def CALL_RET = 5.U(width.W)
+
+  def isUnconditional(kind: UInt): Bool =
+    kind === JUMP || kind === CALL || kind === RET || kind === CALL_RET
+}
+
 trait BHTConsts {
   def BHT_SNT = BitPat("b00")
   def BHT_WNT = BitPat("b01")
@@ -17,6 +31,7 @@ class BtbEntry(implicit p: Parameters) extends Bundle with BHTConsts {
   val tag    = UInt(p(XLen).W)
   val target = UInt(p(XLen).W)
   val ctrl   = UInt(SZ_BHT.W)
+  val kind   = UInt(BpuBranchKind.width.W)
 }
 
 class BtbQueryReq(implicit p: Parameters) extends Bundle {
@@ -59,6 +74,7 @@ class BpuUpdate(implicit p: Parameters) extends Bundle {
   val pc           = UInt(p(XLen).W)
   val target       = UInt(p(XLen).W)
   val taken        = Bool()
+  val branch_kind  = UInt(BpuBranchKind.width.W)
   val pht_index    = UInt(p(GShareGhrWidth).W)
   val ghr_snapshot = UInt(p(GShareGhrWidth).W)
   val mispredict   = Bool()

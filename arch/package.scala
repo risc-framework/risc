@@ -47,6 +47,7 @@ package object configs {
   object BTBSets          extends Field[Int]
   object BTBReplPolicy    extends Field[ReplPolicy]
   object GShareGhrWidth   extends Field[Int]
+  object RasSize          extends Field[Int]
 
   // Cache Parameters
   object L1ICacheWays       extends Field[Int]
@@ -155,6 +156,7 @@ package object configs {
       BTBSets,
       BTBReplPolicy,
       GShareGhrWidth,
+      RasSize,
       L1ICacheWays,
       L1ICacheSets,
       L1ICacheLineSize,
