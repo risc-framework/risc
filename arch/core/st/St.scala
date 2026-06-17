@@ -72,13 +72,13 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
     val WRITE_SB = stage(StPipeNode.WRITE_SB)
     val RESP     = stage(StPipeNode.RESP)
 
-    source(acceptIn, WRITE_SB)
+    source(acceptIn -> WRITE_SB)
 
-    request(WRITE_SB, storeWrite.out, RESP) { store =>
+    request(WRITE_SB -> storeWrite.out -> RESP) { store =>
       store := WRITE_SB.bits.store
     }
 
-    sinkMap(RESP, fuResp.out) { resp =>
+    sinkMap(RESP -> fuResp.out) { resp =>
       resp := RESP.bits.resp
     }
   }
