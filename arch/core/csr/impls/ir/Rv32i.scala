@@ -13,8 +13,8 @@ object Rv32iCsrIr extends RegisteredNodeUtils[CsrIrImpl] with Rv32iExceptionKind
 
     override def command(regs: Map[String, UInt], extra: Map[String, UInt])(implicit
       p: Parameters
-    ): CsrIrCmd = {
-      val cmd     = Wire(new CsrIrCmd)
+    ): CsrSysCmd = {
+      val cmd     = Wire(new CsrSysCmd)
       val mstatus = regs.getOrElse("mstatus", 0.U(p(XLen).W))
       val mie     = regs.getOrElse("mie", 0.U(p(XLen).W))
       val mip     = regs.getOrElse("mip", 0.U(p(XLen).W))

@@ -16,7 +16,7 @@ object Rv32imCsrSync extends RegisteredNodeUtils[CsrSyncImpl] {
 
     override def command(instr: UInt, uop: UInt, view: CsrTrapView)(implicit
       p: Parameters
-    ): CsrSyncCmd =
+    ): CsrSysCmd =
       rv32i.command(instr, uop, view)
 
     override def illegalAccessKind(cmd: CsrFileCmd)(implicit p: Parameters): UInt =

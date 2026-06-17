@@ -22,7 +22,7 @@ trait CsrFileImpl extends CsrDims.FILE.Impl {
 }
 
 trait CsrSyncImpl extends CsrDims.SYNC.Impl {
-  def command(instr: UInt, uop: UInt, view: CsrTrapView)(implicit p: Parameters): CsrSyncCmd
+  def command(instr: UInt, uop: UInt, view: CsrTrapView)(implicit p: Parameters): CsrSysCmd
   def illegalAccessKind(cmd: CsrFileCmd)(implicit p: Parameters): UInt
 
   def view(
@@ -44,7 +44,7 @@ trait CsrSyncImpl extends CsrDims.SYNC.Impl {
 }
 
 trait CsrIrImpl extends CsrDims.IR.Impl {
-  def command(regs: Map[String, UInt], extra: Map[String, UInt])(implicit p: Parameters): CsrIrCmd
+  def command(regs: Map[String, UInt], extra: Map[String, UInt])(implicit p: Parameters): CsrSysCmd
 }
 
 object CsrFileFactory extends CsrDims.FILE.Registry[CsrFileImpl]

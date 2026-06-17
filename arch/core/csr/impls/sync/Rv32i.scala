@@ -15,8 +15,8 @@ object Rv32iCsrSync extends RegisteredNodeUtils[CsrSyncImpl] with Rv32iException
 
     override def command(instr: UInt, uop: UInt, view: CsrTrapView)(implicit
       p: Parameters
-    ): CsrSyncCmd = {
-      val cmd      = WireDefault(0.U.asTypeOf(new CsrSyncCmd))
+    ): CsrSysCmd = {
+      val cmd      = WireDefault(0.U.asTypeOf(new CsrSysCmd))
       val isSys    = uop(3)
       val isEcall  = isSys && instr === Rv32i.isa.bitPat("ECALL").value.U(p(ILen).W)
       val isEbreak = isSys && instr === Rv32i.isa.bitPat("EBREAK").value.U(p(ILen).W)
