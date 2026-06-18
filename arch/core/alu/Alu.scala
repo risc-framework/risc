@@ -35,11 +35,11 @@ class Alu(implicit p: Parameters) extends Node[Parameters]("alu") with Moore {
       uopReg := fuReq.in.bits
     }
 
-    trans(RESP -> RESP, fuReq.in.fire && fuResp.out.ready) {
+    trans(RESP -> RESP, fuResp.out.fire && fuReq.in.fire) {
       uopReg := fuReq.in.bits
     }
 
-    trans(RESP -> IDLE, fuResp.out.ready)
+    trans(RESP -> IDLE, fuResp.out.fire && !fuReq.in.fire)
   }
 
   fuReq.in.ready   := !flush.in.flush && (fsm(AluState.IDLE).active || (fsm(
