@@ -35,14 +35,14 @@ object DecodeRv32imIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32imDec
 
     override def table(implicit p: Parameters): Array[(BitPat, List[BitPat])] =
       rv32i.table ++ Array(
-        enc("MUL")    -> List(Y, Y, Y, Y, Y, N, FU_MULT, UOP_MUL, RF_RS1, RF_RS2, RF_RD, IMM_X),
-        enc("MULH")   -> List(Y, Y, Y, Y, Y, N, FU_MULT, UOP_MULH, RF_RS1, RF_RS2, RF_RD, IMM_X),
-        enc("MULHSU") -> List(Y, Y, Y, Y, Y, N, FU_MULT, UOP_MULHSU, RF_RS1, RF_RS2, RF_RD, IMM_X),
-        enc("MULHU")  -> List(Y, Y, Y, Y, Y, N, FU_MULT, UOP_MULHU, RF_RS1, RF_RS2, RF_RD, IMM_X),
-        enc("DIV")    -> List(Y, Y, Y, Y, Y, N, FU_DIV, UOP_DIV, RF_RS1, RF_RS2, RF_RD, IMM_X),
-        enc("DIVU")   -> List(Y, Y, Y, Y, Y, N, FU_DIV, UOP_DIVU, RF_RS1, RF_RS2, RF_RD, IMM_X),
-        enc("REM")    -> List(Y, Y, Y, Y, Y, N, FU_DIV, UOP_REM, RF_RS1, RF_RS2, RF_RD, IMM_X),
-        enc("REMU")   -> List(Y, Y, Y, Y, Y, N, FU_DIV, UOP_REMU, RF_RS1, RF_RS2, RF_RD, IMM_X)
+        enc("mul")    -> List(Y, Y, Y, Y, Y, N, FU_MULT, UOP_MUL, RF_RS1, RF_RS2, RF_RD, IMM_X),
+        enc("mulh")   -> List(Y, Y, Y, Y, Y, N, FU_MULT, UOP_MULH, RF_RS1, RF_RS2, RF_RD, IMM_X),
+        enc("mulhsu") -> List(Y, Y, Y, Y, Y, N, FU_MULT, UOP_MULHSU, RF_RS1, RF_RS2, RF_RD, IMM_X),
+        enc("mulhu")  -> List(Y, Y, Y, Y, Y, N, FU_MULT, UOP_MULHU, RF_RS1, RF_RS2, RF_RD, IMM_X),
+        enc("div")    -> List(Y, Y, Y, Y, Y, N, FU_DIV, UOP_DIV, RF_RS1, RF_RS2, RF_RD, IMM_X),
+        enc("divu")   -> List(Y, Y, Y, Y, Y, N, FU_DIV, UOP_DIVU, RF_RS1, RF_RS2, RF_RD, IMM_X),
+        enc("rem")    -> List(Y, Y, Y, Y, Y, N, FU_DIV, UOP_REM, RF_RS1, RF_RS2, RF_RD, IMM_X),
+        enc("remu")   -> List(Y, Y, Y, Y, Y, N, FU_DIV, UOP_REMU, RF_RS1, RF_RS2, RF_RD, IMM_X)
       )
 
     override def reg(sel: UInt, instr: UInt)(implicit p: Parameters): UInt =
