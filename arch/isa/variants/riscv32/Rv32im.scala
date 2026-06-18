@@ -1,4 +1,6 @@
-package arch.isa
+package arch.isa.variants.riscv32
+
+import arch.isa._
 
 object Rv32im extends Riscv32IsaDefinition with Riscv32Base {
   override def name: String =

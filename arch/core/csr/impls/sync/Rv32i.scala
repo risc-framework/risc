@@ -4,7 +4,7 @@ import arch.configs._
 import arch.core.csr._
 import arch.core.exception.ExceptionTrapUpdate
 import arch.core.exception.impls.isa.rv32i.Rv32iExceptionKindConsts
-import arch.isa.Rv32i
+import arch.isa.variants.riscv32.Rv32i
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.Cat

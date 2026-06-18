@@ -6,7 +6,7 @@ import arch.core.decode.impls.isa.rv32i.{ DecodeRv32iIsa, Rv32iDecodeConsts }
 import arch.core.div.impls.isa.rv32im.Rv32imDivUopConsts
 import arch.core.fupool.FunctionalUnitType
 import arch.core.mult.impls.isa.rv32im.Rv32imMultUopConsts
-import arch.isa._
+import arch.isa.variants.riscv32.Rv32im
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.BitPat

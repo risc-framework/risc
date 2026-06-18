@@ -1,4 +1,6 @@
-package arch.isa
+package arch.isa.variants.riscv32
+
+import arch.isa._
 
 abstract class Riscv32IsaDefinition extends FixedWidthIsaDefinition {
   final override def family: String =

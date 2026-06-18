@@ -1,4 +1,6 @@
-package arch.isa
+package arch.isa.variants.riscv32
+
+import arch.isa._
 
 trait Riscv32Base { this: Riscv32IsaDefinition =>
   final protected val opcode: InstructionField = InstructionField("opcode", 6, 0, role = "opcode")
