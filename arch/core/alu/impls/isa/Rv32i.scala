@@ -75,7 +75,7 @@ trait Rv32iAluUopConsts {
 
 object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConsts {
   override def utils: AluIsaImpl = new AluIsaImpl {
-    override def value: String    = "rv32i"
+    override def value: String = "rv32i"
 
     override def execute(uop: FuReq)(implicit p: Parameters): UInt = {
       val ctrl = decode(uop.uop)
