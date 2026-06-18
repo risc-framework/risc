@@ -1,12 +1,17 @@
 package arch.core.bru
 
-import arch.core.fupool.{ FuReq, FuResp }
-import arch.core.exception.ExceptionCsrReq
 import arch.configs._
-import vutils.graph.{ Node, NodeConfig, NodeSelector }
+import arch.core.exception.ExceptionCsrReq
+import arch.core.fupool.{ FuReq, FuResp }
 import chisel3._
+import vutils.fsm.Moore
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 
-class Bru(implicit p: Parameters) extends Node[Parameters]("bru") {
+object BruState extends ChiselEnum {
+  val IDLE, RESP = Value
+}
+
+class Bru(implicit p: Parameters) extends Node[Parameters]("bru") with Moore {
   override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       BruDims.ISA -> p(ISA).name
@@ -18,21 +23,30 @@ class Bru(implicit p: Parameters) extends Node[Parameters]("bru") {
   val flush    = in[ExceptionCsrReq]
   val resolved = outV[BruResolveBundle]
 
-  private val isaImpl  = BruIsaFactory.select(cfg)
-  private val validReg = RegInit(false.B)
-  private val uopReg   = Reg(new FuReq)
+  private val isaImpl = BruIsaFactory.select(cfg)
+  private val uopReg  = Reg(new FuReq)
 
-  fuReq.in.ready   := !flush.in.flush && (!validReg || fuResp.out.fire)
-  fuResp.out.valid := validReg && !flush.in.flush
+  private val fsm = moore(BruState.IDLE, clear = flush.in.flush) { g =>
+    import g._
 
-  when(flush.in.flush) {
-    validReg := false.B
-  }.elsewhen(fuReq.in.fire) {
-    validReg := true.B
-    uopReg   := fuReq.in.bits
-  }.elsewhen(fuResp.out.fire) {
-    validReg := false.B
+    val IDLE = state(BruState.IDLE)
+    val RESP = state(BruState.RESP)
+
+    trans(IDLE -> RESP, fuReq.in.fire) {
+      uopReg := fuReq.in.bits
+    }
+
+    trans(RESP -> RESP, fuResp.out.fire && fuReq.in.fire) {
+      uopReg := fuReq.in.bits
+    }
+
+    trans(RESP -> IDLE, fuResp.out.fire && !fuReq.in.fire)
   }
+
+  fuReq.in.ready   := !flush.in.flush && (fsm(BruState.IDLE).active || (fsm(
+    BruState.RESP
+  ).active && fuResp.out.ready))
+  fuResp.out.valid := fsm(BruState.RESP).active && !flush.in.flush
 
   private val ctrl          = isaImpl.decode(uopReg.uop)
   private val immValue      = uopReg.imm
@@ -42,7 +56,7 @@ class Bru(implicit p: Parameters) extends Node[Parameters]("bru") {
   private val fallthrough   = uopReg.pc + p(PCStep).U(p(XLen).W)
   private val actualTarget  = Mux(resolvedTaken, branchTarget, fallthrough)
 
-  private val resp = Wire(new FuResp)
+  private val resp = WireDefault(0.U.asTypeOf(new FuResp))
 
   resp.result      := fallthrough
   resp.rd          := uopReg.rd
@@ -55,7 +69,7 @@ class Bru(implicit p: Parameters) extends Node[Parameters]("bru") {
 
   fuResp.out.bits := resp
 
-  resolved.out.valid            := validReg && !flush.in.flush
+  resolved.out.valid            := fsm(BruState.RESP).active && !flush.in.flush
   resolved.out.bits.pc          := uopReg.pc
   resolved.out.bits.instr       := uopReg.instr
   resolved.out.bits.rob_tag     := uopReg.rob_tag
