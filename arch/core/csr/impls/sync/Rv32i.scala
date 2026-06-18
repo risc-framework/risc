@@ -18,9 +18,9 @@ object Rv32iCsrSync extends RegisteredNodeUtils[CsrSyncImpl] with Rv32iException
     ): CsrSysCmd = {
       val cmd      = WireDefault(0.U.asTypeOf(new CsrSysCmd))
       val isSys    = uop(3)
-      val isEcall  = isSys && instr === Rv32i.isa.bitPat("ECALL").value.U(p(ILen).W)
-      val isEbreak = isSys && instr === Rv32i.isa.bitPat("EBREAK").value.U(p(ILen).W)
-      val isMret   = isSys && instr === Rv32i.isa.bitPat("MRET").value.U(p(ILen).W)
+      val isEcall  = isSys && instr === Rv32i.isa.bitPat("ecall").value.U(p(ILen).W)
+      val isEbreak = isSys && instr === Rv32i.isa.bitPat("ebreak").value.U(p(ILen).W)
+      val isMret   = isSys && instr === Rv32i.isa.bitPat("mret").value.U(p(ILen).W)
       val trapVec  = Cat(view.trapVector(p(XLen) - 1, 2), 0.U(2.W))
 
       cmd.valid  := isEcall || isEbreak || isMret
