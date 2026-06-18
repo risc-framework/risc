@@ -1,5 +1,8 @@
 package arch.isa
 
+import chisel3._
+import chisel3.util.{ Cat, Fill }
+
 object OperandKind {
   val Register  = "reg"
   val Immediate = "imm"
@@ -102,6 +105,9 @@ final case class OperandPiece(
 
   def width: Int =
     srcHi - srcLo + 1
+
+  def dstHi: Int =
+    dstLo + width - 1
 }
 
 final case class InstructionOperand(
@@ -117,6 +123,64 @@ final case class InstructionOperand(
 ) {
   require(name.nonEmpty, "operand name must not be empty")
   require(width >= 0, s"operand '$name' has negative width: $width")
+
+  pieces.foreach { piece =>
+    require(width > 0, s"operand '$name' has piece $piece but operand width is $width")
+    require(
+      piece.dstHi < width,
+      s"operand '$name' piece destination ${piece.dstHi}:${piece.dstLo} exceeds operand width $width"
+    )
+  }
+
+  def apply(instr: UInt): UInt =
+    extract(instr)
+
+  def apply(instr: UInt, targetWidth: Int): UInt =
+    extract(instr, targetWidth)
+
+  def extract(instr: UInt): UInt = {
+    require(width > 0, s"operand '$name' cannot be extracted because width is $width")
+    require(pieces.nonEmpty, s"operand '$name' cannot be extracted because it has no pieces")
+
+    val instrWidth = instr.getWidth
+    if (instrWidth > 0) {
+      pieces.foreach { piece =>
+        require(
+          piece.srcHi < instrWidth,
+          s"operand '$name' source ${piece.srcHi}:${piece.srcLo} exceeds instruction width $instrWidth"
+        )
+      }
+    }
+
+    val bits = Wire(Vec(width, Bool()))
+    for (i <- 0 until width)
+      bits(i) := false.B
+
+    pieces.foreach { piece =>
+      for (i <- 0 until piece.width)
+        bits(piece.dstLo + i) := instr(piece.srcLo + i)
+    }
+
+    bits.asUInt
+  }
+
+  def extract(instr: UInt, targetWidth: Int): UInt = {
+    require(targetWidth > 0, s"operand '$name' targetWidth must be positive, got $targetWidth")
+    require(
+      targetWidth >= width,
+      s"operand '$name' targetWidth $targetWidth is smaller than operand width $width"
+    )
+
+    val raw = extract(instr)
+
+    if (targetWidth == width) {
+      raw
+    } else if (signed) {
+      Cat(Fill(targetWidth - width, raw(width - 1)), raw)
+    } else {
+      Cat(0.U((targetWidth - width).W), raw)
+    }
+  }
 }
 
 final case class InstructionSemantic(

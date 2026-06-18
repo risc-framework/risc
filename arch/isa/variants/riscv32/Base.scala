@@ -37,35 +37,35 @@ trait Riscv32Base { this: Riscv32IsaDefinition =>
   final protected val csrFields: Seq[InstructionField]    = Seq(csr, rs1, funct3, rd, opcode)
   final protected val systemFields: Seq[InstructionField] = Seq(opcode)
 
-  final protected val rdW: InstructionOperand   = InstructionOperand(
+  final val rdW: InstructionOperand   = InstructionOperand(
     "rd",
     OperandKind.Register,
     OperandAccess.Write,
     width = 5,
     pieces = Seq(OperandPiece(11, 7, 0))
   )
-  final protected val rs1R: InstructionOperand  = InstructionOperand(
+  final val rs1R: InstructionOperand  = InstructionOperand(
     "rs1",
     OperandKind.Register,
     OperandAccess.Read,
     width = 5,
     pieces = Seq(OperandPiece(19, 15, 0))
   )
-  final protected val rs2R: InstructionOperand  = InstructionOperand(
+  final val rs2R: InstructionOperand  = InstructionOperand(
     "rs2",
     OperandKind.Register,
     OperandAccess.Read,
     width = 5,
     pieces = Seq(OperandPiece(24, 20, 0))
   )
-  final protected val csrRW: InstructionOperand = InstructionOperand(
+  final val csrRW: InstructionOperand = InstructionOperand(
     "csr",
     OperandKind.Csr,
     OperandAccess.ReadWrite,
     width = 12,
     pieces = Seq(OperandPiece(31, 20, 0))
   )
-  final protected val zimm: InstructionOperand  = InstructionOperand(
+  final val zimm: InstructionOperand  = InstructionOperand(
     "zimm",
     OperandKind.Immediate,
     OperandAccess.Read,
@@ -73,7 +73,7 @@ trait Riscv32Base { this: Riscv32IsaDefinition =>
     signed = false,
     pieces = Seq(OperandPiece(19, 15, 0))
   )
-  final protected val shamt: InstructionOperand = InstructionOperand(
+  final val shamt: InstructionOperand = InstructionOperand(
     "shamt",
     OperandKind.Immediate,
     OperandAccess.Read,
@@ -81,7 +81,7 @@ trait Riscv32Base { this: Riscv32IsaDefinition =>
     signed = false,
     pieces = Seq(OperandPiece(24, 20, 0))
   )
-  final protected val immI: InstructionOperand  = InstructionOperand(
+  final val immI: InstructionOperand  = InstructionOperand(
     "imm",
     OperandKind.Immediate,
     OperandAccess.Read,
@@ -89,7 +89,7 @@ trait Riscv32Base { this: Riscv32IsaDefinition =>
     signed = true,
     pieces = Seq(OperandPiece(31, 20, 0))
   )
-  final protected val immS: InstructionOperand  = InstructionOperand(
+  final val immS: InstructionOperand  = InstructionOperand(
     "imm",
     OperandKind.Immediate,
     OperandAccess.Read,
@@ -97,7 +97,7 @@ trait Riscv32Base { this: Riscv32IsaDefinition =>
     signed = true,
     pieces = Seq(OperandPiece(31, 25, 5), OperandPiece(11, 7, 0))
   )
-  final protected val immB: InstructionOperand  = InstructionOperand(
+  final val immB: InstructionOperand  = InstructionOperand(
     "imm",
     OperandKind.Immediate,
     OperandAccess.Read,
@@ -110,7 +110,7 @@ trait Riscv32Base { this: Riscv32IsaDefinition =>
       OperandPiece(11, 8, 1)
     )
   )
-  final protected val immU: InstructionOperand  = InstructionOperand(
+  final val immU: InstructionOperand  = InstructionOperand(
     "imm",
     OperandKind.Immediate,
     OperandAccess.Read,
@@ -118,7 +118,7 @@ trait Riscv32Base { this: Riscv32IsaDefinition =>
     signed = true,
     pieces = Seq(OperandPiece(31, 12, 12))
   )
-  final protected val immJ: InstructionOperand  = InstructionOperand(
+  final val immJ: InstructionOperand  = InstructionOperand(
     "imm",
     OperandKind.Immediate,
     OperandAccess.Read,

@@ -9,7 +9,7 @@ import arch.core.fupool.FunctionalUnitType
 import arch.core.ld.impls.isa.rv32i.Rv32iMemUopConsts
 import arch.isa.variants.riscv32.Rv32i
 import chisel3._
-import chisel3.util.{ BitPat, log2Ceil, MuxLookup, Cat, Fill }
+import chisel3.util.{ BitPat, log2Ceil, MuxLookup }
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 
 trait Rv32iDecodeConsts
@@ -135,9 +135,9 @@ object DecodeRv32iIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32iDecod
       MuxLookup(sel, 0.U(regW.W))(
         Seq(
           RF(RF_ZERO) -> 0.U(regW.W),
-          RF(RF_RS1)  -> instr(19, 15),
-          RF(RF_RS2)  -> instr(24, 20),
-          RF(RF_RD)   -> instr(11, 7)
+          RF(RF_RS1)  -> Rv32i.rs1R(instr, regW),
+          RF(RF_RS2)  -> Rv32i.rs2R(instr, regW),
+          RF(RF_RD)   -> Rv32i.rdW(instr, regW)
         )
       )
     }
@@ -151,26 +151,12 @@ object DecodeRv32iIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32iDecod
     override def imm(sel: UInt, instr: UInt)(implicit p: Parameters): UInt =
       MuxLookup(sel, 0.U(p(XLen).W))(
         Seq(
-          IMM(IMM_I)   -> Cat(Fill(p(XLen) - 12, instr(31)), instr(31, 20)),
-          IMM(IMM_S)   -> Cat(Fill(p(XLen) - 12, instr(31)), instr(31, 25), instr(11, 7)),
-          IMM(IMM_B)   -> Cat(
-            Fill(p(XLen) - 13, instr(31)),
-            instr(31),
-            instr(7),
-            instr(30, 25),
-            instr(11, 8),
-            0.U(1.W)
-          ),
-          IMM(IMM_U)   -> Cat(instr(31, 12), Fill(12, 0.U)),
-          IMM(IMM_J)   -> Cat(
-            Fill(p(XLen) - 21, instr(31)),
-            instr(31),
-            instr(19, 12),
-            instr(20),
-            instr(30, 21),
-            0.U(1.W)
-          ),
-          IMM(IMM_CSR) -> Cat(Fill(p(XLen) - 5, 0.U), instr(19, 15))
+          IMM(IMM_I)   -> Rv32i.immI(instr, p(XLen)),
+          IMM(IMM_S)   -> Rv32i.immS(instr, p(XLen)),
+          IMM(IMM_B)   -> Rv32i.immB(instr, p(XLen)),
+          IMM(IMM_U)   -> Rv32i.immU(instr, p(XLen)),
+          IMM(IMM_J)   -> Rv32i.immJ(instr, p(XLen)),
+          IMM(IMM_CSR) -> Rv32i.zimm(instr, p(XLen)),
         )
       )
   }
