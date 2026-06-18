@@ -2,20 +2,48 @@ package arch
 
 package object configs {
   import core.fupool.{ FunctionalUnitDescriptor, FunctionalUnitType }
-  import system.device.DeviceDescriptor
   import isa._
-  import vcache.{ CacheParams, CacheAccess, CacheMissMode }
+  import system.device.DeviceDescriptor
+  import vcache.{ CacheAccess, CacheMissMode, CacheParams }
   import vcache.repl.ReplPolicy
   import chisel3.util.{ BitPat, log2Ceil }
 
-  // NOTE: User Options: every one of these must be manually set
+  private[configs] def requirePositive(name: String, value: Int): Int = {
+    require(value > 0, s"$name must be positive, got $value")
+    value
+  }
+
+  private[configs] def requireNonNegative(name: String, value: Int): Int = {
+    require(value >= 0, s"$name must be non-negative, got $value")
+    value
+  }
+
+  private[configs] def bytesFromBits(name: String, bits: Int): Int = {
+    require(bits > 0, s"$name must be positive, got $bits")
+    require(bits % 8 == 0, s"$name must be byte-aligned, got $bits bits")
+    bits / 8
+  }
+
+  private[configs] def checkedDiv(name: String, lhs: Int, rhs: Int): Int = {
+    require(lhs > 0, s"$name numerator must be positive, got $lhs")
+    require(rhs > 0, s"$name denominator must be positive, got $rhs")
+    require(lhs % rhs == 0, s"$name requires exact division, got $lhs / $rhs")
+    lhs / rhs
+  }
+
+  private[configs] def widthForCount(name: String, count: Int): Int = {
+    require(count > 0, s"$name count must be positive, got $count")
+    math.max(1, log2Ceil(count))
+  }
 
   // --------------------------------------------
+  // User parameters. These should be manually supplied by the selected Config.
+
   // Architecture Parameters
   object ISA       extends Field[Isa]
   object Frequency extends Field[Long]
 
-  // Ifu Parameters
+  // IFU Parameters
   object IBufferSize extends Field[Int]
   object ResetVector extends Field[Long]
 
@@ -65,74 +93,126 @@ package object configs {
   object BusCrossbarFifoDepthPerClient extends Field[Int]
   object BusRouteQueuePipe             extends Field[Boolean]
   object BusAddressMap                 extends Field[Seq[DeviceDescriptor]]
+
   // --------------------------------------------
+  // Derived ISA parameters.
 
-  // NOTE: Derived parameters. These are computed from the manually-set user parameters.
+  object XLen
+      extends Field[Int](p => {
+        val xlen = p(ISA).xlen
+        requirePositive("XLen", xlen)
+      })
 
-  object XLen             extends Field[Int](p => p(ISA).xlen)
-  object ILen             extends Field[Int](p => p(ISA).ilen)
-  object NumArchRegs      extends Field[Int](p => p(ISA).numArchRegs)
-  object IsBigEndian      extends Field[Boolean](p => p(ISA).isBigEndian)
-  object Bubble           extends Field[BitPat](p => p(ISA).bubble)
-  object BytesPerWord     extends Field[Int](p => p(XLen) / 8)
-  object BytesOffsetWidth extends Field[Int](p => log2Ceil(p(BytesPerWord)))
-  object BytesPerInstr    extends Field[Int](p => p(ILen) / 8)
-  object PCStep           extends Field[Int](p => p(BytesPerInstr))
-  object PCAlign          extends Field[Int](p => log2Ceil(p(BytesPerInstr)))
+  object ILen
+      extends Field[Int](p => {
+        val ilen = p(ISA).ilen
+        requirePositive("ILen", ilen)
+      })
 
-  object FuTypeWidth extends Field[Int](_ => log2Ceil(FunctionalUnitType.values.size))
-  object FuIdWidth   extends Field[Int](p => log2Ceil(p(FunctionalUnits).size))
-  object NumFUs      extends Field[Int](p => p(FunctionalUnits).size)
+  object NumArchRegs
+      extends Field[Int](p => {
+        val n = p(ISA).numArchRegs
+        requirePositive("NumArchRegs", n)
+      })
+
+  object IsBigEndian extends Field[Boolean](p => p(ISA).isBigEndian)
+
+  object Bubble extends Field[BitPat](p => p(ISA).bubble)
+
+  object BytesPerWord extends Field[Int](p => bytesFromBits("XLen", p(XLen)))
+
+  object BytesOffsetWidth extends Field[Int](p => widthForCount("BytesPerWord", p(BytesPerWord)))
+
+  object BytesPerInstr extends Field[Int](p => bytesFromBits("ILen", p(ILen)))
+
+  object PCStep extends Field[Int](p => p(BytesPerInstr))
+
+  object PCAlign extends Field[Int](p => widthForCount("BytesPerInstr", p(BytesPerInstr)))
+
+  // --------------------------------------------
+  // Derived FU parameters.
+
+  object FuTypeWidth
+      extends Field[Int](_ => widthForCount("FunctionalUnitType", FunctionalUnitType.values.size))
+
+  object NumFUs
+      extends Field[Int](p => {
+        val n = p(FunctionalUnits).size
+        requirePositive("NumFUs", n)
+      })
+
+  object FuIdWidth extends Field[Int](p => widthForCount("NumFUs", p(NumFUs)))
 
   object NumLDs
       extends Field[Int](p =>
-        p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
+        requireNonNegative(
+          "NumLDs",
+          p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
+        )
       )
 
   object NumSTs
       extends Field[Int](p =>
-        p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
+        requireNonNegative(
+          "NumSTs",
+          p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
+        )
       )
 
   object NumBRUs
       extends Field[Int](p =>
-        p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
+        requireNonNegative(
+          "NumBRUs",
+          p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
+        )
       )
 
   object NumCSRs
       extends Field[Int](p =>
-        p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
+        requireNonNegative(
+          "NumCSRs",
+          p(FunctionalUnits).count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
+        )
       )
 
-  object RobTagWidth extends Field[Int](p => log2Ceil(p(RobSize)))
+  object RobTagWidth extends Field[Int](p => widthForCount("RobSize", p(RobSize)))
+
+  // --------------------------------------------
+  // Derived cache parameters.
 
   object L1ICacheParams
-      extends Field[CacheParams](p =>
+      extends Field[CacheParams](p => {
+        val fetchBits    = p(IssueWidth) * p(ILen)
+        val fetchBytes   = p(IssueWidth) * p(BytesPerInstr)
+        val wordsPerLine = checkedDiv("L1ICache wordsPerLine", p(L1ICacheLineSize), fetchBytes)
+
         CacheParams(
           addrWidth = p(XLen),
-          dataWidth = p(IssueWidth) * p(ILen),
-          wordsPerLine = p(L1ICacheLineSize) / (p(IssueWidth) * p(BytesPerInstr)),
+          dataWidth = fetchBits,
+          wordsPerLine = wordsPerLine,
           numSets = p(L1ICacheSets),
           numWays = p(L1ICacheWays),
           access = CacheAccess.ReadOnly,
           missMode = CacheMissMode.NonBlocking,
           replPolicy = p(L1ICacheReplPolicy)
         )
-      )
+      })
 
   object L1DCacheParams
-      extends Field[CacheParams](p =>
+      extends Field[CacheParams](p => {
+        val wordsPerLine = checkedDiv("L1DCache wordsPerLine", p(L1DCacheLineSize), p(BytesPerWord))
+
         CacheParams(
           addrWidth = p(XLen),
           dataWidth = p(XLen),
-          wordsPerLine = p(L1DCacheLineSize) / p(BytesPerWord),
+          wordsPerLine = wordsPerLine,
           numSets = p(L1DCacheSets),
           numWays = p(L1DCacheWays),
           access = CacheAccess.ReadWrite,
           missMode = CacheMissMode.NonBlocking,
           replPolicy = p(L1DCacheReplPolicy)
         )
-      )
+      })
 
   object ConfigFields {
     val user: Seq[Field[_]] = Seq(
@@ -144,6 +224,7 @@ package object configs {
       NumPhyRegs,
       ScheduleType,
       IssueWidth,
+      CommitWidth,
       FunctionalUnits,
       DecodeKind,
       MultPipelineStages,
@@ -192,6 +273,7 @@ package object configs {
       L1DCacheParams
     )
 
-    val all: Seq[Field[_]] = user ++ derived
+    val all: Seq[Field[_]] =
+      user ++ derived
   }
 }

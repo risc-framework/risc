@@ -289,8 +289,16 @@ void DemuSimulator::handle_retirements() {
     }
 
     Instruction inst(retire.instr);
-    DEMU_DEBUG("RETIRE[{}] | Cycle {:6d} | PC=0x{:08x} | Inst={}", lane,
-               cycle_count(), retire.pc, inst.to_string());
+
+    if (demu::Logger::demu_should_log(spdlog::level::trace)) {
+      DEMU_TRACE("LANE[{}] | Cycle {:6d} | PC=0x{:08x} | Decode={}", lane,
+                 cycle_count(), retire.pc,
+                 inst.to_string(InstructionLogLevel::Verbose));
+    } else if (demu::Logger::demu_should_log(spdlog::level::debug)) {
+      DEMU_DEBUG("LANE[{}] | Cycle {:6d} | PC=0x{:08x} | Inst={}", lane,
+                 cycle_count(), retire.pc,
+                 inst.to_string(InstructionLogLevel::Compact));
+    }
   }
 }
 
