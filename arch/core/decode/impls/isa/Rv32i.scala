@@ -6,7 +6,8 @@ import arch.core.bru.impls.isa.rv32i.Rv32iBruUopConsts
 import arch.core.csr.impls.file.rv32i.Rv32iCsrUopConsts
 import arch.core.decode._
 import arch.core.fupool.FunctionalUnitType
-import arch.core.ld.impls.isa.rv32i.Rv32iMemUopConsts
+import arch.core.ld.impls.isa.rv32i.Rv32iLdUopConsts
+import arch.core.st.impls.isa.rv32i.Rv32iStUopConsts
 import arch.isa.variants.riscv32.Rv32i
 import chisel3._
 import chisel3.util.{ BitPat, log2Ceil, MuxLookup }
@@ -14,7 +15,8 @@ import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 
 trait Rv32iDecodeConsts
     extends Rv32iAluUopConsts
-    with Rv32iMemUopConsts
+    with Rv32iStUopConsts
+    with Rv32iLdUopConsts
     with Rv32iCsrUopConsts
     with Rv32iBruUopConsts {
   def X = BitPat("b?")
