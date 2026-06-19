@@ -32,11 +32,6 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   val irq   = in[InterruptLines]
   val debug = out[CpuDebugInfo]
 
-  require(p(NumLDs) > 0, "Cpu: at least one LD node is required")
-  require(p(NumSTs) > 0, "Cpu: at least one ST node is required")
-  require(p(NumBRUs) > 0, "Cpu: at least one BRU node is required")
-  require(p(NumCSRs) <= 1, "Cpu: at most one CSR node is supported")
-
   private val bpu           = subnode(new Bpu)
   private val ifu           = subnode(new Ifu)
   private val decode        = subnode(new Decode)
@@ -142,10 +137,10 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     0.U
   )
 
-  debug.out.l1_icache_access := l1ICache.upperResp.out.valid && l1ICache.upperResp.out.ready
-  debug.out.l1_icache_miss   := l1ICache.upperResp.out.valid && l1ICache.upperResp.out.ready && !l1ICache.upperResp.out.bits.hit
-  debug.out.l1_dcache_access := l1DCache.upperResp.out.valid && l1DCache.upperResp.out.ready
-  debug.out.l1_dcache_miss   := l1DCache.upperResp.out.valid && l1DCache.upperResp.out.ready && !l1DCache.upperResp.out.bits.hit
+  debug.out.l1_icache_access := l1ICache.upperResp.out.fire
+  debug.out.l1_icache_miss   := l1ICache.upperResp.out.fire && !l1ICache.upperResp.out.bits.hit
+  debug.out.l1_dcache_access := l1DCache.upperResp.out.fire
+  debug.out.l1_dcache_miss   := l1DCache.upperResp.out.fire && !l1DCache.upperResp.out.bits.hit
 
   debug.out.flush_cycle    := exception.debug.out.flush_valid
   debug.out.bpu_mispredict := rob.debug.out.bpu_mispredict
