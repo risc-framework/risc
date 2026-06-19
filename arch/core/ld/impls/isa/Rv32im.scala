@@ -1,8 +1,9 @@
 package arch.core.ld.impls.isa.rv32im
 
-import arch.configs._
 import arch.core.ld._
 import arch.core.ld.impls.isa.rv32i.LdRv32iIsa
+import arch.core.fupool.FuReq
+import arch.configs._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 
@@ -12,8 +13,14 @@ object LdRv32imIsa extends RegisteredNodeUtils[LdIsaImpl] {
 
     override def value: String = "rv32im"
 
-    override def decode(uop: UInt)(implicit p: Parameters): LoadCtrl =
-      rv32i.decode(uop)
+    override def addr(uop: FuReq)(implicit p: Parameters): UInt =
+      rv32i.addr(uop)
+
+    override def data(uop: FuReq)(implicit p: Parameters): UInt =
+      rv32i.data(uop)
+
+    override def mask(uop: FuReq)(implicit p: Parameters): UInt =
+      rv32i.mask(uop)
   }
 
   override def registry: NodeDimensionRegistry[LdIsaImpl] =
