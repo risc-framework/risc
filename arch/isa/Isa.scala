@@ -1,6 +1,7 @@
 package arch.isa
 
 import arch.isa.instructions._
+import arch.isa.derived._
 import chisel3.util.BitPat
 import scala.collection.mutable.LinkedHashMap
 
@@ -24,7 +25,7 @@ final case class IsaMode(
     if (minInstrBits == maxInstrBits) Some(minInstrBits) else None
 }
 
-abstract class Isa {
+abstract class Isa extends IsaAddressPolicy {
   def name: String
   def family: String
   def xlen: Int

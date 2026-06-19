@@ -37,15 +37,14 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
   private def emptyEntry: StPipeEntry = 0.U.asTypeOf(new StPipeEntry)
 
   private def buildEntry(req: FuReq): StPipeEntry = {
-    val ctrl  = isaImpl.decode(req.uop)
-    val addr  = req.rs1_data + req.imm
     val entry = WireDefault(emptyEntry)
+    val addr  = isaImpl.addr(req)
 
     entry.store.sq_idx    := req.sq_idx
     entry.store.rob_tag   := req.rob_tag
-    entry.store.addr      := isaImpl.alignedAddr(addr)
-    entry.store.data      := isaImpl.alignedStoreData(ctrl, addr, req.rs2_data)
-    entry.store.mask      := isaImpl.shiftedStoreMask(ctrl, addr)
+    entry.store.addr      := addr
+    entry.store.data      := isaImpl.data(req)
+    entry.store.mask      := isaImpl.mask(req)
     entry.store.cacheable := pma.check(addr).cacheable
 
     entry.resp.result      := 0.U

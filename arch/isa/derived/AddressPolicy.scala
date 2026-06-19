@@ -6,8 +6,11 @@ import chisel3._
 import chisel3.util.Cat
 
 trait IsaAddressPolicy { this: Isa =>
-  def dataEndianness: String =
-    modes.head.endianness
+  final def instrAlignmentBytes: Int =
+    defaultMode.alignmentBytes
+
+  final def dataEndianness: String =
+    defaultMode.endianness
 
   final def isDataBigEndian: Boolean =
     dataEndianness == Endianness.Big
@@ -15,95 +18,50 @@ trait IsaAddressPolicy { this: Isa =>
   final def isDataLittleEndian: Boolean =
     dataEndianness == Endianness.Little
 
-  final def byteOffset(addr: UInt, beatBytes: Int): UInt = {
-    requirePow2(beatBytes, "byteOffset beatBytes")
+  final def instrAlignedAddr(addr: UInt): UInt =
+    alignDown(addr, instrAlignmentBytes)
 
-    val offsetWidth = log2CeilConst(beatBytes)
+  final def instrOffset(addr: UInt): UInt =
+    offsetIn(addr, instrAlignmentBytes)
 
-    if (offsetWidth == 0) {
-      0.U(1.W)
-    } else {
-      addr(offsetWidth - 1, 0)
-    }
-  }
+  final def instrMisaligned(addr: UInt): Bool =
+    instrOffset(addr) =/= 0.U
 
-  final def alignedAddr(addr: UInt, beatBytes: Int): UInt = {
-    requirePow2(beatBytes, "alignedAddr beatBytes")
+  final def beatAlignedAddr(addr: UInt, beatBytes: Int): UInt =
+    alignDown(addr, beatBytes)
 
-    val offsetWidth = log2CeilConst(beatBytes)
+  final def byteOffsetInBeat(addr: UInt, beatBytes: Int): UInt =
+    offsetIn(addr, beatBytes)
 
-    if (offsetWidth == 0) {
-      addr
-    } else {
-      Cat(addr(addr.getWidth - 1, offsetWidth), 0.U(offsetWidth.W))
-    }
-  }
-
-  final def alignDown(addr: UInt, bytes: Int): UInt = {
-    requirePow2(bytes, "alignDown bytes")
-
-    val offsetWidth = log2CeilConst(bytes)
-
-    if (offsetWidth == 0) {
-      addr
-    } else {
-      Cat(addr(addr.getWidth - 1, offsetWidth), 0.U(offsetWidth.W))
-    }
-  }
-
-  final def offsetIn(addr: UInt, bytes: Int): UInt = {
-    requirePow2(bytes, "offsetIn bytes")
-
-    val offsetWidth = log2CeilConst(bytes)
-
-    if (offsetWidth == 0) {
-      0.U(1.W)
-    } else {
-      addr(offsetWidth - 1, 0)
-    }
+  final def laneOffset(addr: UInt, accessBytes: UInt, beatBytes: Int): UInt = {
+    requirePow2(beatBytes, "laneOffset beatBytes")
+    byteOffsetInBeat(addr, beatBytes)
   }
 
   final def crossesBeat(addr: UInt, accessBytes: UInt, beatBytes: Int): Bool = {
     requirePow2(beatBytes, "crossesBeat beatBytes")
-
-    val w   = log2CeilConst(beatBytes) + 1
-    val off = byteOffset(addr, beatBytes)
-
-    (off +& accessBytes)(w - 1, 0) > beatBytes.U(w.W)
+    val off = byteOffsetInBeat(addr, beatBytes)
+    val sum = off +& accessBytes
+    sum > beatBytes.U(sum.getWidth.W)
   }
 
-  final def laneOffset(addr: UInt, accessBytes: UInt, beatBytes: Int): UInt = {
-    requirePow2(beatBytes, "laneOffset beatBytes")
-    byteOffset(addr, beatBytes)
+  final def accessByteIndex(i: Int, accessBytes: Int): Int = {
+    require(accessBytes > 0, s"accessBytes must be positive, got $accessBytes")
+    require(i >= 0 && i < accessBytes, s"byte index $i outside accessBytes $accessBytes")
+    if (isDataBigEndian) accessBytes - 1 - i else i
   }
 
-  final def bigEndianAccessByteIndex(i: Int, accessBytes: Int): Int = {
-    require(
-      accessBytes > 0,
-      s"bigEndianAccessByteIndex accessBytes must be positive, got $accessBytes"
-    )
-    require(
-      i >= 0 && i < accessBytes,
-      s"bigEndianAccessByteIndex index $i outside accessBytes $accessBytes"
-    )
-    accessBytes - 1 - i
+  final def alignDown(addr: UInt, bytes: Int): UInt = {
+    requirePow2(bytes, "alignDown bytes")
+    val w = log2CeilConst(bytes)
+    if (w == 0) addr else Cat(addr(addr.getWidth - 1, w), 0.U(w.W))
   }
 
-  final def littleEndianAccessByteIndex(i: Int, accessBytes: Int): Int = {
-    require(
-      accessBytes > 0,
-      s"littleEndianAccessByteIndex accessBytes must be positive, got $accessBytes"
-    )
-    require(
-      i >= 0 && i < accessBytes,
-      s"littleEndianAccessByteIndex index $i outside accessBytes $accessBytes"
-    )
-    i
+  final def offsetIn(addr: UInt, bytes: Int): UInt = {
+    requirePow2(bytes, "offsetIn bytes")
+    val w = log2CeilConst(bytes)
+    if (w == 0) 0.U(1.W) else addr(w - 1, 0)
   }
-
-  final def accessByteIndex(i: Int, accessBytes: Int): Int =
-    if (isDataBigEndian) bigEndianAccessByteIndex(i, accessBytes)
-    else littleEndianAccessByteIndex(i, accessBytes)
 
   private def requirePow2(value: Int, name: String): Unit = {
     require(value > 0, s"$name must be positive, got $value")

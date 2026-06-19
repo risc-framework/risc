@@ -1,6 +1,7 @@
 package arch.core.st
 
 import arch.configs._
+import arch.core.fupool.FuReq
 import vutils.graph.NodeDims
 import chisel3._
 
@@ -8,8 +9,10 @@ object StDims extends NodeDims("st") {
   val ISA = dim("isa")
 }
 
-trait StIsaImpl extends StDims.ISA.Impl with StoreDataHelpers {
-  def decode(uop: UInt)(implicit p: Parameters): StoreCtrl
+trait StIsaImpl extends StDims.ISA.Impl {
+  def data(uop: FuReq)(implicit p: Parameters): UInt
+  def addr(uop: FuReq)(implicit p: Parameters): UInt
+  def mask(uop: FuReq)(implicit p: Parameters): UInt
 }
 
 object StIsaFactory extends StDims.ISA.Registry[StIsaImpl]
