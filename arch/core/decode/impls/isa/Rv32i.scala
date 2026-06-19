@@ -8,7 +8,7 @@ import arch.core.decode._
 import arch.core.fupool.FunctionalUnitType
 import arch.core.ld.impls.isa.rv32i.Rv32iLdUopConsts
 import arch.core.st.impls.isa.rv32i.Rv32iStUopConsts
-import arch.isa.variants.riscv32.Rv32i
+import arch.isa.instructions.variants.riscv32.Rv32i
 import chisel3._
 import chisel3.util.{ BitPat, log2Ceil, MuxLookup }
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }

@@ -1,5 +1,6 @@
 package arch.isa
 
+import arch.isa.instructions._
 import chisel3.util.BitPat
 import scala.collection.mutable.LinkedHashMap
 
@@ -60,14 +61,11 @@ final case class Isa(
   def bubble: BitPat =
     instrSet.nop.getOrElse(throw new Exception(s"ISA '$name' has no NOP form defined")).bitPat
 
-  def form(name: String): InstructionForm =
-    instrSet.get(name)
+  def form(id: String): InstructionForm =
+    instrSet.get(id)
 
-  def formById(id: String): InstructionForm =
-    instrSet.getForm(id)
-
-  def bitPat(name: String): BitPat =
-    form(name).bitPat
+  def bitPat(id: String): BitPat =
+    form(id).bitPat
 }
 
 object IsaFactory {

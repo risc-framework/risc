@@ -1,5 +1,7 @@
 package arch.isa
 
+import arch.isa.instructions._
+
 abstract class IsaDefinition {
   def name: String
   def family: String

@@ -1,6 +1,6 @@
-package arch.isa.variants.a64
+package arch.isa.instructions.variants.a64
 
-import arch.isa._
+import arch.isa.instructions._
 
 object Armv8a extends A64IsaDefinition with A64Base {
   override def name: String =

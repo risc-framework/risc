@@ -1,4 +1,4 @@
-package arch.isa
+package arch.isa.instructions
 
 import chisel3.util.BitPat
 

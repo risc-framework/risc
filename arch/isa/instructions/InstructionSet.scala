@@ -1,4 +1,4 @@
-package arch.isa
+package arch.isa.instructions
 
 final case class InstructionSet(
   nop: Option[InstructionForm] = None,
@@ -23,11 +23,6 @@ final case class InstructionSet(
     all
       .find(_.id == id)
       .getOrElse(throw new NoSuchElementException(s"Instruction '$id' not found"))
-
-  def getForm(id: String): InstructionForm =
-    all
-      .find(_.id == id)
-      .getOrElse(throw new NoSuchElementException(s"Instruction form '$id' not found"))
 
   def fixedForms: Seq[InstructionForm] =
     all.collect { case f if f.pattern.isInstanceOf[FixedBitPattern] => f }

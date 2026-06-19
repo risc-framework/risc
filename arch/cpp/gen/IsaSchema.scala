@@ -6,6 +6,7 @@ import arch.cpp.dsl.{ CppDecl, CppValue, CppWriter, StructDecl, TypeAliasValue }
 import arch.cpp.dsl.CppLiteral._
 import arch.cpp.dsl.CppValueDsl._
 import arch.isa._
+import arch.isa.instructions._
 
 private[cpp] object CppIsaSchema {
   final private val MaxPatternBytes          = 16
