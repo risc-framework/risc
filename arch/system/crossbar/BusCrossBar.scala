@@ -13,18 +13,13 @@ class BusCrossbar(implicit p: Parameters) extends Node[Parameters]("bus_crossbar
 
   private val impl = BusCrossbarTypeFactory.select(cfg)
 
-  val ibus    = IO(impl.masterType)
-  val dbus    = IO(impl.masterType)
-  val mbus    = IO(impl.masterType)
-  val devices = IO(Vec(p(BusAddressMap).length, impl.slaveType))
+  val ibus    = rawWith(_ => impl.masterType)
+  val dbus    = rawWith(_ => impl.masterType)
+  val mbus    = rawWith(_ => impl.masterType)
+  val devices = rawWith(_ => Vec(p(BusAddressMap).length, impl.slaveType))
 
-  dontTouch(ibus)
-  dontTouch(dbus)
-  dontTouch(mbus)
-  dontTouch(devices)
-
-  private val interface = impl.createInterface(ibus, dbus, mbus)
+  private val interface = impl.createInterface(ibus.io, dbus.io, mbus.io)
 
   for (i <- 0 until p(BusAddressMap).length)
-    devices(i) <> interface(i)
+    devices.io(i) <> interface(i)
 }
