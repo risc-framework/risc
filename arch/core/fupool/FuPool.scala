@@ -53,19 +53,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
     }
 
   private val fuDescs = p(FunctionalUnits)
-  private val numLd   = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
-  private val numSt   = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
-  private val numBru  = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
-  private val numCsr  = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
-
-  require(
-    fuDescs.length == p(NumFUs),
-    s"FuPool: FunctionalUnits length ${fuDescs.length} != NumFUs ${p(NumFUs)}"
-  )
-  require(numLd == p(NumLDs), s"FuPool: LD descriptor count $numLd != NumLDs ${p(NumLDs)}")
-  require(numSt == p(NumSTs), s"FuPool: ST descriptor count $numSt != NumSTs ${p(NumSTs)}")
-  require(numBru == p(NumBRUs), s"FuPool: BRU descriptor count $numBru != NumBRUs ${p(NumBRUs)}")
-  require(numCsr <= 1, s"FuPool: at most one CSR FU is supported, got $numCsr")
+  require(p(NumCSRs) <= 1, s"FuPool: at most one CSR FU is supported, got ${p(NumCSRs)}")
 
   exceptionStatus.out.busy := false.B
   asyncException.out       := 0.U.asTypeOf(new ExceptionAsyncReq)

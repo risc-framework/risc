@@ -1,4 +1,4 @@
-package arch
+package arch.main
 
 import arch.core.alu.AluInit
 import arch.core.bpu.BpuInit
@@ -21,11 +21,11 @@ import arch.system.device.{ DeviceDescriptor, DeviceType }
 import arch.core.fupool.{ FunctionalUnitDescriptor, FunctionalUnitType }
 import arch.configs._
 import arch.isa.variants.riscv32._
-import cpp.CppCodegen
+import arch.cpp.CppCodegen
 import vcache.repl.ReplPolicy
 import vutils._
 
-object MainSystem extends App {
+object Rv32imOoO extends App {
   DecodeInit
   BruInit
   BpuInit
