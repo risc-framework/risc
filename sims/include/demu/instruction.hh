@@ -72,14 +72,6 @@ public:
     return fixed_match(demu::isa_def::ISA_NOP, raw_);
   }
 
-  [[nodiscard]] auto name() const noexcept -> std::string_view {
-    if (const auto *entry = form()) {
-      return entry->name;
-    }
-
-    return "UNKNOWN";
-  }
-
   [[nodiscard]] auto id() const noexcept -> std::string_view {
     if (const auto *entry = form()) {
       return entry->id;
@@ -137,11 +129,11 @@ public:
   }
 
   [[nodiscard]] auto mnemonic_view() const noexcept -> std::string_view {
-    return name();
+    return id();
   }
 
   [[nodiscard]] auto mnemonic() const -> std::string {
-    return std::string(name());
+    return std::string(id());
   }
 
   [[nodiscard]] auto raw_hex() const -> std::string {
@@ -153,7 +145,7 @@ public:
 
   [[nodiscard]] auto compact_string() const -> std::string {
     std::ostringstream oss;
-    oss << std::left << std::setw(8) << std::string(name()) << raw_hex();
+    oss << std::left << std::setw(8) << std::string(id()) << raw_hex();
     return oss.str();
   }
 

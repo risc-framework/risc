@@ -160,7 +160,7 @@ trait Riscv32Base { this: Riscv32IsaDefinition =>
     )
 
   final protected def rv(
-    name: String,
+    id: String,
     pattern: String,
     format: String,
     asm: String,
@@ -173,7 +173,7 @@ trait Riscv32Base { this: Riscv32IsaDefinition =>
     description: String = ""
   ): InstructionForm =
     fixed(
-      name = name,
+      id = id,
       pattern = pattern,
       format = format,
       asm = asm,

@@ -63,7 +63,6 @@ private[cpp] object CppIsaSchema {
       "InstructionForm",
       Seq(
         "std::string_view"                                         -> "id",
-        "std::string_view"                                         -> "name",
         "std::string_view"                                         -> "encoding_kind",
         "uint64_t"                                                 -> "value",
         "uint64_t"                                                 -> "mask",
@@ -227,7 +226,6 @@ private[cpp] object CppIsaSchema {
 
     Seq(
       cstrLit(form.id),
-      cstrLit(form.name)
     ) ++ pattern ++ Seq(
       cstrLit(form.mode),
       cstrLit(form.format),

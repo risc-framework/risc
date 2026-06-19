@@ -12,7 +12,7 @@ object Rv32i extends Riscv32IsaDefinition with Riscv32Base {
   override def nop: Option[InstructionForm] =
     Some(
       rv(
-        name = "nop",
+        id = "nop",
         pattern = "b0000000_00000_00000_000_00000_0010011",
         format = "i",
         asm = "nop",

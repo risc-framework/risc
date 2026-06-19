@@ -66,7 +66,7 @@ abstract class FixedWidthIsaDefinition extends IsaDefinition {
     )
 
   final protected def fixed(
-    name: String,
+    id: String,
     pattern: String,
     format: String = "",
     asm: String = "",
@@ -79,7 +79,7 @@ abstract class FixedWidthIsaDefinition extends IsaDefinition {
     description: String = ""
   ): InstructionForm =
     InstructionForm.fixed(
-      name = name,
+      id = id,
       pattern = pattern,
       mode = "default",
       format = format,

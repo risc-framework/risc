@@ -13,12 +13,12 @@ object Rv32im extends Riscv32IsaDefinition with Riscv32Base {
     Rv32i.nop
 
   private def m(
-    name: String,
+    id: String,
     pattern: String,
     category: String,
   ): InstructionForm =
     rv(
-      name = name,
+      id = id,
       pattern = pattern,
       format = "r",
       asm = s"$name rd, rs1, rs2",

@@ -28,7 +28,7 @@ clean:
 	@rm -rf $(SYNTH_DIR)
 
 update:
-	@sbt clean bloopInstall
+	@sbt bloopInstall
 	@sbt update
 	@sbt reload
 
