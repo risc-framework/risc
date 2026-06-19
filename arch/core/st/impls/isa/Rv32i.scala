@@ -28,17 +28,8 @@ object StRv32iIsa extends RegisteredNodeUtils[StIsaImpl] with Rv32iStUopConsts {
   override def utils: StIsaImpl = new StIsaImpl with Rv32iStUopConsts {
     override def value: String = "rv32i"
 
-    private def bytes(uop: FuReq)(implicit p: Parameters): UInt = {
-      val w = log2Ceil(p(BytesPerWord) + 1)
-
-      MuxLookup(uop.uop(1, 0), 0.U(w.W))(
-        Seq(
-          SMEM(SMEM_B) -> 1.U(w.W),
-          SMEM(SMEM_H) -> 2.U(w.W),
-          SMEM(SMEM_W) -> 4.U(w.W)
-        )
-      )
-    }
+    private def bytes(uop: FuReq): UInt =
+      1.U << uop.uop(1, 0)
 
     private def ea(uop: FuReq): UInt =
       uop.rs1_data + uop.imm

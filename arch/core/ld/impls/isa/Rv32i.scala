@@ -32,17 +32,8 @@ object LdRv32iIsa extends RegisteredNodeUtils[LdIsaImpl] with Rv32iLdUopConsts {
   override def utils: LdIsaImpl = new LdIsaImpl with Rv32iLdUopConsts {
     override def value: String = "rv32i"
 
-    private def bytes(uop: FuReq)(implicit p: Parameters): UInt = {
-      val w = log2Ceil(p(BytesPerWord) + 1)
-
-      MuxLookup(uop.uop(1, 0), 0.U(w.W))(
-        Seq(
-          LMEM(LMEM_B) -> 1.U(w.W),
-          LMEM(LMEM_H) -> 2.U(w.W),
-          LMEM(LMEM_W) -> 4.U(w.W)
-        )
-      )
-    }
+    private def bytes(uop: FuReq): UInt =
+      1.U << uop.uop(1, 0)
 
     private def unsigned(uop: FuReq): Bool =
       uop.uop(2)
