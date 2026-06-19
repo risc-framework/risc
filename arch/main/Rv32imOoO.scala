@@ -20,7 +20,7 @@ import arch.system.crossbar.BusCrossbarInit
 import arch.system.device.{ DeviceDescriptor, DeviceType }
 import arch.core.fupool.{ FunctionalUnitDescriptor, FunctionalUnitType }
 import arch.configs._
-import arch.isa.instructions.variants.riscv32._
+import arch.isa.variants.riscv32._
 import arch.cpp.CppCodegen
 import vcache.repl.ReplPolicy
 import vutils._

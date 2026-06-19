@@ -1,8 +1,8 @@
-package arch.isa.instructions.variants.a64
+package arch.isa.variants.a64
 
 import arch.isa.instructions._
 
-trait A64Base { this: A64IsaDefinition =>
+trait A64Base { this: A64Isa =>
   final protected val sf: InstructionField      = InstructionField("sf", 31, 31, role = "datasize")
   final protected val op: InstructionField      = InstructionField("op", 30, 30, role = "opcode")
   final protected val s: InstructionField       = InstructionField("s", 29, 29, role = "flags")

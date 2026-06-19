@@ -6,7 +6,7 @@ import arch.core.decode.impls.isa.rv32i.{ DecodeRv32iIsa, Rv32iDecodeConsts }
 import arch.core.div.impls.isa.rv32im.Rv32imDivUopConsts
 import arch.core.fupool.FunctionalUnitType
 import arch.core.mult.impls.isa.rv32im.Rv32imMultUopConsts
-import arch.isa.instructions.variants.riscv32.Rv32im
+import arch.isa.variants.riscv32.Rv32im
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.BitPat
@@ -21,7 +21,7 @@ trait Rv32imDecodeConsts
 
 object DecodeRv32imIsa extends RegisteredNodeUtils[DecodeIsaImpl] with Rv32imDecodeConsts {
   private def enc(name: String): BitPat =
-    Rv32im.isa.bitPat(name)
+    Rv32im.bitPat(name)
 
   override def utils: DecodeIsaImpl = new DecodeIsaImpl {
     private val rv32i = DecodeRv32iIsa.utils

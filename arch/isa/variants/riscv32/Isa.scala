@@ -1,14 +1,14 @@
-package arch.isa.instructions.variants.a64
+package arch.isa.variants.riscv32
 
 import arch.isa._
 import arch.isa.instructions._
 
-abstract class A64IsaDefinition extends FixedWidthIsaDefinition {
+abstract class Riscv32Isa extends FixedWidthIsa {
   final override def family: String =
-    "a64"
+    "riscv32"
 
   final override def xlen: Int =
-    64
+    32
 
   final override def instrBits: Int =
     32
