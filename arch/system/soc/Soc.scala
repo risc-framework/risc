@@ -37,9 +37,8 @@ class Soc(implicit p: Parameters) extends Node[Parameters]("soc") {
     bridge.ibus      -> crossbar.ibus,
     bridge.dbus      -> crossbar.dbus,
     bridge.mbus      -> crossbar.mbus,
-    crossbar.devices -> devices
+    crossbar.devices -> devices,
+    cpu.irq          -> irq,
+    cpu.debug        -> debug
   )
-
-  cpu.irq.in := irq.in
-  debug.out  := cpu.debug.out
 }
