@@ -3,14 +3,16 @@ ENTRY(_start)
 
 MEMORY
 {
-    IMEM (rx)  : ORIGIN = 0x80000000, LENGTH = 256K
-    DMEM (rw)  : ORIGIN = 0x80040000, LENGTH = 256K
+    IMEM (rx) : ORIGIN = @IMEM_BASE@, LENGTH = @IMEM_SIZE@
+    DMEM (rw) : ORIGIN = @DMEM_BASE@, LENGTH = @DMEM_SIZE@
 }
 
 SECTIONS
 {
     .text : {
         KEEP(*(.text.entry))
+        *(.init)
+        *(.init*)
         *(.text)
         *(.text*)
         . = ALIGN(4);
@@ -60,9 +62,19 @@ SECTIONS
     __end = .;
     _end = .;
 
+    __imem_base = ORIGIN(IMEM);
+    __imem_size = LENGTH(IMEM);
+    __imem_end = ORIGIN(IMEM) + LENGTH(IMEM);
+
     __dmem_base = ORIGIN(DMEM);
+    __dmem_size = LENGTH(DMEM);
+    __dmem_end = ORIGIN(DMEM) + LENGTH(DMEM);
+
     __stack = ORIGIN(DMEM) + LENGTH(DMEM);
     __stack_top = __stack;
+
+    ASSERT(__data_end <= ORIGIN(DMEM) + LENGTH(DMEM), "DMEM overflow in .data")
+    ASSERT(__bss_end <= ORIGIN(DMEM) + LENGTH(DMEM), "DMEM overflow in .bss")
 
     /DISCARD/ : {
         *(.comment)
