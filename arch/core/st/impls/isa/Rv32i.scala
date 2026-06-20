@@ -5,7 +5,7 @@ import arch.core.fupool.FuReq
 import arch.core.st._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ BitPat, Cat, MuxLookup, log2Ceil }
+import chisel3.util.{ BitPat, Cat, MuxLookup }
 
 trait Rv32iStUopConsts {
   private def cat(bps: BitPat*): BitPat = bps.reduce(_ ## _)
