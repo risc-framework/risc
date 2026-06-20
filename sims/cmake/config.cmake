@@ -4,6 +4,7 @@
 option(USE_CCACHE "Use ccache to speed up recompilation" ON)
 
 # settings
+set(TARGET_FAMILY "riscv32")
 set(TARGET_ARCH "rv32im")
 set(RTL_SOURCE "${CMAKE_SOURCE_DIR}/../build/soc.sv")
 set(TOP_MODULE "soc")

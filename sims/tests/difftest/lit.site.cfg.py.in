@@ -7,7 +7,9 @@ config.obj_root = "@CMAKE_BINARY_DIR@"
 config.arch = "@TARGET_ARCH@"
 config.difftest = "@CMAKE_BINARY_DIR@/bin/demu-@TARGET_ARCH@-diff"
 
-config.baremetal_linker = "@DEMU_RUNTIME_LINKER@"
-config.baremetal_start = "@CMAKE_SOURCE_DIR@/runtime/bare-metal/riscv32/start.S"
+config.baremetal_linker = (
+    "@CMAKE_BINARY_DIR@/runtime/bare-metal/@TARGET_FAMILY@/linker.ld"
+)
+config.baremetal_start = "@CMAKE_BINARY_DIR@/runtime/bare-metal/@TARGET_FAMILY@/start.S"
 
 lit_config.load_config(config, "@CMAKE_CURRENT_SOURCE_DIR@/lit.cfg.py")

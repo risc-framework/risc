@@ -1,16 +1,17 @@
 PROJECT_DIR = $(shell pwd)
 CMAKE_DIR = $(PROJECT_DIR)/cmake
-BUILD_DIR = $(PROJECT_DIR)/build
-RUNTIME_DIR = $(PROJECT_DIR)/runtime
+BUILD_DIR ?= $(PROJECT_DIR)/build
+RUNTIME_DIR = $(BUILD_DIR)/runtime
 
 # coremark benchmark
 COREMARK_DIR = $(PROJECT_DIR)/tests/coremark
 
 # Build configuration
 BUILD_TYPE ?= Release
+FAMILY ?= 
+ARCH ?= 
 
 # configurations for coremark
-COREMARK_PORT_DIR ?=
 COREMARK_ENABLE_DEBUG ?= 0
 COREMARK_TOTAL_DATA_SIZE ?= 
 COREMARK_ITERATIONS ?= 
@@ -96,9 +97,9 @@ coremark:
 	@mkdir -p $(BUILD_DIR)
 	@mkdir -p $(COREMARK_DIR)
 	@cd $(COREMARK_DIR) && make \
-    PORT_DIR=$(COREMARK_PORT_DIR) \
+    PORT_DIR=$(FAMILY) \
     OPATH=$(BUILD_DIR)/tests/coremark/ \
-    RUNTIME_DIR=$(RUNTIME_DIR)/bare-metal/$(COREMARK_PORT_DIR) \
+    RUNTIME_DIR=$(RUNTIME_DIR)/bare-metal/$(FAMILY) \
     ITERATIONS=$(COREMARK_ITERATIONS) \
     EXECS=$(COREMARK_EXECS) \
     TOTAL_DATA_SIZE=$(COREMARK_TOTAL_DATA_SIZE) \
