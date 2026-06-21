@@ -56,18 +56,11 @@ class Bru(implicit p: Parameters) extends Node[Parameters]("bru") with Moore {
   private val fallthrough   = uopReg.pc + p(PCStep).U(p(XLen).W)
   private val actualTarget  = Mux(resolvedTaken, branchTarget, fallthrough)
 
-  private val resp = WireDefault(0.U.asTypeOf(new FuResp))
-
-  resp.result      := fallthrough
-  resp.rd          := uopReg.rd
-  resp.pc          := uopReg.pc
-  resp.instr       := uopReg.instr
-  resp.rob_tag     := uopReg.rob_tag
-  resp.trap_req    := false.B
-  resp.trap_kind   := 0.U
-  resp.trap_target := 0.U
-
-  fuResp.out.bits := resp
+  fuResp.out.bits.result  := fallthrough
+  fuResp.out.bits.rd      := uopReg.rd
+  fuResp.out.bits.pc      := uopReg.pc
+  fuResp.out.bits.instr   := uopReg.instr
+  fuResp.out.bits.rob_tag := uopReg.rob_tag
 
   resolved.out.valid            := fsm(BruState.RESP).active && !flush.in.flush
   resolved.out.bits.pc          := uopReg.pc

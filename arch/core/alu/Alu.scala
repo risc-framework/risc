@@ -48,16 +48,10 @@ class Alu(implicit p: Parameters) extends Node[Parameters]("alu") with Moore {
   fuResp.out.valid := fsm(AluState.RESP).active && !flush.in.flush
 
   private val result = isaImpl.execute(uopReg)
-  private val resp   = WireDefault(0.U.asTypeOf(new FuResp))
 
-  resp.result      := result
-  resp.rd          := uopReg.rd
-  resp.pc          := uopReg.pc
-  resp.instr       := uopReg.instr
-  resp.rob_tag     := uopReg.rob_tag
-  resp.trap_req    := false.B
-  resp.trap_kind   := 0.U
-  resp.trap_target := 0.U
-
-  fuResp.out.bits := resp
+  fuResp.out.bits.result  := result
+  fuResp.out.bits.rd      := uopReg.rd
+  fuResp.out.bits.pc      := uopReg.pc
+  fuResp.out.bits.instr   := uopReg.instr
+  fuResp.out.bits.rob_tag := uopReg.rob_tag
 }
