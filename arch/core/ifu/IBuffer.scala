@@ -6,9 +6,7 @@ import chisel3._
 import chisel3.util.{ PopCount, isPow2, log2Ceil }
 
 class IBuffer(implicit p: Parameters) extends Node[Parameters]("ibuffer") {
-  val enqValid = inVec[Bool](p => p(IssueWidth))
-  val enqBits  = inVec[IBufferEntry](p => p(IssueWidth))
-
+  val enq = inDVec[IBufferEntry](p => p(IssueWidth))
   val deq = outDVec[IBufferEntry](p => p(IssueWidth))
 
   val flush  = in[IBufferFlush]
@@ -26,26 +24,25 @@ class IBuffer(implicit p: Parameters) extends Node[Parameters]("ibuffer") {
   private val head   = RegInit(0.U(idxW.W))
   private val tail   = RegInit(0.U(idxW.W))
 
-  private val enqValids = Seq.tabulate(p(IssueWidth))(w => enqValid.in.lanes(w))
-  private val enqCount  = PopCount(enqValids)
+  // Enqueue logic
+  private val enqFires = Seq.tabulate(p(IssueWidth))(w => enq.in.lanes(w).fire)
+  private val enqCount = PopCount(enqFires)
 
   private val enqOffsets = Wire(Vec(p(IssueWidth), UInt(idxW.W)))
   enqOffsets(0) := 0.U
 
   for (w <- 1 until p(IssueWidth))
-    enqOffsets(w) := (enqOffsets(w - 1) + enqValids(w - 1).asUInt)(idxW - 1, 0)
+    enqOffsets(w) := (enqOffsets(w - 1) + enqFires(w - 1).asUInt)(idxW - 1, 0)
 
-  private val enqReady = (p(IBufferSize).U - count) >= p(IssueWidth).U
-  private val doEnq    = enqReady && enqValids.reduce(_ || _)
-
-  when(doEnq) {
-    for (w <- 0 until p(IssueWidth))
-      when(enqValid.in.lanes(w)) {
-        val idx = ((tail + enqOffsets(w)) & mask)(idxW - 1, 0)
-        buffer(idx) := enqBits.in.lanes(w)
-      }
+  for (w <- 0 until p(IssueWidth)) {
+    enq.in.lanes(w).ready := (p(IBufferSize).U - count) >= p(IssueWidth).U
+    when(enqFires(w)) {
+      val idx = ((tail + enqOffsets(w)) & mask)(idxW - 1, 0)
+      buffer(idx) := enq.in.lanes(w).bits
+    }
   }
 
+  // Dequeue logic
   private val deqFires = Seq.tabulate(p(IssueWidth))(w => deq.out.lanes(w).fire)
   private val deqCount = PopCount(deqFires)
 
@@ -56,11 +53,10 @@ class IBuffer(implicit p: Parameters) extends Node[Parameters]("ibuffer") {
     deq.out.lanes(w).bits  := buffer(idx)
   }
 
-  private val actualEnqCount = Mux(doEnq, enqCount, 0.U)
-
+  // Update logic
   head  := ((head + deqCount) & mask)(idxW - 1, 0)
-  tail  := ((tail + actualEnqCount) & mask)(idxW - 1, 0)
-  count := count + actualEnqCount - deqCount
+  tail  := ((tail + enqCount) & mask)(idxW - 1, 0)
+  count := count + enqCount - deqCount
 
   when(flush.in.flush) {
     count := 0.U
@@ -68,7 +64,7 @@ class IBuffer(implicit p: Parameters) extends Node[Parameters]("ibuffer") {
     tail  := 0.U
   }
 
-  status.out.enq_ready := enqReady
+  status.out.enq_ready := Seq.tabulate(p(IssueWidth))(w => enq.in.lanes(w).ready).reduce(_ || _)
   status.out.empty     := count === 0.U
   status.out.full      := count === p(IBufferSize).U
   status.out.count     := count

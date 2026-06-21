@@ -19,9 +19,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   val bpuReq  = out[BpuIfuReq]
   val bpuResp = in[BpuIfuResp]
 
-  val decode = outDVecWith[IBufferEntry](p => p(IssueWidth)) { p =>
-    new IBufferEntry()(p)
-  }
+  val decode = outDVec[IBufferEntry](p => p(IssueWidth))
 
   val exceptionReq  = in[IfuExceptionReq]
   val exceptionResp = out[IfuExceptionResp]
@@ -145,14 +143,14 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    ibuffer.enqValid.in.lanes(w) := respFire && isValidResp && metaQ.io.deq.valid && respLive(w)
+    ibuffer.enq.in.lanes(w).valid := respFire && isValidResp && metaQ.io.deq.valid && respLive(w)
 
-    ibuffer.enqBits.in.lanes(w).pc               := (respPc & alignMask) + (w * p(PCStep)).U
-    ibuffer.enqBits.in.lanes(w).instr            := icacheResp.in.bits.data(w)
-    ibuffer.enqBits.in.lanes(w).bpu_pred_taken   := metaQ.io.deq.bits.bpu_pred_taken(w)
-    ibuffer.enqBits.in.lanes(w).bpu_pred_target  := metaQ.io.deq.bits.bpu_pred_target(w)
-    ibuffer.enqBits.in.lanes(w).bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)
-    ibuffer.enqBits.in.lanes(w).bpu_ghr_snapshot := metaQ.io.deq.bits.bpu_ghr_snapshot(w)
+    ibuffer.enq.in.lanes(w).bits.pc               := (respPc & alignMask) + (w * p(PCStep)).U
+    ibuffer.enq.in.lanes(w).bits.instr            := icacheResp.in.bits.data(w)
+    ibuffer.enq.in.lanes(w).bits.bpu_pred_taken   := metaQ.io.deq.bits.bpu_pred_taken(w)
+    ibuffer.enq.in.lanes(w).bits.bpu_pred_target  := metaQ.io.deq.bits.bpu_pred_target(w)
+    ibuffer.enq.in.lanes(w).bits.bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)
+    ibuffer.enq.in.lanes(w).bits.bpu_ghr_snapshot := metaQ.io.deq.bits.bpu_ghr_snapshot(w)
   }
 
   ibuffer.flush.in.flush := doRedirect
