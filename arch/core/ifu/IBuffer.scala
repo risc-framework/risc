@@ -6,15 +6,10 @@ import chisel3._
 import chisel3.util.{ PopCount, isPow2, log2Ceil }
 
 class IBuffer(implicit p: Parameters) extends Node[Parameters]("ibuffer") {
-  val enqValid = inVecWith[Bool](p => p(IssueWidth))(_ => Bool())
+  val enqValid = inVec[Bool](p => p(IssueWidth))
+  val enqBits  = inVec[IBufferEntry](p => p(IssueWidth))
 
-  val enqBits = inVecWith[IBufferEntry](p => p(IssueWidth)) { p =>
-    new IBufferEntry()(p)
-  }
-
-  val deq = outDVecWith[IBufferEntry](p => p(IssueWidth)) { p =>
-    new IBufferEntry()(p)
-  }
+  val deq = outDVec[IBufferEntry](p => p(IssueWidth))
 
   val flush  = in[IBufferFlush]
   val status = out[IBufferStatus]

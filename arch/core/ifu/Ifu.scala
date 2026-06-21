@@ -127,12 +127,9 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
 
   metaQ.io.deq.ready := respFire && isValidResp
 
-  private val respPc =
-    metaQ.io.deq.bits.pc
-
-  private val respIdx =
+  private val respPc     = metaQ.io.deq.bits.pc
+  private val respIdx    =
     if (p(IssueWidth) > 1) respPc(log2Ceil(alignBytes) - 1, log2Ceil(p(BytesPerInstr))) else 0.U
-
   private val respKilled = Wire(Vec(p(IssueWidth), Bool()))
   private val respLive   = Wire(Vec(p(IssueWidth), Bool()))
 
