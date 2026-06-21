@@ -34,11 +34,11 @@ class Soc(implicit p: Parameters) extends Node[Parameters]("soc") {
     bridge.dmemResp  -> cpu.dmemResp,
     cpu.mmioReq      -> bridge.mmioReq,
     bridge.mmioResp  -> cpu.mmioResp,
-    bridge.ibus      -> crossbar.ibus,
-    bridge.dbus      -> crossbar.dbus,
-    bridge.mbus      -> crossbar.mbus,
+    crossbar.ibus    -> bridge.ibus,
+    crossbar.dbus    -> bridge.dbus,
+    crossbar.mbus    -> bridge.mbus,
     crossbar.devices -> devices,
-    cpu.irq          -> irq,
+    irq              -> cpu.irq,
     cpu.debug        -> debug
   )
 }

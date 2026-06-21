@@ -59,10 +59,10 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   fuPool.cpu.in.irq     := irq.in
 
   link(
-    imemReq                    -> l1ICache.lowerReq,
-    l1ICache.lowerResp         -> imemResp,
-    dmemReq                    -> l1DCache.lowerReq,
-    l1DCache.lowerResp         -> dmemResp,
+    l1ICache.lowerReq          -> imemReq,
+    imemResp                   -> l1ICache.lowerResp,
+    l1DCache.lowerReq          -> dmemReq,
+    dmemResp                   -> l1DCache.lowerResp,
     ifu.icacheReq              -> l1ICache.upperReq,
     l1ICache.upperResp         -> ifu.icacheResp,
     memoryArbiter.dcacheReq    -> l1DCache.upperReq,
