@@ -2,6 +2,7 @@ package arch.core.ifu
 
 import arch.configs._
 import arch.core.bpu.{ BpuIfuReq, BpuIfuResp }
+import arch.core.ibuffer.{ IBufferEntry, IBufferStatus, IBufferFlush }
 import vcache.{ CacheReadReq, CacheResp }
 import vutils.graph.Node
 import chisel3._
@@ -19,14 +20,14 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   val bpuReq  = out[BpuIfuReq]
   val bpuResp = in[BpuIfuResp]
 
-  val decode = outDVec[IBufferEntry](p => p(IssueWidth))
+  val issued        = outDVec[IBufferEntry](p => p(IssueWidth))
+  val ibufferStatus = in[IBufferStatus]
+  val ibufferFlush  = out[IBufferFlush]
 
   val exceptionReq  = in[IfuExceptionReq]
   val exceptionResp = out[IfuExceptionResp]
 
-  private val ibuffer = subnode(new IBuffer)
-  private val pc      = RegInit(p(ResetVector).U(p(XLen).W))
-
+  private val pc         = RegInit(p(ResetVector).U(p(XLen).W))
   private val doRedirect = exceptionReq.in.redirect
 
   class FetchMeta extends Bundle {
@@ -103,10 +104,10 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
 
   metaQ.io.flush.get := doRedirect
 
-  icacheReq.out.valid     := metaQ.io.enq.ready && ibuffer.status.out.enq_ready && !doRedirect
+  icacheReq.out.valid     := metaQ.io.enq.ready && ibufferStatus.in.enq_ready && !doRedirect
   icacheReq.out.bits.addr := alignedPc
 
-  icacheResp.in.ready := ibuffer.status.out.enq_ready
+  icacheResp.in.ready := ibufferStatus.in.enq_ready
 
   exceptionResp.out.fetch_pc := pc
 
@@ -143,19 +144,14 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    ibuffer.enq.in.lanes(w).valid := respFire && isValidResp && metaQ.io.deq.valid && respLive(w)
-
-    ibuffer.enq.in.lanes(w).bits.pc               := (respPc & alignMask) + (w * p(PCStep)).U
-    ibuffer.enq.in.lanes(w).bits.instr            := icacheResp.in.bits.data(w)
-    ibuffer.enq.in.lanes(w).bits.bpu_pred_taken   := metaQ.io.deq.bits.bpu_pred_taken(w)
-    ibuffer.enq.in.lanes(w).bits.bpu_pred_target  := metaQ.io.deq.bits.bpu_pred_target(w)
-    ibuffer.enq.in.lanes(w).bits.bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)
-    ibuffer.enq.in.lanes(w).bits.bpu_ghr_snapshot := metaQ.io.deq.bits.bpu_ghr_snapshot(w)
+    issued.out.lanes(w).valid                 := respFire && isValidResp && metaQ.io.deq.valid && respLive(w)
+    issued.out.lanes(w).bits.pc               := (respPc & alignMask) + (w * p(PCStep)).U
+    issued.out.lanes(w).bits.instr            := icacheResp.in.bits.data(w)
+    issued.out.lanes(w).bits.bpu_pred_taken   := metaQ.io.deq.bits.bpu_pred_taken(w)
+    issued.out.lanes(w).bits.bpu_pred_target  := metaQ.io.deq.bits.bpu_pred_target(w)
+    issued.out.lanes(w).bits.bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)
+    issued.out.lanes(w).bits.bpu_ghr_snapshot := metaQ.io.deq.bits.bpu_ghr_snapshot(w)
   }
 
-  ibuffer.flush.in.flush := doRedirect
-
-  link(
-    ibuffer.deq -> decode
-  )
+  ibufferFlush.out.flush := doRedirect
 }

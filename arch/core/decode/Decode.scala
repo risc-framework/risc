@@ -1,6 +1,6 @@
 package arch.core.decode
 
-import arch.core.ifu.IBufferEntry
+import arch.core.ibuffer.IBufferEntry
 import arch.configs._
 import chisel3._
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
@@ -13,7 +13,7 @@ class Decode(implicit p: Parameters) extends Node[Parameters]("decode") {
     )
   )
 
-  val ifu      = inDVec[IBufferEntry](p => p(IssueWidth))
+  val issued   = inDVec[IBufferEntry](p => p(IssueWidth))
   val dispatch = outDVec[DecodedPacket](p => p(IssueWidth))
 
   private val isaImpl  = DecodeIsaFactory.select(cfg)
@@ -22,15 +22,15 @@ class Decode(implicit p: Parameters) extends Node[Parameters]("decode") {
   for (w <- 0 until p(IssueWidth)) {
     val packet = Wire(new DecodePacket)
 
-    packet.pc               := ifu.in.lanes(w).bits.pc
-    packet.instr            := ifu.in.lanes(w).bits.instr
-    packet.bpu_pred_taken   := ifu.in.lanes(w).bits.bpu_pred_taken
-    packet.bpu_pred_target  := ifu.in.lanes(w).bits.bpu_pred_target
-    packet.bpu_pht_index    := ifu.in.lanes(w).bits.bpu_pht_index
-    packet.bpu_ghr_snapshot := ifu.in.lanes(w).bits.bpu_ghr_snapshot
+    packet.pc               := issued.in.lanes(w).bits.pc
+    packet.instr            := issued.in.lanes(w).bits.instr
+    packet.bpu_pred_taken   := issued.in.lanes(w).bits.bpu_pred_taken
+    packet.bpu_pred_target  := issued.in.lanes(w).bits.bpu_pred_target
+    packet.bpu_pht_index    := issued.in.lanes(w).bits.bpu_pht_index
+    packet.bpu_ghr_snapshot := issued.in.lanes(w).bits.bpu_ghr_snapshot
 
-    dispatch.out.lanes(w).valid := ifu.in.lanes(w).valid
-    ifu.in.lanes(w).ready       := dispatch.out.lanes(w).ready
+    dispatch.out.lanes(w).valid := issued.in.lanes(w).valid
+    issued.in.lanes(w).ready    := dispatch.out.lanes(w).ready
     dispatch.out.lanes(w).bits  := kindImpl.decode(isaImpl, packet)
   }
 }

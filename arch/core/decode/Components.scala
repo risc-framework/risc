@@ -1,6 +1,6 @@
 package arch.core.decode
 
-import arch.core.ifu.IBufferEntry
+import arch.core.ibuffer.IBufferEntry
 import arch.core.fupool.FunctionalUnitType
 import arch.configs._
 import vutils.graph.{ NodeConfig, NodeSelector }

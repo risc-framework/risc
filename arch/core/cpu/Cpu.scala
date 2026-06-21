@@ -10,6 +10,7 @@ import arch.core.exception.Exception
 import arch.core.flush.Flush
 import arch.core.fupool.FuPool
 import arch.core.ifu.Ifu
+import arch.core.ibuffer.IBuffer
 import arch.core.memarb.MemoryArbiter
 import arch.core.regfile.Regfile
 import arch.core.rob.Rob
@@ -34,6 +35,7 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
 
   private val bpu           = subnode(new Bpu)
   private val ifu           = subnode(new Ifu)
+  private val ibuffer       = subnode(new IBuffer)
   private val decode        = subnode(new Decode)
   private val regfile       = subnode(new Regfile)
   private val scheduler     = subnode(new Scheduler)
@@ -74,7 +76,10 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     ifu.bpuReq                 -> bpu.ifuReq,
     bpu.ifuResp                -> ifu.bpuResp,
     rob.bpuUpdate              -> bpu.robUpdate,
-    ifu.decode                 -> decode.ifu,
+    ifu.issued                 -> ibuffer.enq,
+    ifu.ibufferFlush           -> ibuffer.flush,
+    ibuffer.status             -> ifu.ibufferStatus,
+    ibuffer.deq                -> decode.issued,
     decode.dispatch            -> dispatch.decode,
     dispatch.schedulerReq      -> scheduler.dispatchReq,
     dispatch.regfileReq        -> regfile.dispatchReq,

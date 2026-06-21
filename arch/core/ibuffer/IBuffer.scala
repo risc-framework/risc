@@ -1,4 +1,4 @@
-package arch.core.ifu
+package arch.core.ibuffer
 
 import arch.configs._
 import vutils.graph.Node
