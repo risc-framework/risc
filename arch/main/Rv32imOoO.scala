@@ -45,6 +45,7 @@ object Rv32imOoO extends App {
   private val params = Parameters(
     Map(
       ISA                           -> Rv32im.isa,
+      TopModuleName                 -> "top",
       Frequency                     -> 50_000_000L,
       IBufferSize                   -> 16,
       ResetVector                   -> 0x80000000L,
@@ -151,7 +152,7 @@ object Rv32imOoO extends App {
 
   DesignEmitter.emit(
     gen = new Soc,
-    filename = "soc",
+    filename = p(TopModuleName),
     target = SystemVerilog,
     info = true,
     lowering = true,

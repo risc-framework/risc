@@ -40,8 +40,9 @@ package object configs {
   // User parameters. These should be manually supplied by the selected Config.
 
   // Architecture Parameters
-  object ISA       extends Field[Isa]
-  object Frequency extends Field[Long]
+  object ISA           extends Field[Isa]
+  object TopModuleName extends Field[String]
+  object Frequency     extends Field[Long]
 
   // IFU Parameters
   object IBufferSize extends Field[Int]
@@ -218,6 +219,7 @@ package object configs {
     val user: Seq[Field[_]] = Seq(
       ISA,
       Frequency,
+      TopModuleName,
       IBufferSize,
       ResetVector,
       IsRegfileUseBypass,

@@ -30,7 +30,7 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   val debug = out[ExceptionDebugInfo]
 
   private val isaImpl = ExceptionIsaFactory.select(cfg)
-  private val archPc  = Mux(robResp.in.empty, ifuResp.in.fetch_pc, robResp.in.commit_pc)
+  private val archPc  = robResp.in.commit_pc
 
   // Sync logic
   private val syncValidVec = VecInit(

@@ -15,7 +15,7 @@ class Soc(implicit p: Parameters) extends Node[Parameters]("soc") {
     )
   )
 
-  override def desiredName: String = "soc"
+  override def desiredName: String = p(TopModuleName)
 
   private val crossbarImpl = BusCrossbarTypeFactory.select(cfg)
 

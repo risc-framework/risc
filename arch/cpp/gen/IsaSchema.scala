@@ -1,6 +1,6 @@
 package arch.cpp.gen
 
-import arch.configs.{ ISA, Parameters }
+import arch.configs.{ ISA, TopModuleName, Parameters }
 import arch.cpp.CppCodegenOptions
 import arch.cpp.dsl.{ CppDecl, CppValue, CppWriter, StructDecl, TypeAliasValue }
 import arch.cpp.dsl.CppLiteral._
@@ -105,7 +105,7 @@ private[cpp] object CppIsaSchema {
     topModuleName(p).prependedAll("V").appendedAll(".h")
 
   private def topModuleName(p: Parameters): String =
-    "soc"
+    p(TopModuleName)
 
   private def verilatedClassName(p: Parameters): String =
     "V" + topModuleName(p)
