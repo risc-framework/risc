@@ -42,16 +42,6 @@ trait ExceptionHandleEntry {
   }
 }
 
-case class CommonExceptionHandleEntry(
-  kind: BitPat,
-  cause: BigInt,
-  priority: Int,
-  writeCsr: Boolean = true,
-  isRet: Boolean = false,
-  isInterrupt: Boolean = false,
-  requiresCsrIdle: Boolean = true
-) extends ExceptionHandleEntry
-
 trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
   def kindWidth: Int
   def causeWidth: Int

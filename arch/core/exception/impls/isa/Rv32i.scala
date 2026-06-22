@@ -70,63 +70,216 @@ object ExceptionRv32iIsa
     override def redirectKind: UInt =
       E(E_REDIRECT)
 
+    private object RedirectEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_REDIRECT
+      override def cause: BigInt            = 0
+      override def priority: Int            = 16
+      override def writeCsr: Boolean        = false
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = false
+    }
+
+    private object InstructionAddrMisalignedEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_INSTRUCTION_ADDR_MISALIGNED
+      override def cause: BigInt            = CAUSE_INSTRUCTION_ADDR_MISALIGNED
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object InstructionAccessFaultEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_INSTRUCTION_ACCESS_FAULT
+      override def cause: BigInt            = CAUSE_INSTRUCTION_ACCESS_FAULT
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object IllegalInstructionEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_ILLEGAL_INSTRUCTION
+      override def cause: BigInt            = CAUSE_ILLEGAL_INSTRUCTION
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object BreakpointEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_BREAKPOINT
+      override def cause: BigInt            = CAUSE_BREAKPOINT
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object LoadAddrMisalignedEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_LOAD_ADDR_MISALIGNED
+      override def cause: BigInt            = CAUSE_LOAD_ADDR_MISALIGNED
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object LoadAccessFaultEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_LOAD_ACCESS_FAULT
+      override def cause: BigInt            = CAUSE_LOAD_ACCESS_FAULT
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object StoreAddrMisalignedEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_STORE_ADDR_MISALIGNED
+      override def cause: BigInt            = CAUSE_STORE_ADDR_MISALIGNED
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object StoreAccessFaultEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_STORE_ACCESS_FAULT
+      override def cause: BigInt            = CAUSE_STORE_ACCESS_FAULT
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object EcallUEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_ECALL_U
+      override def cause: BigInt            = CAUSE_ECALL_U
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object EcallSEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_ECALL_S
+      override def cause: BigInt            = CAUSE_ECALL_S
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object EcallMEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_ECALL_M
+      override def cause: BigInt            = CAUSE_ECALL_M
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object InstructionPageFaultEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_INSTRUCTION_PAGE_FAULT
+      override def cause: BigInt            = CAUSE_INSTRUCTION_PAGE_FAULT
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object LoadPageFaultEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_LOAD_PAGE_FAULT
+      override def cause: BigInt            = CAUSE_LOAD_PAGE_FAULT
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object StorePageFaultEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_STORE_PAGE_FAULT
+      override def cause: BigInt            = CAUSE_STORE_PAGE_FAULT
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object TrapReturnEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_TRAP_RETURN
+      override def cause: BigInt            = 0
+      override def priority: Int            = 0
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = true
+      override def isInterrupt: Boolean     = false
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object MachineExternalInterruptEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_MACHINE_EXTERNAL_INTERRUPT
+      override def cause: BigInt            = CAUSE_MACHINE_EXTERNAL_INTERRUPT
+      override def priority: Int            = 64
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = true
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object MachineSoftwareInterruptEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_MACHINE_SOFTWARE_INTERRUPT
+      override def cause: BigInt            = CAUSE_MACHINE_SOFTWARE_INTERRUPT
+      override def priority: Int            = 64
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = true
+      override def requiresCsrIdle: Boolean = true
+    }
+
+    private object MachineTimerInterruptEntry extends ExceptionHandleEntry {
+      override def kind: BitPat             = E_MACHINE_TIMER_INTERRUPT
+      override def cause: BigInt            = CAUSE_MACHINE_TIMER_INTERRUPT
+      override def priority: Int            = 64
+      override def writeCsr: Boolean        = true
+      override def isRet: Boolean           = false
+      override def isInterrupt: Boolean     = true
+      override def requiresCsrIdle: Boolean = true
+    }
+
     override def entries: Seq[ExceptionHandleEntry] = Seq(
-      CommonExceptionHandleEntry(
-        E_REDIRECT,
-        0,
-        priority = 16,
-        writeCsr = false,
-        requiresCsrIdle = false
-      ),
-      CommonExceptionHandleEntry(
-        E_INSTRUCTION_ADDR_MISALIGNED,
-        CAUSE_INSTRUCTION_ADDR_MISALIGNED,
-        priority = 0
-      ),
-      CommonExceptionHandleEntry(
-        E_INSTRUCTION_ACCESS_FAULT,
-        CAUSE_INSTRUCTION_ACCESS_FAULT,
-        priority = 0
-      ),
-      CommonExceptionHandleEntry(E_ILLEGAL_INSTRUCTION, CAUSE_ILLEGAL_INSTRUCTION, priority = 0),
-      CommonExceptionHandleEntry(E_BREAKPOINT, CAUSE_BREAKPOINT, priority = 0),
-      CommonExceptionHandleEntry(E_LOAD_ADDR_MISALIGNED, CAUSE_LOAD_ADDR_MISALIGNED, priority = 0),
-      CommonExceptionHandleEntry(E_LOAD_ACCESS_FAULT, CAUSE_LOAD_ACCESS_FAULT, priority = 0),
-      CommonExceptionHandleEntry(
-        E_STORE_ADDR_MISALIGNED,
-        CAUSE_STORE_ADDR_MISALIGNED,
-        priority = 0
-      ),
-      CommonExceptionHandleEntry(E_STORE_ACCESS_FAULT, CAUSE_STORE_ACCESS_FAULT, priority = 0),
-      CommonExceptionHandleEntry(E_ECALL_U, CAUSE_ECALL_U, priority = 0),
-      CommonExceptionHandleEntry(E_ECALL_S, CAUSE_ECALL_S, priority = 0),
-      CommonExceptionHandleEntry(E_ECALL_M, CAUSE_ECALL_M, priority = 0),
-      CommonExceptionHandleEntry(
-        E_INSTRUCTION_PAGE_FAULT,
-        CAUSE_INSTRUCTION_PAGE_FAULT,
-        priority = 0
-      ),
-      CommonExceptionHandleEntry(E_LOAD_PAGE_FAULT, CAUSE_LOAD_PAGE_FAULT, priority = 0),
-      CommonExceptionHandleEntry(E_STORE_PAGE_FAULT, CAUSE_STORE_PAGE_FAULT, priority = 0),
-      CommonExceptionHandleEntry(E_TRAP_RETURN, 0, priority = 0, writeCsr = true, isRet = true),
-      CommonExceptionHandleEntry(
-        E_MACHINE_EXTERNAL_INTERRUPT,
-        CAUSE_MACHINE_EXTERNAL_INTERRUPT,
-        priority = 64,
-        isInterrupt = true
-      ),
-      CommonExceptionHandleEntry(
-        E_MACHINE_SOFTWARE_INTERRUPT,
-        CAUSE_MACHINE_SOFTWARE_INTERRUPT,
-        priority = 64,
-        isInterrupt = true
-      ),
-      CommonExceptionHandleEntry(
-        E_MACHINE_TIMER_INTERRUPT,
-        CAUSE_MACHINE_TIMER_INTERRUPT,
-        priority = 64,
-        isInterrupt = true
-      ),
+      RedirectEntry,
+      InstructionAddrMisalignedEntry,
+      InstructionAccessFaultEntry,
+      IllegalInstructionEntry,
+      BreakpointEntry,
+      LoadAddrMisalignedEntry,
+      LoadAccessFaultEntry,
+      StoreAddrMisalignedEntry,
+      StoreAccessFaultEntry,
+      EcallUEntry,
+      EcallSEntry,
+      EcallMEntry,
+      InstructionPageFaultEntry,
+      LoadPageFaultEntry,
+      StorePageFaultEntry,
+      TrapReturnEntry,
+      MachineExternalInterruptEntry,
+      MachineSoftwareInterruptEntry,
+      MachineTimerInterruptEntry
     )
   }
 

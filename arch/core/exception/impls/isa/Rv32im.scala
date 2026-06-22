@@ -11,17 +11,10 @@ object ExceptionRv32imIsa extends RegisteredNodeUtils[ExceptionIsaImpl] {
 
     override def value: String = "rv32im"
 
-    override def kindWidth: Int =
-      rv32i.kindWidth
-
-    override def causeWidth: Int =
-      rv32i.causeWidth
-
-    override def redirectKind: UInt =
-      rv32i.redirectKind
-
-    override def entries: Seq[ExceptionHandleEntry] =
-      rv32i.entries
+    override def kindWidth: Int                     = rv32i.kindWidth
+    override def causeWidth: Int                    = rv32i.causeWidth
+    override def redirectKind: UInt                 = rv32i.redirectKind
+    override def entries: Seq[ExceptionHandleEntry] = rv32i.entries
   }
 
   override def registry: NodeDimensionRegistry[ExceptionIsaImpl] =
