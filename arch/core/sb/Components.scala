@@ -51,7 +51,3 @@ class StoreBufferStatus extends Bundle {
   val oldest_valid = Bool()
   val oldest_seq   = UInt(64.W)
 }
-
-class StoreBufferExceptionReq extends Bundle {
-  val flush = Bool()
-}

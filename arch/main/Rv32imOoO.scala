@@ -13,7 +13,6 @@ import arch.core.scheduler.SchedulerInit
 import arch.core.st.StInit
 import arch.core.csr.CsrInit
 import arch.core.exception.ExceptionInit
-import arch.core.rob.RobInit
 import arch.system.soc.Soc
 import arch.system.bridge.BusBridgeInit
 import arch.system.crossbar.BusCrossbarInit
@@ -39,7 +38,6 @@ object Rv32imOoO extends App {
   StInit
   SchedulerInit
   ExceptionInit
-  RobInit
 
   BusBridgeInit
   BusCrossbarInit

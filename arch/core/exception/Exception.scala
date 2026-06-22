@@ -13,10 +13,10 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
     )
   )
 
-  val redirectReq = in[ExceptionRedirectReq]
-  val syncReq     = in[ExceptionSyncReq]
-  val asyncReq    = in[ExceptionAsyncReq]
-  val csrStatus   = in[ExceptionCsrStatus]
+  val redirect  = in[ExceptionRedirectReq]
+  val sync      = in[ExceptionSyncReq]
+  val async     = in[ExceptionAsyncReq]
+  val csrStatus = in[ExceptionCsrStatus]
 
   val ifuResp = in[IfuExceptionResp]
   val robResp = in[RobExceptionResp]
@@ -28,9 +28,9 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   private val archPc  = Mux(robResp.in.empty, ifuResp.in.fetch_pc, robResp.in.commit_pc)
 
   private val selected = isaImpl.select(
-    redirect = redirectReq.in,
-    sync = syncReq.in,
-    async = asyncReq.in,
+    redirect = redirect.in,
+    sync = sync.in,
+    async = async.in,
     csrBusy = csrStatus.in.busy,
     archPc = archPc
   )

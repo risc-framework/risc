@@ -17,21 +17,19 @@ class ExceptionSyncReq(implicit p: Parameters) extends Bundle {
   private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
   private val isa = ExceptionIsaFactory.select(cfg)
 
-  val valid             = Bool()
-  val kind              = UInt(isa.kindWidth.W)
-  val target            = UInt(p(XLen).W)
-  val pc                = UInt(p(XLen).W)
-  val requires_csr_idle = Bool()
+  val valid  = Bool()
+  val kind   = UInt(isa.kindWidth.W)
+  val target = UInt(p(XLen).W)
+  val pc     = UInt(p(XLen).W)
 }
 
 class ExceptionAsyncReq(implicit p: Parameters) extends Bundle {
   private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
   private val isa = ExceptionIsaFactory.select(cfg)
 
-  val valid             = Bool()
-  val kind              = UInt(isa.kindWidth.W)
-  val target            = UInt(p(XLen).W)
-  val requires_csr_idle = Bool()
+  val valid  = Bool()
+  val kind   = UInt(isa.kindWidth.W)
+  val target = UInt(p(XLen).W)
 }
 
 class ExceptionCsrStatus extends Bundle {

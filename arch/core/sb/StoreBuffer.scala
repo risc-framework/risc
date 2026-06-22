@@ -10,7 +10,7 @@ import chisel3._
 import chisel3.util.{ Cat, Mux1H, PopCount, log2Ceil }
 
 class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer") {
-  val exception = in[StoreBufferExceptionReq]
+  val flush = in[Bool]
 
   val dispatchReq  = inVec[DispatchStoreBufferReq](p => p(IssueWidth))
   val dispatchResp = outVec[DispatchStoreBufferResp](p => p(IssueWidth))
@@ -56,14 +56,14 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   status.out.oldest_seq   := entries(head).seq
 
   for (s <- 0 until numStorePorts)
-    storeWrite.in.lanes(s).ready := !exception.in.flush
+    storeWrite.in.lanes(s).ready := !flush.in
 
   private val laneIsStore = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth))
     laneIsStore(w) := dispatchReq.in
       .lanes(w)
-      .valid && dispatchReq.in.lanes(w).bits.isStore && !exception.in.flush
+      .valid && dispatchReq.in.lanes(w).bits.isStore && !flush.in
 
   private val possibleStoreBeforeOrAt = Wire(
     Vec(p(IssueWidth), UInt(log2Ceil(p(IssueWidth) + 1).W))
@@ -84,7 +84,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   for (w <- 0 until p(IssueWidth)) {
     val canReserve = !laneIsStore(w) || possibleStoreBeforeOrAt(w) <= freeCount
     val allocStore =
-      dispatchReq.in.lanes(w).fire && dispatchReq.in.lanes(w).bits.isStore && !exception.in.flush
+      dispatchReq.in.lanes(w).fire && dispatchReq.in.lanes(w).bits.isStore && !flush.in
 
     dispatchResp.out.lanes(w).ready         := canReserve
     dispatchResp.out.lanes(w).ticket.sq_idx := sqTailAfter(w)
@@ -102,8 +102,8 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     val fwdRespValid = RegInit(false.B)
     val fwdRespBits  = RegInit(0.U.asTypeOf(new StoreForwardResp))
 
-    fwdReq.in.lanes(q).ready   := (!fwdRespValid || fwdResp.out.lanes(q).ready) && !exception.in.flush
-    fwdResp.out.lanes(q).valid := fwdRespValid && !exception.in.flush
+    fwdReq.in.lanes(q).ready   := (!fwdRespValid || fwdResp.out.lanes(q).ready) && !flush.in
+    fwdResp.out.lanes(q).valid := fwdRespValid && !flush.in
     fwdResp.out.lanes(q).bits  := fwdRespBits
 
     val req       = fwdReq.in.lanes(q).bits
@@ -161,7 +161,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     nextResp.data      := Cat((p(BytesPerWord) - 1 to 0 by -1).map(i => finalDataVec(i)))
     nextResp.mask      := finalMaskUInt
 
-    when(exception.in.flush) {
+    when(flush.in) {
       fwdRespValid := false.B
       fwdRespBits  := 0.U.asTypeOf(new StoreForwardResp)
     }.otherwise {
@@ -310,15 +310,15 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   }
 
   for (i <- 0 until p(StoreBufferSize))
-    when(exception.in.flush && !keepPhysical(i)) {
+    when(flush.in && !keepPhysical(i)) {
       entries(i) := zeroEntry
     }.otherwise {
       entries(i) := afterOpsEntries(i)
     }
 
   head    := afterDrainHead
-  tail    := Mux(exception.in.flush, flushTail, normalTail)
-  count   := Mux(exception.in.flush, flushCount, normalCount)
+  tail    := Mux(flush.in, flushTail, normalTail)
+  count   := Mux(flush.in, flushCount, normalCount)
   tailSeq := normalSeq
 
   when(drainReqFire) {

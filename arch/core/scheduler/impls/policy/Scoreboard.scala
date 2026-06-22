@@ -12,7 +12,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
     override def value: String = "scoreboard"
 
     override def elaborate(
-      exception: SchedulerExceptionReq,
+      flush: Bool,
       dispatchReq: Int => DecoupledIO[FuReq],
       fuReq: Int => DecoupledIO[FuReq],
       fuDone: Int => DecoupledIO[FuResp]
@@ -96,7 +96,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
 
         val (target, fuOk) = selectFu(op, tempFuUsed(w))
         val prevOk         = olderLaneAccepted(w, accepted)
-        val canIssue       = !exception.flush && prevOk && fuOk && !rs1Haz && !rs2Haz && !wawHaz
+        val canIssue       = !flush && prevOk && fuOk && !rs1Haz && !rs2Haz && !wawHaz
 
         dis.ready   := canIssue
         accepted(w) := dis.valid && canIssue
@@ -125,7 +125,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         }
       }
 
-      when(exception.flush) {
+      when(flush) {
         regPending.foreach(_ := false.B)
       }.otherwise {
         regPending := tempPending(p(IssueWidth))

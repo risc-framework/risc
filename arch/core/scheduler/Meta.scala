@@ -3,6 +3,7 @@ package arch.core.scheduler
 import arch.configs._
 import arch.core.fupool.{ FuReq, FuResp }
 import vutils.graph.NodeDims
+import chisel3._
 import chisel3.util.DecoupledIO
 
 object SchedulerDims extends NodeDims("scheduler") {
@@ -11,7 +12,7 @@ object SchedulerDims extends NodeDims("scheduler") {
 
 trait SchedulerPolicyImpl extends SchedulerDims.POLICY.Impl {
   def elaborate(
-    exception: SchedulerExceptionReq,
+    flush: Bool,
     dispatchReq: Int => DecoupledIO[FuReq],
     fuReq: Int => DecoupledIO[FuReq],
     fuDone: Int => DecoupledIO[FuResp]

@@ -147,10 +147,9 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
 
         exceptionStatus.out.busy := csr.ctrlResp.out.busy
 
-        asyncException.out.valid             := csr.ctrlResp.out.ir.valid
-        asyncException.out.kind              := csr.ctrlResp.out.ir.kind
-        asyncException.out.target            := csr.ctrlResp.out.ir.target
-        asyncException.out.requires_csr_idle := true.B
+        asyncException.out.valid  := csr.ctrlResp.out.ir.valid
+        asyncException.out.kind   := csr.ctrlResp.out.ir.kind
+        asyncException.out.target := csr.ctrlResp.out.ir.target
 
       case _ =>
     }

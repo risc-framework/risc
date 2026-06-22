@@ -4,31 +4,26 @@ import arch.configs._
 import arch.core.bpu.BpuUpdate
 import arch.core.bru.BruResolveBundle
 import arch.core.dispatch.{ DispatchRobPacket, DispatchRobResp }
-import arch.core.flush.FlushRobReq
 import arch.core.fupool.FuResp
 import arch.core.regfile.RegfileWrite
-import vutils.graph.{ NodeConfig, NodeSelector, Node }
+import arch.core.exception.{ ExceptionRedirectReq, ExceptionSyncReq }
+import vutils.graph.Node
 import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 
 class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
-  override protected def cfg: NodeConfig = NodeConfig(
-    selector = NodeSelector(
-      RobDims.STORAGE -> p(RobStorageType)
-    )
-  )
-
-  val dispatchReq   = inDVec[DispatchRobPacket](p => p(IssueWidth))
-  val dispatchResp  = outVec[DispatchRobResp](p => p(IssueWidth))
-  val fuDone        = inDVec[FuResp](p => p(NumFUs))
-  val bruResolved   = inVVec[BruResolveBundle](p => p(NumBRUs))
-  val regfileWrite  = outVVec[RegfileWrite](p => p(CommitWidth))
-  val sbCommit      = outVVec[RobSbCommit](p => p(CommitWidth))
-  val bpuUpdate     = out[BpuUpdate]
-  val flush         = out[FlushRobReq]
-  val exceptionReq  = in[RobExceptionReq]
-  val exceptionResp = out[RobExceptionResp]
-  val debug         = out[RobDebugInfo]
+  val dispatchReq       = inDVec[DispatchRobPacket](p => p(IssueWidth))
+  val dispatchResp      = outVec[DispatchRobResp](p => p(IssueWidth))
+  val fuDone            = inDVec[FuResp](p => p(NumFUs))
+  val bruResolved       = inVVec[BruResolveBundle](p => p(NumBRUs))
+  val regfileWrite      = outVVec[RegfileWrite](p => p(CommitWidth))
+  val sbCommit          = outVVec[RobSbCommit](p => p(CommitWidth))
+  val bpuUpdate         = out[BpuUpdate]
+  val committedRedirect = outVec[ExceptionRedirectReq](p => p(CommitWidth))
+  val committedSync     = outVec[ExceptionSyncReq](p => p(CommitWidth))
+  val flush             = in[Bool]
+  val exceptionResp     = out[RobExceptionResp]
+  val debug             = out[RobDebugInfo]
 
   private val CntW = log2Ceil(p(RobSize) + 1)
 
@@ -93,11 +88,10 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       }
 
       when(done.trap_req) {
-        buffer(idx).flush_pipeline         := true.B
-        buffer(idx).flush_target           := done.trap_target
-        buffer(idx).sync_valid             := true.B
-        buffer(idx).sync_kind              := done.trap_kind
-        buffer(idx).sync_requires_csr_idle := true.B
+        buffer(idx).flush_pipeline := true.B
+        buffer(idx).flush_target   := done.trap_target
+        buffer(idx).sync_valid     := true.B
+        buffer(idx).sync_kind      := done.trap_kind
       }
     }
 
@@ -136,28 +130,27 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     val committable =
       hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
 
-    commitInfo(w).valid                  := committable
-    commitInfo(w).pop                    := committable
-    commitInfo(w).pc                     := entry.pc
-    commitInfo(w).instr                  := entry.instr
-    commitInfo(w).rd                     := entry.rd
-    commitInfo(w).rd_write               := entry.rd_write
-    commitInfo(w).data                   := entry.data
-    commitInfo(w).flush_pipeline         := entry.flush_pipeline
-    commitInfo(w).flush_target           := entry.flush_target
-    commitInfo(w).is_branch              := entry.is_branch
-    commitInfo(w).is_store               := entry.is_store
-    commitInfo(w).commit_barrier         := entry.commit_barrier
-    commitInfo(w).bpu_pred_taken         := entry.pred_taken
-    commitInfo(w).bpu_pred_target        := entry.pred_target
-    commitInfo(w).bpu_actual_taken       := entry.actual_taken
-    commitInfo(w).bpu_actual_target      := entry.actual_target
-    commitInfo(w).bpu_pht_index          := entry.pht_index
-    commitInfo(w).bpu_ghr_snapshot       := entry.ghr_snapshot
-    commitInfo(w).sq_idx                 := entry.sq_idx
-    commitInfo(w).sync_valid             := entry.sync_valid
-    commitInfo(w).sync_kind              := entry.sync_kind
-    commitInfo(w).sync_requires_csr_idle := entry.sync_requires_csr_idle
+    commitInfo(w).valid             := committable
+    commitInfo(w).pop               := committable
+    commitInfo(w).pc                := entry.pc
+    commitInfo(w).instr             := entry.instr
+    commitInfo(w).rd                := entry.rd
+    commitInfo(w).rd_write          := entry.rd_write
+    commitInfo(w).data              := entry.data
+    commitInfo(w).flush_pipeline    := entry.flush_pipeline
+    commitInfo(w).flush_target      := entry.flush_target
+    commitInfo(w).is_branch         := entry.is_branch
+    commitInfo(w).is_store          := entry.is_store
+    commitInfo(w).commit_barrier    := entry.commit_barrier
+    commitInfo(w).bpu_pred_taken    := entry.pred_taken
+    commitInfo(w).bpu_pred_target   := entry.pred_target
+    commitInfo(w).bpu_actual_taken  := entry.actual_taken
+    commitInfo(w).bpu_actual_target := entry.actual_target
+    commitInfo(w).bpu_pht_index     := entry.pht_index
+    commitInfo(w).bpu_ghr_snapshot  := entry.ghr_snapshot
+    commitInfo(w).sq_idx            := entry.sq_idx
+    commitInfo(w).sync_valid        := entry.sync_valid
+    commitInfo(w).sync_kind         := entry.sync_kind
 
     commitPops(w) := commitInfo(w).pop
 
@@ -204,35 +197,34 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       val pkt = dispatchReq.in.lanes(w).bits
       val dec = pkt.decoded
 
-      buffer(idx).valid                  := true.B
-      buffer(idx).ready                  := false.B
-      buffer(idx).pc                     := dec.pc
-      buffer(idx).instr                  := dec.instr
-      buffer(idx).rd                     := dec.rd
-      buffer(idx).rd_write               := dec.rd_write
-      buffer(idx).data                   := 0.U
-      buffer(idx).is_branch              := dec.isBru
-      buffer(idx).is_store               := dec.isStore
-      buffer(idx).commit_barrier         := dec.commit_barrier
-      buffer(idx).pred_taken             := dec.bpu_pred_taken
-      buffer(idx).pred_target            := dec.bpu_pred_target
-      buffer(idx).pht_index              := dec.bpu_pht_index
-      buffer(idx).ghr_snapshot           := dec.bpu_ghr_snapshot
-      buffer(idx).actual_taken           := false.B
-      buffer(idx).actual_target          := 0.U
-      buffer(idx).flush_pipeline         := false.B
-      buffer(idx).flush_target           := 0.U
-      buffer(idx).sq_idx                 := pkt.sq_idx
-      buffer(idx).sync_valid             := false.B
-      buffer(idx).sync_kind              := 0.U
-      buffer(idx).sync_requires_csr_idle := false.B
+      buffer(idx).valid          := true.B
+      buffer(idx).ready          := false.B
+      buffer(idx).pc             := dec.pc
+      buffer(idx).instr          := dec.instr
+      buffer(idx).rd             := dec.rd
+      buffer(idx).rd_write       := dec.rd_write
+      buffer(idx).data           := 0.U
+      buffer(idx).is_branch      := dec.isBru
+      buffer(idx).is_store       := dec.isStore
+      buffer(idx).commit_barrier := dec.commit_barrier
+      buffer(idx).pred_taken     := dec.bpu_pred_taken
+      buffer(idx).pred_target    := dec.bpu_pred_target
+      buffer(idx).pht_index      := dec.bpu_pht_index
+      buffer(idx).ghr_snapshot   := dec.bpu_ghr_snapshot
+      buffer(idx).actual_taken   := false.B
+      buffer(idx).actual_target  := 0.U
+      buffer(idx).flush_pipeline := false.B
+      buffer(idx).flush_target   := 0.U
+      buffer(idx).sq_idx         := pkt.sq_idx
+      buffer(idx).sync_valid     := false.B
+      buffer(idx).sync_kind      := 0.U
     }
 
   head  := wrapAdd(head, commitCount)
   tail  := wrapAdd(tail, enqCount)
   count := count + enqCount - commitCount
 
-  when(exceptionReq.in.flush) {
+  when(flush.in) {
     head  := 0.U
     tail  := 0.U
     count := 0.U
@@ -291,14 +283,13 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   for (w <- 0 until p(CommitWidth)) {
     val lane = commitInfo(w)
 
-    flush.out.redirect_valid(w)  := lane.pop && lane.flush_pipeline && !lane.sync_valid
-    flush.out.redirect_target(w) := lane.flush_target
+    committedRedirect.out.lanes(w).valid  := lane.pop && lane.flush_pipeline && !lane.sync_valid
+    committedRedirect.out.lanes(w).target := lane.flush_target
 
-    flush.out.sync(w).valid             := lane.pop && lane.sync_valid
-    flush.out.sync(w).kind              := lane.sync_kind
-    flush.out.sync(w).target            := lane.flush_target
-    flush.out.sync(w).pc                := lane.pc
-    flush.out.sync(w).requires_csr_idle := lane.sync_requires_csr_idle
+    committedSync.out.lanes(w).valid  := lane.pop && lane.sync_valid
+    committedSync.out.lanes(w).kind   := lane.sync_kind
+    committedSync.out.lanes(w).target := lane.flush_target
+    committedSync.out.lanes(w).pc     := lane.pc
   }
 
   exceptionResp.out.empty     := count === 0.U

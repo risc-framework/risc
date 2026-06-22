@@ -44,7 +44,3 @@ class DispatchStoreBufferResp(implicit p: Parameters) extends Bundle {
   val ready  = Bool()
   val ticket = new StoreBufferTicket
 }
-
-class DispatchExceptionReq extends Bundle {
-  val flush = Bool()
-}

@@ -15,7 +15,7 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
   val sbReq        = outVec[DispatchStoreBufferReq](p => p(IssueWidth))
   val sbResp       = inVec[DispatchStoreBufferResp](p => p(IssueWidth))
   val schedulerReq = outDVec[FuReq](p => p(IssueWidth))
-  val exception    = in[DispatchExceptionReq]
+  val flush        = in[Bool]
 
   private val laneBaseReqOk = Wire(Vec(p(IssueWidth), Bool()))
   private val lanePrefixOk  = Wire(Vec(p(IssueWidth), Bool()))
@@ -34,17 +34,15 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
     robReq.out.lanes(w).bits.decoded := dec
     robReq.out.lanes(w).bits.sq_idx  := sbResp.in.lanes(w).ticket.sq_idx
 
-    laneBaseReqOk(w) := decode.in.lanes(w).valid &&
-      dec.legal &&
-      !exception.in.flush &&
-      sbResp.in.lanes(w).ready &&
-      robReq.out.lanes(w).ready
+    laneBaseReqOk(w) := decode.in.lanes(w).valid && dec.legal && !flush.in && sbResp.in
+      .lanes(w)
+      .ready && robReq.out.lanes(w).ready
   }
 
   lanePrefixOk(0) := true.B
 
   for (w <- 1 until p(IssueWidth)) {
-    val olderLaneMayBeSkipped   = !decode.in.lanes(w - 1).valid || exception.in.flush
+    val olderLaneMayBeSkipped   = !decode.in.lanes(w - 1).valid || flush.in
     val olderLaneCanBePresented = laneBaseReqOk(w - 1)
 
     lanePrefixOk(w) := lanePrefixOk(w - 1) && (olderLaneMayBeSkipped || olderLaneCanBePresented)
@@ -99,7 +97,7 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    val consumeThisLane = exception.in.flush || schedulerReq.out.lanes(w).fire
+    val consumeThisLane = flush.in || schedulerReq.out.lanes(w).fire
 
     if (w == 0) {
       decode.in.lanes(w).ready := consumeThisLane
