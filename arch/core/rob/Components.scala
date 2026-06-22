@@ -32,11 +32,6 @@ class RobSbCommit(implicit p: Parameters) extends Bundle {
   val sq_idx   = UInt(log2Ceil(p(StoreBufferSize)).W)
 }
 
-class RobExceptionResp(implicit p: Parameters) extends Bundle {
-  val empty     = Bool()
-  val commit_pc = UInt(p(XLen).W)
-}
-
 class RobDebugInfo(implicit p: Parameters) extends Bundle {
   val commit_count   = UInt(log2Ceil(p(CommitWidth) + 1).W)
   val branch_commit  = UInt(log2Ceil(p(CommitWidth) + 1).W)

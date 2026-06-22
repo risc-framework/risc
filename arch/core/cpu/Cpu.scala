@@ -117,7 +117,6 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     flush.globalFlush          -> storeBuffer.flush,
     flush.globalFlush          -> rob.flush,
     flush.fuPoolReq            -> fuPool.exceptionReq,
-    rob.exceptionResp          -> exception.robResp,
   )
 
   debug.out.cycle_count   := cycleCount

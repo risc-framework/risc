@@ -2,7 +2,6 @@ package arch.core.exception
 
 import arch.configs._
 import arch.core.ifu.RedirectInfo
-import arch.core.rob.RobExceptionResp
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
 import chisel3.util.PriorityEncoder
@@ -19,8 +18,6 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
 
   val async     = in[ExceptionAsyncReq]
   val csrStatus = in[ExceptionCsrStatus]
-
-  val robResp = in[RobExceptionResp]
 
   val flush    = out[ExceptionFlushReq]
   val redirect = out[RedirectInfo]
@@ -56,8 +53,7 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
     redirect = redirectRaw,
     sync = syncRaw,
     async = async.in,
-    csrBusy = csrStatus.in.busy,
-    archPc = robResp.in.commit_pc
+    csrBusy = csrStatus.in.busy
   )
 
   flush.out := selected

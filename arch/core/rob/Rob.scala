@@ -23,7 +23,6 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val committedRedirect = outVec[RedirectInfo](p => p(CommitWidth))
   val committedSync     = outVec[ExceptionSyncReq](p => p(CommitWidth))
   val flush             = in[Bool]
-  val exceptionResp     = out[RobExceptionResp]
   val debug             = out[RobDebugInfo]
 
   private val CntW = log2Ceil(p(RobSize) + 1)
@@ -292,9 +291,6 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     committedSync.out.lanes(w).target := lane.flush_target
     committedSync.out.lanes(w).pc     := lane.pc
   }
-
-  exceptionResp.out.empty     := count === 0.U
-  exceptionResp.out.commit_pc := commitInfo(0).pc
 
   debug.out.commit_count  := commitCount
   debug.out.branch_commit := PopCount(

@@ -96,7 +96,6 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
     sync: ExceptionSyncReq,
     async: ExceptionAsyncReq,
     csrBusy: Bool,
-    archPc: UInt
   )(implicit p: Parameters): ExceptionFlushReq = {
     val ctx      = Wire(new ExceptionHandleContext)
     val raw      = Wire(Vec(3, new ExceptionRawReq))
@@ -108,7 +107,7 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
     val best2    = Wire(new ExceptionResolvedReq)
     val out      = Wire(new ExceptionFlushReq)
 
-    ctx.arch_pc  := archPc
+    ctx.arch_pc  := sync.pc
     ctx.csr_busy := csrBusy
 
     raw(0)        := 0.U.asTypeOf(new ExceptionRawReq)
@@ -116,7 +115,7 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
     raw(0).source := ExceptionSource.REDIRECT
     raw(0).kind   := redirectKind
     raw(0).target := redirect.target
-    raw(0).pc     := archPc
+    raw(0).pc     := 0.U(p(XLen).W)
 
     raw(1)        := 0.U.asTypeOf(new ExceptionRawReq)
     raw(1).valid  := sync.valid
@@ -130,7 +129,7 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
     raw(2).source := ExceptionSource.ASYNC
     raw(2).kind   := async.kind
     raw(2).target := async.target
-    raw(2).pc     := archPc
+    raw(2).pc     := 0.U(p(XLen).W)
 
     for (i <- 0 until 3) {
       resolved(i) := resolve(raw(i), ctx)
@@ -153,7 +152,7 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
     out.source  := best2.source
     out.kind    := best2.kind
     out.cause   := best2.cause
-    out.arch_pc := archPc
+    out.arch_pc := best2.pc
 
     out.trap_update.valid  := best2.valid && best2.write_csr
     out.trap_update.is_ret := best2.is_ret
