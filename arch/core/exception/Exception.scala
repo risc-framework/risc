@@ -14,11 +14,8 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
     )
   )
 
-  val committedSync = inVec[ExceptionSyncReq](p => p(CommitWidth))
-  val sync          = out[ExceptionSyncReq]
-
+  val committedSync     = inVec[ExceptionSyncReq](p => p(CommitWidth))
   val committedRedirect = inVec[ExceptionRedirectReq](p => p(CommitWidth))
-  val redirect          = out[ExceptionRedirectReq]
 
   val async     = in[ExceptionAsyncReq]
   val csrStatus = in[ExceptionCsrStatus]
@@ -26,11 +23,11 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   val ifuResp = in[IfuExceptionResp]
   val robResp = in[RobExceptionResp]
 
-  val flush = out[ExceptionFlushReq]
-  val debug = out[ExceptionDebugInfo]
+  val flush    = out[ExceptionFlushReq]
+  val redirect = out[ExceptionRedirectReq]
+  val debug    = out[ExceptionDebugInfo]
 
   private val isaImpl = ExceptionIsaFactory.select(cfg)
-  private val archPc  = robResp.in.commit_pc
 
   // Sync logic
   private val syncValidVec = VecInit(
@@ -39,10 +36,11 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   private val syncAny      = syncValidVec.asUInt.orR
   private val syncSlot     = PriorityEncoder(syncValidVec.asUInt)
 
-  sync.out.valid  := syncAny
-  sync.out.kind   := committedSync.in.lanes(syncSlot).kind
-  sync.out.target := committedSync.in.lanes(syncSlot).target
-  sync.out.pc     := committedSync.in.lanes(syncSlot).pc
+  private val syncRaw = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
+  syncRaw.valid  := syncAny
+  syncRaw.kind   := committedSync.in.lanes(syncSlot).kind
+  syncRaw.target := committedSync.in.lanes(syncSlot).target
+  syncRaw.pc     := committedSync.in.lanes(syncSlot).pc
 
   // Redirect logic
   private val redirectValidVec = VecInit(
@@ -51,18 +49,23 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   private val redirectAny      = redirectValidVec.asUInt.orR
   private val redirectSlot     = PriorityEncoder(redirectValidVec.asUInt)
 
-  redirect.out.valid  := !syncAny && redirectAny
-  redirect.out.target := committedRedirect.in.lanes(redirectSlot).target
+  private val redirectRaw = WireDefault(0.U.asTypeOf(new ExceptionRedirectReq))
+  redirectRaw.valid  := !syncAny && redirectAny
+  redirectRaw.target := committedRedirect.in.lanes(redirectSlot).target
 
+  // Finalized selections
   private val selected = isaImpl.select(
-    redirect = redirect.out,
-    sync = sync.out,
+    redirect = redirectRaw,
+    sync = syncRaw,
     async = async.in,
     csrBusy = csrStatus.in.busy,
-    archPc = archPc
+    archPc = robResp.in.commit_pc
   )
 
   flush.out := selected
+
+  redirect.out.valid  := flush.out.valid
+  redirect.out.target := flush.out.target
 
   debug.out.flush_valid  := selected.valid
   debug.out.flush_target := selected.target

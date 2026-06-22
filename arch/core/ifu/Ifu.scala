@@ -3,6 +3,7 @@ package arch.core.ifu
 import arch.configs._
 import arch.core.bpu.{ BpuIfuReq, BpuIfuResp }
 import arch.core.ibuffer.{ IBufferEntry, IBufferStatus, IBufferFlush }
+import arch.core.exception.ExceptionRedirectReq
 import vcache.{ CacheReadReq, CacheResp }
 import vutils.graph.Node
 import chisel3._
@@ -20,15 +21,15 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   val bpuReq  = out[BpuIfuReq]
   val bpuResp = in[BpuIfuResp]
 
-  val issued        = outDVec[IBufferEntry](p => p(IssueWidth))
+  val redirect = in[ExceptionRedirectReq]
+  val issued   = outDVec[IBufferEntry](p => p(IssueWidth))
+
   val ibufferStatus = in[IBufferStatus]
   val ibufferFlush  = out[IBufferFlush]
 
-  val exceptionReq  = in[IfuExceptionReq]
   val exceptionResp = out[IfuExceptionResp]
 
-  private val pc         = RegInit(p(ResetVector).U(p(XLen).W))
-  private val doRedirect = exceptionReq.in.redirect
+  private val pc = RegInit(p(ResetVector).U(p(XLen).W))
 
   class FetchMeta extends Bundle {
     val pc               = UInt(p(XLen).W)
@@ -47,7 +48,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   private val respFire      = icacheResp.in.valid && icacheResp.in.ready
   private val nextDropCount = dropCount + pendingReqs
   private val isDropping    = respFire && nextDropCount > 0.U
-  private val isValidResp   = dropCount === 0.U && !doRedirect
+  private val isValidResp   = dropCount === 0.U && !redirect.in.valid
 
   private val alignBytes  = p(IssueWidth) * p(BytesPerInstr)
   private val alignMask   = ~(alignBytes - 1).U(p(XLen).W)
@@ -78,7 +79,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   private val reqTakenSlot   = PriorityEncoder(reqTakenCands.asUInt)
   private val reqTakenTarget = Mux(reqHasTaken, bpuResp.in.target(reqTakenSlot), nextBlockPc)
 
-  when(doRedirect) {
+  when(redirect.in.valid) {
     dropCount   := nextDropCount - Mux(isDropping, 1.U, 0.U)
     pendingReqs := 0.U
   }.otherwise {
@@ -100,11 +101,11 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
     bpuReq.out.query_pc(w) := alignedPc + (w * p(PCStep)).U
 
   bpuReq.out.advance_valid := reqFire
-  bpuReq.out.flush         := doRedirect
+  bpuReq.out.flush         := redirect.in.valid
 
-  metaQ.io.flush.get := doRedirect
+  metaQ.io.flush.get := redirect.in.valid
 
-  icacheReq.out.valid     := metaQ.io.enq.ready && ibufferStatus.in.ready && !doRedirect
+  icacheReq.out.valid     := metaQ.io.enq.ready && ibufferStatus.in.ready && !redirect.in.valid
   icacheReq.out.bits.addr := alignedPc
 
   icacheResp.in.ready := ibufferStatus.in.ready
@@ -118,8 +119,8 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   metaQ.io.enq.bits.bpu_pht_index    := bpuResp.in.pht_index
   metaQ.io.enq.bits.bpu_ghr_snapshot := bpuResp.in.ghr_snapshot
 
-  when(doRedirect) {
-    pc := exceptionReq.in.target
+  when(redirect.in.valid) {
+    pc := redirect.in.target
   }.elsewhen(reqFire) {
     pc := reqTakenTarget
   }
@@ -153,5 +154,5 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
     issued.out.lanes(w).bits.bpu_ghr_snapshot := metaQ.io.deq.bits.bpu_ghr_snapshot(w)
   }
 
-  ibufferFlush.out.flush := doRedirect
+  ibufferFlush.out.flush := redirect.in.valid
 }

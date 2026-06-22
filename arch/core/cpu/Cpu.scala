@@ -111,7 +111,7 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     fuPool.asyncException      -> exception.async,
     fuPool.exceptionStatus     -> exception.csrStatus,
     exception.flush            -> flush.exception,
-    flush.ifuReq               -> ifu.exceptionReq,
+    exception.redirect         -> ifu.redirect,
     ifu.exceptionResp          -> exception.ifuResp,
     flush.globalFlush          -> dispatch.flush,
     flush.globalFlush          -> scheduler.flush,
