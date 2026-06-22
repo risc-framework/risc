@@ -4,153 +4,74 @@ import arch.configs._
 import arch.core.ifu.RedirectInfo
 import vutils.graph.NodeDims
 import chisel3._
-import chisel3.util.BitPat
 
 object ExceptionDims extends NodeDims("exception") {
   val ISA = dim("isa")
 }
 
-trait ExceptionHandleEntry {
-  def kind: BitPat
-  def cause: BigInt
-  def priority: Int
-  def writeCsr: Boolean
-  def isRet: Boolean
-  def isInterrupt: Boolean
-  def requiresCsrIdle: Boolean
-
-  def causeValue(causeWidth: Int): BigInt =
-    if (isInterrupt) (BigInt(1) << (causeWidth - 1)) | cause else cause
-
-  def handle(req: ExceptionRawReq, ctx: ExceptionHandleContext, causeWidth: Int)(implicit
-    p: Parameters
-  ): ExceptionResolvedReq = {
-    val out = Wire(new ExceptionResolvedReq)
-
-    out.valid             := req.valid
-    out.source            := req.source
-    out.kind              := req.kind
-    out.target            := req.target
-    out.pc                := Mux(isInterrupt.B, ctx.arch_pc, req.pc)
-    out.cause             := causeValue(causeWidth).U(causeWidth.W)
-    out.priority          := priority.U
-    out.write_csr         := writeCsr.B
-    out.is_ret            := isRet.B
-    out.requires_csr_idle := requiresCsrIdle.B
-
-    out
-  }
-}
-
 trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
   def kindWidth: Int
   def causeWidth: Int
-  def entries: Seq[ExceptionHandleEntry]
-  def redirectKind: UInt
 
-  def kindValue(kind: BitPat): UInt =
-    kind.value.U(kindWidth.W)
+  def redirectEntries: Seq[ExceptionRedirectEntry]
+  def syncEntries: Seq[ExceptionSyncEntry]
+  def asyncEntries: Seq[ExceptionAsyncEntry]
 
-  private def resolve(req: ExceptionRawReq, ctx: ExceptionHandleContext)(implicit
-    p: Parameters
-  ): ExceptionResolvedReq = {
-    val out = Wire(new ExceptionResolvedReq)
-
-    out := 0.U.asTypeOf(new ExceptionResolvedReq)
-
-    for (entry <- entries)
-      when(req.kind === kindValue(entry.kind)) {
-        out := entry.handle(req, ctx, causeWidth)
-      }
-
-    out
-  }
-
-  private def chooseBetter(lhs: ExceptionResolvedReq, rhs: ExceptionResolvedReq)(implicit
-    p: Parameters
-  ): ExceptionResolvedReq = {
-    val out     = Wire(new ExceptionResolvedReq)
-    val takeRhs = rhs.valid && (!lhs.valid || rhs.priority < lhs.priority)
-
-    out := lhs
-
-    when(takeRhs) {
-      out := rhs
-    }
-
-    out
-  }
-
-  def select(
-    redirect: RedirectInfo,
-    sync: ExceptionSyncReq,
-    async: ExceptionAsyncReq,
-    csrBusy: Bool,
-  )(implicit p: Parameters): ExceptionFlushReq = {
-    val ctx      = Wire(new ExceptionHandleContext)
-    val raw      = Wire(Vec(3, new ExceptionRawReq))
-    val resolved = Wire(Vec(3, new ExceptionResolvedReq))
-    val gated    = Wire(Vec(3, new ExceptionResolvedReq))
-    val invalid  = Wire(new ExceptionResolvedReq)
-    val best0    = Wire(new ExceptionResolvedReq)
-    val best1    = Wire(new ExceptionResolvedReq)
-    val best2    = Wire(new ExceptionResolvedReq)
+  private def chooseBetter(
+    lhs: ExceptionFlushReq,
+    lhsPriority: UInt,
+    rhs: ExceptionFlushReq,
+    rhsPriority: UInt
+  )(implicit p: Parameters): (ExceptionFlushReq, UInt) = {
     val out      = Wire(new ExceptionFlushReq)
+    val priority = Wire(UInt(8.W))
+    val takeRhs  = rhs.valid && (!lhs.valid || rhsPriority < lhsPriority)
 
-    ctx.arch_pc  := sync.pc
-    ctx.csr_busy := csrBusy
+    out      := Mux(takeRhs, rhs, lhs)
+    priority := Mux(takeRhs, rhsPriority, lhsPriority)
 
-    raw(0)        := 0.U.asTypeOf(new ExceptionRawReq)
-    raw(0).valid  := redirect.valid
-    raw(0).source := ExceptionSource.REDIRECT
-    raw(0).kind   := redirectKind
-    raw(0).target := redirect.target
-    raw(0).pc     := 0.U(p(XLen).W)
+    (out, priority)
+  }
 
-    raw(1)        := 0.U.asTypeOf(new ExceptionRawReq)
-    raw(1).valid  := sync.valid
-    raw(1).source := ExceptionSource.SYNC
-    raw(1).kind   := sync.kind
-    raw(1).target := sync.target
-    raw(1).pc     := sync.pc
+  def handleRedirect(req: RedirectInfo)(implicit p: Parameters): ExceptionFlushReq = {
+    val invalid = WireDefault(0.U.asTypeOf(new ExceptionFlushReq))
+    val init    = (invalid, 255.U(8.W))
 
-    raw(2)        := 0.U.asTypeOf(new ExceptionRawReq)
-    raw(2).valid  := async.valid
-    raw(2).source := ExceptionSource.ASYNC
-    raw(2).kind   := async.kind
-    raw(2).target := async.target
-    raw(2).pc     := 0.U(p(XLen).W)
-
-    for (i <- 0 until 3) {
-      resolved(i) := resolve(raw(i), ctx)
-      gated(i)    := resolved(i)
-
-      when(resolved(i).requires_csr_idle && csrBusy) {
-        gated(i).valid := false.B
+    redirectEntries
+      .foldLeft(init) { case ((best, bestPriority), entry) =>
+        val candidate = entry.handle(req, kindWidth, causeWidth)
+        chooseBetter(best, bestPriority, candidate, entry.priority.U(8.W))
       }
-    }
+      ._1
+  }
 
-    invalid := 0.U.asTypeOf(new ExceptionResolvedReq)
-    best0   := chooseBetter(invalid, gated(0))
-    best1   := chooseBetter(best0, gated(1))
-    best2   := chooseBetter(best1, gated(2))
+  def handleSync(
+    req: ExceptionSyncReq,
+    csrBusy: Bool
+  )(implicit p: Parameters): ExceptionFlushReq = {
+    val invalid = WireDefault(0.U.asTypeOf(new ExceptionFlushReq))
+    val init    = (invalid, 255.U(8.W))
 
-    out := 0.U.asTypeOf(new ExceptionFlushReq)
+    syncEntries
+      .foldLeft(init) { case ((best, bestPriority), entry) =>
+        val candidate = entry.handle(req, csrBusy, kindWidth, causeWidth)
+        chooseBetter(best, bestPriority, candidate, entry.priority.U(8.W))
+      }
+      ._1
+  }
 
-    out.valid   := best2.valid
-    out.target  := best2.target
-    out.source  := best2.source
-    out.kind    := best2.kind
-    out.cause   := best2.cause
-    out.arch_pc := best2.pc
+  def handleAsync(req: ExceptionAsyncReq, archPc: UInt, csrBusy: Bool)(implicit
+    p: Parameters
+  ): ExceptionFlushReq = {
+    val invalid = WireDefault(0.U.asTypeOf(new ExceptionFlushReq))
+    val init    = (invalid, 255.U(8.W))
 
-    out.trap_update.valid  := best2.valid && best2.write_csr
-    out.trap_update.is_ret := best2.is_ret
-    out.trap_update.pc     := best2.pc
-    out.trap_update.kind   := best2.kind
-    out.trap_update.cause  := best2.cause
-
-    out
+    asyncEntries
+      .foldLeft(init) { case ((best, bestPriority), entry) =>
+        val candidate = entry.handle(req, archPc, csrBusy, kindWidth, causeWidth)
+        chooseBetter(best, bestPriority, candidate, entry.priority.U(8.W))
+      }
+      ._1
   }
 }
 
