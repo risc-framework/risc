@@ -1,7 +1,7 @@
 package arch.core.exception
 
 import arch.configs._
-import arch.core.ifu.IfuExceptionResp
+import arch.core.ifu.RedirectInfo
 import arch.core.rob.RobExceptionResp
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
@@ -15,16 +15,15 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   )
 
   val committedSync     = inVec[ExceptionSyncReq](p => p(CommitWidth))
-  val committedRedirect = inVec[ExceptionRedirectReq](p => p(CommitWidth))
+  val committedRedirect = inVec[RedirectInfo](p => p(CommitWidth))
 
   val async     = in[ExceptionAsyncReq]
   val csrStatus = in[ExceptionCsrStatus]
 
-  val ifuResp = in[IfuExceptionResp]
   val robResp = in[RobExceptionResp]
 
   val flush    = out[ExceptionFlushReq]
-  val redirect = out[ExceptionRedirectReq]
+  val redirect = out[RedirectInfo]
 
   private val isaImpl = ExceptionIsaFactory.select(cfg)
 
@@ -48,7 +47,7 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   private val redirectAny      = redirectValidVec.asUInt.orR
   private val redirectSlot     = PriorityEncoder(redirectValidVec.asUInt)
 
-  private val redirectRaw = WireDefault(0.U.asTypeOf(new ExceptionRedirectReq))
+  private val redirectRaw = WireDefault(0.U.asTypeOf(new RedirectInfo))
   redirectRaw.valid  := !syncAny && redirectAny
   redirectRaw.target := committedRedirect.in.lanes(redirectSlot).target
 

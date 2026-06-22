@@ -1,6 +1,7 @@
 package arch.core.exception
 
 import arch.configs._
+import arch.core.ifu.RedirectInfo
 import vutils.graph.NodeDims
 import chisel3._
 import chisel3.util.BitPat
@@ -91,7 +92,7 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
   }
 
   def select(
-    redirect: ExceptionRedirectReq,
+    redirect: RedirectInfo,
     sync: ExceptionSyncReq,
     async: ExceptionAsyncReq,
     csrBusy: Bool,

@@ -2,11 +2,12 @@ package arch.core.rob
 
 import arch.configs._
 import arch.core.bpu.BpuUpdate
+import arch.core.ifu.RedirectInfo
 import arch.core.bru.BruResolveBundle
 import arch.core.dispatch.{ DispatchRobPacket, DispatchRobResp }
 import arch.core.fupool.FuResp
 import arch.core.regfile.RegfileWrite
-import arch.core.exception.{ ExceptionRedirectReq, ExceptionSyncReq }
+import arch.core.exception.ExceptionSyncReq
 import vutils.graph.Node
 import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
@@ -19,7 +20,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val regfileWrite      = outVVec[RegfileWrite](p => p(CommitWidth))
   val sbCommit          = outVVec[RobSbCommit](p => p(CommitWidth))
   val bpuUpdate         = out[BpuUpdate]
-  val committedRedirect = outVec[ExceptionRedirectReq](p => p(CommitWidth))
+  val committedRedirect = outVec[RedirectInfo](p => p(CommitWidth))
   val committedSync     = outVec[ExceptionSyncReq](p => p(CommitWidth))
   val flush             = in[Bool]
   val exceptionResp     = out[RobExceptionResp]

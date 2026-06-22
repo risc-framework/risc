@@ -8,11 +8,6 @@ object ExceptionSource extends ChiselEnum {
   val NONE, REDIRECT, SYNC, ASYNC = Value
 }
 
-class ExceptionRedirectReq(implicit p: Parameters) extends Bundle {
-  val valid  = Bool()
-  val target = UInt(p(XLen).W)
-}
-
 class ExceptionSyncReq(implicit p: Parameters) extends Bundle {
   private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
   private val isa = ExceptionIsaFactory.select(cfg)

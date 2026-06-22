@@ -3,7 +3,6 @@ package arch.core.ifu
 import arch.configs._
 import arch.core.bpu.{ BpuIfuReq, BpuIfuResp }
 import arch.core.ibuffer.{ IBufferEntry, IBufferStatus }
-import arch.core.exception.ExceptionRedirectReq
 import vcache.{ CacheReadReq, CacheResp }
 import vutils.graph.Node
 import chisel3._
@@ -22,8 +21,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   val bpuResp = in[BpuIfuResp]
 
   val ibufferStatus = in[IBufferStatus]
-  val redirect      = in[ExceptionRedirectReq]
-  val exceptionResp = out[IfuExceptionResp]
+  val redirect      = in[RedirectInfo]
   val issued        = outDVec[IBufferEntry](p => p(IssueWidth))
 
   private val pc = RegInit(p(ResetVector).U(p(XLen).W))
@@ -106,8 +104,6 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   icacheReq.out.bits.addr := alignedPc
 
   icacheResp.in.ready := ibufferStatus.in.ready
-
-  exceptionResp.out.fetch_pc := pc
 
   metaQ.io.enq.valid                 := reqFire
   metaQ.io.enq.bits.pc               := pc
