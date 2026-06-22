@@ -97,18 +97,3 @@ class ExceptionFlushReq(implicit p: Parameters) extends Bundle {
   val arch_pc     = UInt(p(XLen).W)
   val trap_update = new ExceptionTrapUpdate
 }
-
-class ExceptionDebugInfo(implicit p: Parameters) extends Bundle {
-  private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
-  private val isa = ExceptionIsaFactory.select(cfg)
-
-  val flush_valid  = Bool()
-  val flush_target = UInt(p(XLen).W)
-  val source       = ExceptionSource()
-  val kind         = UInt(isa.kindWidth.W)
-  val cause        = UInt(isa.causeWidth.W)
-  val arch_pc      = UInt(p(XLen).W)
-  val redirect     = Bool()
-  val sync         = Bool()
-  val async        = Bool()
-}

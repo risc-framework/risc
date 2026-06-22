@@ -13,10 +13,6 @@ class IBufferEntry(implicit p: Parameters) extends Bundle {
   val bpu_ghr_snapshot = UInt(p(GShareGhrWidth).W)
 }
 
-class IBufferFlush extends Bundle {
-  val flush = Bool()
-}
-
 class IBufferStatus(implicit p: Parameters) extends Bundle {
   val ready = Bool()
   val empty = Bool()

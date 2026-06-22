@@ -77,7 +77,6 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     bpu.ifuResp                -> ifu.bpuResp,
     rob.bpuUpdate              -> bpu.robUpdate,
     ifu.issued                 -> ibuffer.enq,
-    ifu.ibufferFlush           -> ibuffer.flush,
     ibuffer.status             -> ifu.ibufferStatus,
     ibuffer.deq                -> decode.issued,
     decode.dispatch            -> dispatch.decode,
@@ -113,6 +112,7 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     exception.flush            -> flush.exception,
     exception.redirect         -> ifu.redirect,
     ifu.exceptionResp          -> exception.ifuResp,
+    flush.globalFlush          -> ibuffer.flush,
     flush.globalFlush          -> dispatch.flush,
     flush.globalFlush          -> scheduler.flush,
     flush.globalFlush          -> storeBuffer.flush,
@@ -146,7 +146,7 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   debug.out.l1_dcache_access := l1DCache.upperResp.out.fire
   debug.out.l1_dcache_miss   := l1DCache.upperResp.out.fire && !l1DCache.upperResp.out.bits.hit
 
-  debug.out.flush_cycle    := exception.debug.out.flush_valid
+  debug.out.flush_cycle    := flush.globalFlush.out
   debug.out.bpu_mispredict := rob.debug.out.bpu_mispredict
   debug.out.branch_commit  := rob.debug.out.branch_commit
   debug.out.rob_empty      := rob.debug.out.empty

@@ -25,7 +25,6 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
 
   val flush    = out[ExceptionFlushReq]
   val redirect = out[ExceptionRedirectReq]
-  val debug    = out[ExceptionDebugInfo]
 
   private val isaImpl = ExceptionIsaFactory.select(cfg)
 
@@ -66,14 +65,4 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
 
   redirect.out.valid  := flush.out.valid
   redirect.out.target := flush.out.target
-
-  debug.out.flush_valid  := selected.valid
-  debug.out.flush_target := selected.target
-  debug.out.source       := selected.source
-  debug.out.kind         := selected.kind
-  debug.out.cause        := selected.cause
-  debug.out.arch_pc      := selected.arch_pc
-  debug.out.redirect     := selected.source === ExceptionSource.REDIRECT
-  debug.out.sync         := selected.source === ExceptionSource.SYNC
-  debug.out.async        := selected.source === ExceptionSource.ASYNC
 }

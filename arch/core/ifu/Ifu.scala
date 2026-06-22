@@ -2,7 +2,7 @@ package arch.core.ifu
 
 import arch.configs._
 import arch.core.bpu.{ BpuIfuReq, BpuIfuResp }
-import arch.core.ibuffer.{ IBufferEntry, IBufferStatus, IBufferFlush }
+import arch.core.ibuffer.{ IBufferEntry, IBufferStatus }
 import arch.core.exception.ExceptionRedirectReq
 import vcache.{ CacheReadReq, CacheResp }
 import vutils.graph.Node
@@ -21,13 +21,10 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   val bpuReq  = out[BpuIfuReq]
   val bpuResp = in[BpuIfuResp]
 
-  val redirect = in[ExceptionRedirectReq]
-  val issued   = outDVec[IBufferEntry](p => p(IssueWidth))
-
   val ibufferStatus = in[IBufferStatus]
-  val ibufferFlush  = out[IBufferFlush]
-
+  val redirect      = in[ExceptionRedirectReq]
   val exceptionResp = out[IfuExceptionResp]
+  val issued        = outDVec[IBufferEntry](p => p(IssueWidth))
 
   private val pc = RegInit(p(ResetVector).U(p(XLen).W))
 
@@ -153,6 +150,4 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
     issued.out.lanes(w).bits.bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)
     issued.out.lanes(w).bits.bpu_ghr_snapshot := metaQ.io.deq.bits.bpu_ghr_snapshot(w)
   }
-
-  ibufferFlush.out.flush := redirect.in.valid
 }
