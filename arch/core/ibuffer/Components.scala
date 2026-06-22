@@ -18,8 +18,8 @@ class IBufferFlush extends Bundle {
 }
 
 class IBufferStatus(implicit p: Parameters) extends Bundle {
-  val enq_ready = Bool()
-  val empty     = Bool()
-  val full      = Bool()
-  val count     = UInt(log2Ceil(p(IBufferSize) + 1).W)
+  val ready = Bool()
+  val empty = Bool()
+  val full  = Bool()
+  val count = UInt(log2Ceil(p(IBufferSize) + 1).W)
 }

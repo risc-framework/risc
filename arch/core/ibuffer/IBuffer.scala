@@ -64,8 +64,8 @@ class IBuffer(implicit p: Parameters) extends Node[Parameters]("ibuffer") {
     tail  := 0.U
   }
 
-  status.out.enq_ready := Seq.tabulate(p(IssueWidth))(w => enq.in.lanes(w).ready).reduce(_ || _)
-  status.out.empty     := count === 0.U
-  status.out.full      := count === p(IBufferSize).U
-  status.out.count     := count
+  status.out.ready := Seq.tabulate(p(IssueWidth))(w => enq.in.lanes(w).ready).reduce(_ || _)
+  status.out.empty := count === 0.U
+  status.out.full  := count === p(IBufferSize).U
+  status.out.count := count
 }
