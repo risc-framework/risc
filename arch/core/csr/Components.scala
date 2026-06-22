@@ -61,7 +61,6 @@ class CsrCtrlReq(implicit p: Parameters) extends Bundle {
   val cycle       = UInt(64.W)
   val instret     = UInt(64.W)
   val irq         = new InterruptLines
-  val arch_pc     = UInt(p(XLen).W)
   val trap_update = new ExceptionTrapUpdate
 }
 

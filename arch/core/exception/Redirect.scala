@@ -14,12 +14,11 @@ trait ExceptionRedirectEntry {
   ): ExceptionFlushReq = {
     val out = WireDefault(0.U.asTypeOf(new ExceptionFlushReq))
 
-    out.valid   := req.valid
-    out.target  := req.target
-    out.source  := ExceptionSource.REDIRECT
-    out.kind    := kind.value.U(kindWidth.W)
-    out.cause   := 0.U(causeWidth.W)
-    out.arch_pc := 0.U
+    out.valid  := req.valid
+    out.target := req.target
+    out.source := ExceptionSource.REDIRECT
+    out.kind   := kind.value.U(kindWidth.W)
+    out.cause  := 0.U(causeWidth.W)
 
     out
   }

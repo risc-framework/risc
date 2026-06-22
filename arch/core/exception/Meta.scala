@@ -60,7 +60,7 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
       ._1
   }
 
-  def handleAsync(req: ExceptionAsyncReq, archPc: UInt, csrBusy: Bool)(implicit
+  def handleAsync(req: ExceptionAsyncReq, csrBusy: Bool)(implicit
     p: Parameters
   ): ExceptionFlushReq = {
     val invalid = WireDefault(0.U.asTypeOf(new ExceptionFlushReq))
@@ -68,7 +68,7 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
 
     asyncEntries
       .foldLeft(init) { case ((best, bestPriority), entry) =>
-        val candidate = entry.handle(req, archPc, csrBusy, kindWidth, causeWidth)
+        val candidate = entry.handle(req, csrBusy, kindWidth, causeWidth)
         chooseBetter(best, bestPriority, candidate, entry.priority.U(8.W))
       }
       ._1

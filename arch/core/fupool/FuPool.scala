@@ -142,7 +142,6 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
         csr.ctrlReq.in.cycle       := cpu.in.cycle
         csr.ctrlReq.in.instret     := cpu.in.instret
         csr.ctrlReq.in.irq         := cpu.in.irq
-        csr.ctrlReq.in.arch_pc     := exceptionReq.in.arch_pc
         csr.ctrlReq.in.trap_update := exceptionReq.in.trap_update
 
         exceptionStatus.out.busy := csr.ctrlResp.out.busy

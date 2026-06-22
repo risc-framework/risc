@@ -15,6 +15,5 @@ class Flush(implicit p: Parameters) extends Node[Parameters]("flush") {
   globalFlush.out := exception.in.valid
 
   fuPoolReq.out.flush       := exception.in.valid
-  fuPoolReq.out.arch_pc     := exception.in.arch_pc
   fuPoolReq.out.trap_update := exception.in.trap_update
 }

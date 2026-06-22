@@ -25,6 +25,7 @@ class ExceptionAsyncReq(implicit p: Parameters) extends Bundle {
   val valid  = Bool()
   val kind   = UInt(isa.kindWidth.W)
   val target = UInt(p(XLen).W)
+  val pc     = UInt(p(XLen).W)
 }
 
 class ExceptionCsrStatus extends Bundle {
@@ -44,7 +45,6 @@ class ExceptionTrapUpdate(implicit p: Parameters) extends Bundle {
 
 class ExceptionCsrReq(implicit p: Parameters) extends Bundle {
   val flush       = Bool()
-  val arch_pc     = UInt(p(XLen).W)
   val trap_update = new ExceptionTrapUpdate
 }
 
@@ -57,6 +57,5 @@ class ExceptionFlushReq(implicit p: Parameters) extends Bundle {
   val source      = ExceptionSource()
   val kind        = UInt(isa.kindWidth.W)
   val cause       = UInt(isa.causeWidth.W)
-  val arch_pc     = UInt(p(XLen).W)
   val trap_update = new ExceptionTrapUpdate
 }

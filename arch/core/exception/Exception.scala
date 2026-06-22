@@ -47,7 +47,7 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
 
   private val syncFlush     = isaImpl.handleSync(syncReq, csrStatus.in.busy)
   private val redirectFlush = isaImpl.handleRedirect(redirectReq)
-  private val asyncFlush    = isaImpl.handleAsync(async.in, syncReq.pc, csrStatus.in.busy)
+  private val asyncFlush    = isaImpl.handleAsync(async.in, csrStatus.in.busy)
 
   flush.out := Mux(
     syncFlush.valid,

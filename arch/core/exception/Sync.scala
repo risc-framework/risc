@@ -22,12 +22,11 @@ trait ExceptionSyncEntry {
     val allowed    = matches(req, kindWidth) && !(requiresCsrIdle.B && csrBusy)
     val causeValue = cause.U(causeWidth.W)
 
-    out.valid   := allowed
-    out.target  := req.target
-    out.source  := ExceptionSource.SYNC
-    out.kind    := req.kind
-    out.cause   := causeValue
-    out.arch_pc := req.pc
+    out.valid  := allowed
+    out.target := req.target
+    out.source := ExceptionSource.SYNC
+    out.kind   := req.kind
+    out.cause  := causeValue
 
     out.trap_update.valid  := allowed && writeCsr.B
     out.trap_update.is_ret := isRet.B
