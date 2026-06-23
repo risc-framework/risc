@@ -78,8 +78,8 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     ifu.issued                 -> ibuffer.enq,
     ibuffer.status             -> ifu.ibufferStatus,
     ibuffer.deq                -> decode.issued,
-    decode.dispatch            -> dispatch.decode,
-    dispatch.schedulerReq      -> scheduler.dispatchReq,
+    decode.decoded             -> dispatch.decoded,
+    dispatch.dispatched        -> scheduler.dispatched,
     dispatch.rs1Read           -> regfile.rs1Read,
     dispatch.rs2Read           -> regfile.rs2Read,
     regfile.rs1Data            -> dispatch.rs1Data,
@@ -154,13 +154,13 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   debug.out.branch_commit  := rob.debug.out.branch_commit
   debug.out.rob_empty      := rob.debug.out.empty
   debug.out.issue_count    := PopCount(
-    Seq.tabulate(p(IssueWidth))(w => dispatch.schedulerReq.out.lanes(w).fire)
+    Seq.tabulate(p(IssueWidth))(w => dispatch.dispatched.out.lanes(w).fire)
   )
   debug.out.commit_count   := rob.debug.out.commit_count
 
   debug.out.frontend_stall := Seq
     .tabulate(p(IssueWidth))(w =>
-      decode.dispatch.out.lanes(w).valid && !decode.dispatch.out.lanes(w).ready
+      decode.decoded.out.lanes(w).valid && !decode.decoded.out.lanes(w).ready
     )
     .reduce(_ || _)
 

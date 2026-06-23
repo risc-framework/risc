@@ -12,16 +12,16 @@ class Scheduler(implicit p: Parameters) extends Node[Parameters]("scheduler") {
     )
   )
 
-  val flush       = in[Bool]
-  val dispatchReq = inDVec[FuReq](p => p(IssueWidth))
-  val fuReq       = outDVec[FuReq](p => p(NumFUs))
-  val fuDone      = inDVec[FuResp](p => p(NumFUs))
+  val flush      = in[Bool]
+  val dispatched = inDVec[FuReq](p => p(IssueWidth))
+  val fuReq      = outDVec[FuReq](p => p(NumFUs))
+  val fuDone     = inDVec[FuResp](p => p(NumFUs))
 
   private val policy = SchedulerPolicyFactory.select(cfg)
 
   policy.elaborate(
     flush.in,
-    w => dispatchReq.in.lanes(w),
+    w => dispatched.in.lanes(w),
     i => fuReq.out.lanes(i),
     i => fuDone.in.lanes(i)
   )

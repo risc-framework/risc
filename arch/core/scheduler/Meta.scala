@@ -13,7 +13,7 @@ object SchedulerDims extends NodeDims("scheduler") {
 trait SchedulerPolicyImpl extends SchedulerDims.POLICY.Impl {
   def elaborate(
     flush: Bool,
-    dispatchReq: Int => DecoupledIO[FuReq],
+    dispatched: Int => DecoupledIO[FuReq],
     fuReq: Int => DecoupledIO[FuReq],
     fuDone: Int => DecoupledIO[FuResp]
   )(implicit p: Parameters): Unit

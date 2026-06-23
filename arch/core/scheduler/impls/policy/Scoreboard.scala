@@ -13,7 +13,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
 
     override def elaborate(
       flush: Bool,
-      dispatchReq: Int => DecoupledIO[FuReq],
+      dispatched: Int => DecoupledIO[FuReq],
       fuReq: Int => DecoupledIO[FuReq],
       fuDone: Int => DecoupledIO[FuResp]
     )(implicit p: Parameters): Unit = {
@@ -27,7 +27,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
 
       def defaultDispatchReady(): Unit =
         for (w <- 0 until p(IssueWidth))
-          dispatchReq(w).ready := false.B
+          dispatched(w).ready := false.B
 
       def defaultFuDoneReady(): Unit =
         for (i <- 0 until p(NumFUs))
@@ -46,7 +46,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       }
 
       def olderLaneAccepted(w: Int, accepted: Vec[Bool]): Bool =
-        if (w == 0) true.B else !dispatchReq(w - 1).valid || accepted(w - 1)
+        if (w == 0) true.B else !dispatched(w - 1).valid || accepted(w - 1)
 
       val regPending = RegInit(VecInit(Seq.fill(p(NumArchRegs))(false.B)))
 
@@ -78,7 +78,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         tempFuUsed(0)(f) := false.B
 
       for (w <- 0 until p(IssueWidth)) {
-        val dis = dispatchReq(w)
+        val dis = dispatched(w)
         val op  = dis.bits
 
         val rs1Used  = op.rs1_read

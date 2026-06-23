@@ -13,8 +13,8 @@ class Decode(implicit p: Parameters) extends Node[Parameters]("decode") {
     )
   )
 
-  val issued   = inDVec[IBufferEntry](p => p(IssueWidth))
-  val dispatch = outDVec[DecodedPacket](p => p(IssueWidth))
+  val issued  = inDVec[IBufferEntry](p => p(IssueWidth))
+  val decoded = outDVec[DecodedPacket](p => p(IssueWidth))
 
   private val isaImpl  = DecodeIsaFactory.select(cfg)
   private val kindImpl = DecodeKindFactory.select(cfg)
@@ -29,8 +29,8 @@ class Decode(implicit p: Parameters) extends Node[Parameters]("decode") {
     packet.bpu_pht_index    := issued.in.lanes(w).bits.bpu_pht_index
     packet.bpu_ghr_snapshot := issued.in.lanes(w).bits.bpu_ghr_snapshot
 
-    dispatch.out.lanes(w).valid := issued.in.lanes(w).valid
-    issued.in.lanes(w).ready    := dispatch.out.lanes(w).ready
-    dispatch.out.lanes(w).bits  := kindImpl.decode(isaImpl, packet)
+    decoded.out.lanes(w).valid := issued.in.lanes(w).valid
+    issued.in.lanes(w).ready   := decoded.out.lanes(w).ready
+    decoded.out.lanes(w).bits  := kindImpl.decode(isaImpl, packet)
   }
 }
