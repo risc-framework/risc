@@ -17,7 +17,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val dispatchResp      = outVec[DispatchRobResp](p => p(IssueWidth))
   val fuDone            = inDVec[FuResp](p => p(NumFUs))
   val bruResolved       = inVVec[BruResolveBundle](p => p(NumBRUs))
-  val regfileWrite      = outVVec[RegfileWrite](p => p(CommitWidth))
+  val rdWrite           = outVVec[RegfileWrite](p => p(CommitWidth))
   val sbCommit          = outVVec[RobSbCommit](p => p(CommitWidth))
   val bpuUpdate         = out[BpuUpdate]
   val committedRedirect = outVec[RedirectInfo](p => p(CommitWidth))
@@ -251,9 +251,9 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   for (w <- 0 until p(CommitWidth)) {
     val lane = commitInfo(w)
 
-    regfileWrite.out.lanes(w).valid     := lane.pop && lane.rd_write && !lane.sync_valid
-    regfileWrite.out.lanes(w).bits.addr := lane.rd
-    regfileWrite.out.lanes(w).bits.data := lane.data
+    rdWrite.out.lanes(w).valid     := lane.pop && lane.rd_write && !lane.sync_valid
+    rdWrite.out.lanes(w).bits.addr := lane.rd
+    rdWrite.out.lanes(w).bits.data := lane.data
 
     sbCommit.out.lanes(w).valid         := lane.pop && !lane.sync_valid
     sbCommit.out.lanes(w).bits.is_store := lane.is_store
@@ -312,8 +312,8 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     debug.out.instret(w)  := commitInfo(w).pop && !commitInfo(w).sync_valid
     debug.out.pc(w)       := commitInfo(w).pc
     debug.out.instr(w)    := commitInfo(w).instr
-    debug.out.reg_we(w)   := regfileWrite.out.lanes(w).valid
-    debug.out.reg_addr(w) := regfileWrite.out.lanes(w).bits.addr
-    debug.out.reg_data(w) := regfileWrite.out.lanes(w).bits.data
+    debug.out.reg_we(w)   := rdWrite.out.lanes(w).valid
+    debug.out.reg_addr(w) := rdWrite.out.lanes(w).bits.addr
+    debug.out.reg_data(w) := rdWrite.out.lanes(w).bits.data
   }
 }

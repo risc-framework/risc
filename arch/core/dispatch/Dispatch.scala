@@ -1,16 +1,19 @@
 package arch.core.dispatch
 
+import arch.configs._
 import arch.core.decode.DecodedPacket
 import arch.core.fupool.FuReq
-import arch.configs._
+import arch.core.regfile.{ RegfileReadReq, RegfileReadResp }
 import vutils.graph.Node
 import chisel3._
 
 class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
   val flush        = in[Bool]
   val decode       = inDVec[DecodedPacket](p => p(IssueWidth))
-  val regfileReq   = out[DispatchRegfileReq]
-  val regfileResp  = in[DispatchRegfileResp]
+  val rs1Read      = outVVec[RegfileReadReq](p => p(IssueWidth))
+  val rs2Read      = outVVec[RegfileReadReq](p => p(IssueWidth))
+  val rs1Data      = inVVec[RegfileReadResp](p => p(IssueWidth))
+  val rs2Data      = inVVec[RegfileReadResp](p => p(IssueWidth))
   val robReq       = outDVec[DispatchRobPacket](p => p(IssueWidth))
   val robResp      = inVec[DispatchRobResp](p => p(IssueWidth))
   val sbReq        = outVec[DispatchStoreBufferReq](p => p(IssueWidth))
@@ -24,8 +27,11 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
   for (w <- 0 until p(IssueWidth)) {
     val dec = decode.in.lanes(w).bits
 
-    regfileReq.out.rs1_addr(w) := dec.rs1
-    regfileReq.out.rs2_addr(w) := dec.rs2
+    rs1Read.out.lanes(w).valid     := decode.in.lanes(w).valid && dec.rs1_read && !flush.in
+    rs1Read.out.lanes(w).bits.addr := dec.rs1
+
+    rs2Read.out.lanes(w).valid     := decode.in.lanes(w).valid && dec.rs2_read && !flush.in
+    rs2Read.out.lanes(w).bits.addr := dec.rs2
 
     sbReq.out.lanes(w).valid   := decode.in.lanes(w).valid
     sbReq.out.lanes(w).bits    := dec
@@ -54,18 +60,24 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
   for (w <- 0 until p(IssueWidth)) {
     val dec = decode.in.lanes(w).bits
 
+    val rs1Raw =
+      Mux(rs1Data.in.lanes(w).valid, rs1Data.in.lanes(w).bits.data, 0.U(p(XLen).W))
+
+    val rs2Raw =
+      Mux(rs2Data.in.lanes(w).valid, rs2Data.in.lanes(w).bits.data, 0.U(p(XLen).W))
+
     val rs1Bypassed =
       Mux(
         robResp.in.lanes(w).rs1_bypass_valid,
         robResp.in.lanes(w).rs1_bypass_data,
-        regfileResp.in.rs1_data(w)
+        rs1Raw
       )
 
     val rs2Bypassed =
       Mux(
         robResp.in.lanes(w).rs2_bypass_valid,
         robResp.in.lanes(w).rs2_bypass_data,
-        regfileResp.in.rs2_data(w)
+        rs2Raw
       )
 
     val dis     = schedulerReq.out.lanes(w)
