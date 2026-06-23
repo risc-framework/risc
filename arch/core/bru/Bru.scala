@@ -1,7 +1,6 @@
 package arch.core.bru
 
 import arch.configs._
-import arch.core.exception.ExceptionCsrReq
 import arch.core.fupool.{ FuReq, FuResp }
 import chisel3._
 import vutils.fsm.Moore
@@ -20,13 +19,13 @@ class Bru(implicit p: Parameters) extends Node[Parameters]("bru") with Moore {
 
   val fuReq    = inD[FuReq]
   val fuResp   = outD[FuResp]
-  val flush    = in[ExceptionCsrReq]
+  val flush    = in[Bool]
   val resolved = outV[BruResolveBundle]
 
   private val isaImpl = BruIsaFactory.select(cfg)
   private val uopReg  = Reg(new FuReq)
 
-  private val fsm = moore(BruState.IDLE, clear = flush.in.flush) { g =>
+  private val fsm = moore(BruState.IDLE, clear = flush.in) { g =>
     import g._
 
     val IDLE = state(BruState.IDLE)
@@ -43,10 +42,10 @@ class Bru(implicit p: Parameters) extends Node[Parameters]("bru") with Moore {
     trans(RESP -> IDLE, fuResp.out.fire && !fuReq.in.fire)
   }
 
-  fuReq.in.ready   := !flush.in.flush && (fsm(BruState.IDLE).active || (fsm(
+  fuReq.in.ready   := !flush.in && (fsm(BruState.IDLE).active || (fsm(
     BruState.RESP
   ).active && fuResp.out.ready))
-  fuResp.out.valid := fsm(BruState.RESP).active && !flush.in.flush
+  fuResp.out.valid := fsm(BruState.RESP).active && !flush.in
 
   private val ctrl          = isaImpl.decode(uopReg.uop)
   private val immValue      = uopReg.imm
@@ -62,7 +61,7 @@ class Bru(implicit p: Parameters) extends Node[Parameters]("bru") with Moore {
   fuResp.out.bits.instr   := uopReg.instr
   fuResp.out.bits.rob_tag := uopReg.rob_tag
 
-  resolved.out.valid            := fsm(BruState.RESP).active && !flush.in.flush
+  resolved.out.valid            := fsm(BruState.RESP).active && !flush.in
   resolved.out.bits.pc          := uopReg.pc
   resolved.out.bits.instr       := uopReg.instr
   resolved.out.bits.rob_tag     := uopReg.rob_tag

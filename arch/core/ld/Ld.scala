@@ -1,7 +1,6 @@
 package arch.core.ld
 
 import arch.configs._
-import arch.core.exception.ExceptionCsrReq
 import arch.core.fupool.{ FuReq, FuResp }
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.pma.PmaModeFactory
@@ -24,7 +23,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
 
   val fuReq  = inD[FuReq]
   val fuResp = outD[FuResp]
-  val flush  = in[ExceptionCsrReq]
+  val flush  = in[Bool]
 
   val memReq   = outD[MemoryArbiterCacheReq]
   val memResp  = inD[MemoryArbiterCacheResp]
@@ -73,9 +72,9 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val partialForward = pmaCacheableReg && fwdRespBits.valid && !fwdRespBits.full
 
   private val fwdCompleteNow    =
-    state === LdState.FWD_RESP && fwdResp.in.valid && !shouldBlock && fullForward && !flush.in.flush
+    state === LdState.FWD_RESP && fwdResp.in.valid && !shouldBlock && fullForward && !flush.in
   private val canSendMemFromFwd =
-    state === LdState.FWD_RESP && fwdResp.in.valid && !shouldBlock && !fullForward && !flush.in.flush
+    state === LdState.FWD_RESP && fwdResp.in.valid && !shouldBlock && !fullForward && !flush.in
 
   memResp.in.ready  := (state === LdState.WAIT_MEM || state === LdState.FLUSH_DRAIN) && reqWasCache
   mmioResp.in.ready := (state === LdState.WAIT_MEM || state === LdState.FLUSH_DRAIN) && !reqWasCache
@@ -89,17 +88,17 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val fwdResult       = loadResult(uopReg, fwdRespBits.data)
   private val memResult       = loadResult(uopReg, mergedBusData)
 
-  private val memCompleteNow   = state === LdState.WAIT_MEM && memRespFire && !flush.in.flush
-  private val doneCompleteNow  = state === LdState.DONE && !flush.in.flush
+  private val memCompleteNow   = state === LdState.WAIT_MEM && memRespFire && !flush.in
+  private val doneCompleteNow  = state === LdState.DONE && !flush.in
   private val currentRespValid = fwdCompleteNow || memCompleteNow || doneCompleteNow
   private val currentRespFire  = currentRespValid && fuResp.out.ready
 
-  fuReq.in.ready := !flush.in.flush && (state === LdState.IDLE || currentRespFire)
+  fuReq.in.ready := !flush.in && (state === LdState.IDLE || currentRespFire)
 
-  private val acceptFire = fuReq.in.fire && !flush.in.flush
+  private val acceptFire = fuReq.in.fire && !flush.in
 
   private val fwdReqFromAccept  = acceptFire && acceptHasOlderStore
-  private val fwdReqFromRetry   = state === LdState.FWD_REQ && !flush.in.flush
+  private val fwdReqFromRetry   = state === LdState.FWD_REQ && !flush.in
   private val fwdReqUsingAccept = fwdReqFromAccept
 
   fwdReq.out.valid       := fwdReqFromAccept || fwdReqFromRetry
@@ -109,10 +108,10 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   fwdReq.out.bits.addr   := Mux(fwdReqUsingAccept, acceptAddr, addrReg)
   fwdReq.out.bits.mask   := Mux(fwdReqUsingAccept, acceptLoadMask, loadMaskReg)
 
-  fwdResp.in.ready := state === LdState.FWD_RESP && !flush.in.flush
+  fwdResp.in.ready := state === LdState.FWD_RESP && !flush.in
 
   private val memReqFromAccept = acceptFire && !acceptHasOlderStore
-  private val memReqFromRetry  = state === LdState.MEM_REQ && !flush.in.flush
+  private val memReqFromRetry  = state === LdState.MEM_REQ && !flush.in
   private val memReqFromFwd    = canSendMemFromFwd
   private val memReqActive     = memReqFromAccept || memReqFromRetry || memReqFromFwd
 
@@ -120,14 +119,14 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val memReqAddr      = Mux(memReqFromAccept, acceptAddr, addrReg)
   private val memReqMask      = Mux(memReqFromAccept, acceptLoadMask, loadMaskReg)
 
-  memReq.out.valid     := memReqActive && memReqCacheable && !flush.in.flush
+  memReq.out.valid     := memReqActive && memReqCacheable && !flush.in
   memReq.out.bits      := 0.U.asTypeOf(new MemoryArbiterCacheReq)
   memReq.out.bits.cmd  := CacheCommand.Read
   memReq.out.bits.addr := memReqAddr
   memReq.out.bits.data := 0.U
   memReq.out.bits.strb := memReqMask
 
-  mmioReq.out.valid     := memReqActive && !memReqCacheable && !flush.in.flush
+  mmioReq.out.valid     := memReqActive && !memReqCacheable && !flush.in
   mmioReq.out.bits      := 0.U.asTypeOf(new MemoryArbiterCacheReq)
   mmioReq.out.bits.cmd  := CacheCommand.Read
   mmioReq.out.bits.addr := memReqAddr
@@ -159,7 +158,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
 
   private val willHaveOutstanding = (reqOutstanding && !memRespFire) || memReqFire
 
-  when(flush.in.flush) {
+  when(flush.in) {
     when(willHaveOutstanding) {
       state := LdState.FLUSH_DRAIN
     }.otherwise {

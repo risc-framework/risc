@@ -2,7 +2,6 @@ package arch.core.mult
 
 import arch.configs._
 import arch.core.fupool.{ FuResp, FuReq }
-import arch.core.exception.ExceptionCsrReq
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import vutils.math.mul.IntegerMultiplier
 import chisel3._
@@ -21,7 +20,7 @@ class Mult(implicit p: Parameters) extends Node[Parameters]("mult") {
 
   val fuReq  = inD[FuReq]
   val fuResp = outD[FuResp]
-  val flush  = in[ExceptionCsrReq]
+  val flush  = in[Bool]
 
   private val isaImpl    = MultIsaFactory.select(cfg)
   private val multiplier = Module(new IntegerMultiplier(p(XLen), p(MultPipelineStages)))
@@ -31,18 +30,18 @@ class Mult(implicit p: Parameters) extends Node[Parameters]("mult") {
 
   private val ctrl = isaImpl.decode(fuReq.in.bits.uop)
 
-  fuReq.in.ready := !flush.in.flush && state === MultState.IDLE && multiplier.io.in.ready
+  fuReq.in.ready := !flush.in && state === MultState.IDLE && multiplier.io.in.ready
 
-  multiplier.io.kill                 := flush.in.flush
-  multiplier.io.in.valid             := !flush.in.flush && state === MultState.IDLE && fuReq.in.valid
+  multiplier.io.kill                 := flush.in
+  multiplier.io.in.valid             := !flush.in && state === MultState.IDLE && fuReq.in.valid
   multiplier.io.in.bits.multiplicand := fuReq.in.bits.rs1_data
   multiplier.io.in.bits.multiplier   := fuReq.in.bits.rs2_data
   multiplier.io.in.bits.aSigned      := ctrl.a_signed
   multiplier.io.in.bits.bSigned      := ctrl.b_signed
   multiplier.io.in.bits.takeHigh     := ctrl.high
-  multiplier.io.out.ready            := !flush.in.flush && state === MultState.BUSY
+  multiplier.io.out.ready            := !flush.in && state === MultState.BUSY
 
-  when(flush.in.flush) {
+  when(flush.in) {
     state := MultState.IDLE
   }.otherwise {
     switch(state) {
@@ -68,7 +67,7 @@ class Mult(implicit p: Parameters) extends Node[Parameters]("mult") {
     }
   }
 
-  fuResp.out.valid := state === MultState.DONE && !flush.in.flush
+  fuResp.out.valid := state === MultState.DONE && !flush.in
 
   fuResp.out.bits.result  := resultReg
   fuResp.out.bits.rd      := uopReg.rd

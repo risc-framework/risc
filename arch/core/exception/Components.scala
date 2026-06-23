@@ -42,20 +42,3 @@ class ExceptionTrapUpdate(implicit p: Parameters) extends Bundle {
   val kind   = UInt(isa.kindWidth.W)
   val cause  = UInt(isa.causeWidth.W)
 }
-
-class ExceptionCsrReq(implicit p: Parameters) extends Bundle {
-  val flush       = Bool()
-  val trap_update = new ExceptionTrapUpdate
-}
-
-class ExceptionFlushReq(implicit p: Parameters) extends Bundle {
-  private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
-  private val isa = ExceptionIsaFactory.select(cfg)
-
-  val valid       = Bool()
-  val target      = UInt(p(XLen).W)
-  val source      = ExceptionSource()
-  val kind        = UInt(isa.kindWidth.W)
-  val cause       = UInt(isa.causeWidth.W)
-  val trap_update = new ExceptionTrapUpdate
-}

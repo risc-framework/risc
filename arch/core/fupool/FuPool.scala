@@ -5,7 +5,7 @@ import arch.core.alu.Alu
 import arch.core.bru.{ Bru, BruResolveBundle }
 import arch.core.csr.Csr
 import arch.core.div.Div
-import arch.core.exception.{ ExceptionAsyncReq, ExceptionCsrReq, ExceptionCsrStatus }
+import arch.core.exception.{ ExceptionAsyncReq, ExceptionTrapUpdate, ExceptionCsrStatus }
 import arch.core.ld.Ld
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.mult.Mult
@@ -17,7 +17,8 @@ import chisel3._
 class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
   val cpu = in[FuPoolCpuReq]
 
-  val exceptionReq    = in[ExceptionCsrReq]
+  val flush           = in[Bool]
+  val trapUpdate      = in[ExceptionTrapUpdate]
   val exceptionStatus = out[ExceptionCsrStatus]
   val asyncException  = out[ExceptionAsyncReq]
 
@@ -71,7 +72,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case alu: Alu =>
         link(
           schedulerReq.lanes(fuIdx) -> alu.fuReq,
-          exceptionReq              -> alu.flush,
+          flush                     -> alu.flush,
           alu.fuResp                -> schedulerDone.lanes(fuIdx),
           alu.fuResp                -> robDone.lanes(fuIdx)
         )
@@ -79,7 +80,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case mult: Mult =>
         link(
           schedulerReq.lanes(fuIdx) -> mult.fuReq,
-          exceptionReq              -> mult.flush,
+          flush                     -> mult.flush,
           mult.fuResp               -> schedulerDone.lanes(fuIdx),
           mult.fuResp               -> robDone.lanes(fuIdx)
         )
@@ -87,7 +88,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case div: Div =>
         link(
           schedulerReq.lanes(fuIdx) -> div.fuReq,
-          exceptionReq              -> div.flush,
+          flush                     -> div.flush,
           div.fuResp                -> schedulerDone.lanes(fuIdx),
           div.fuResp                -> robDone.lanes(fuIdx)
         )
@@ -95,7 +96,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case ld: Ld =>
         link(
           schedulerReq.lanes(fuIdx)     -> ld.fuReq,
-          exceptionReq                  -> ld.flush,
+          flush                         -> ld.flush,
           ld.fuResp                     -> schedulerDone.lanes(fuIdx),
           ld.fuResp                     -> robDone.lanes(fuIdx),
           ld.memReq                     -> loadMemReq.lanes(ldIdx),
@@ -112,7 +113,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case st: St =>
         link(
           schedulerReq.lanes(fuIdx) -> st.fuReq,
-          exceptionReq              -> st.flush,
+          flush                     -> st.flush,
           st.fuResp                 -> schedulerDone.lanes(fuIdx),
           st.fuResp                 -> robDone.lanes(fuIdx),
           st.storeWrite             -> storeWrite.lanes(stIdx)
@@ -123,7 +124,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case bru: Bru =>
         link(
           schedulerReq.lanes(fuIdx) -> bru.fuReq,
-          exceptionReq              -> bru.flush,
+          flush                     -> bru.flush,
           bru.fuResp                -> schedulerDone.lanes(fuIdx),
           bru.fuResp                -> robDone.lanes(fuIdx),
           bru.resolved              -> bruResolved.lanes(bruIdx)
@@ -134,7 +135,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case csr: Csr =>
         link(
           schedulerReq.lanes(fuIdx) -> csr.fuReq,
-          exceptionReq              -> csr.flush,
+          flush                     -> csr.flush,
           csr.fuResp                -> schedulerDone.lanes(fuIdx),
           csr.fuResp                -> robDone.lanes(fuIdx),
         )
@@ -142,7 +143,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
         csr.ctrlReq.in.cycle       := cpu.in.cycle
         csr.ctrlReq.in.instret     := cpu.in.instret
         csr.ctrlReq.in.irq         := cpu.in.irq
-        csr.ctrlReq.in.trap_update := exceptionReq.in.trap_update
+        csr.ctrlReq.in.trap_update := trapUpdate.in
 
         exceptionStatus.out.busy := csr.ctrlResp.out.busy
 

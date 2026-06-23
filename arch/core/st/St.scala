@@ -1,6 +1,5 @@
 package arch.core.st
 
-import arch.core.exception.ExceptionCsrReq
 import arch.core.fupool.{ FuReq, FuResp }
 import arch.core.pma.PmaModeFactory
 import arch.core.sb.StoreWriteBundle
@@ -28,7 +27,7 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
 
   val fuReq      = inD[FuReq]
   val fuResp     = outD[FuResp]
-  val flush      = in[ExceptionCsrReq]
+  val flush      = in[Bool]
   val storeWrite = outD[StoreWriteBundle]
 
   private val isaImpl = StIsaFactory.select(cfg)
@@ -61,11 +60,11 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
 
   private val acceptIn = Wire(Decoupled(new StPipeEntry))
 
-  acceptIn.valid := fuReq.in.valid && !flush.in.flush
+  acceptIn.valid := fuReq.in.valid && !flush.in
   acceptIn.bits  := buildEntry(fuReq.in.bits)
-  fuReq.in.ready := acceptIn.ready && !flush.in.flush
+  fuReq.in.ready := acceptIn.ready && !flush.in
 
-  elastic(new StPipeEntry, StPipeNode.WRITE_SB, clear = flush.in.flush) { g =>
+  elastic(new StPipeEntry, StPipeNode.WRITE_SB, clear = flush.in) { g =>
     import g._
 
     val WRITE_SB = stage(StPipeNode.WRITE_SB)

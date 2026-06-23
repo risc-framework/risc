@@ -1,7 +1,6 @@
 package arch.core.csr
 
 import arch.configs._
-import arch.core.exception.ExceptionCsrReq
 import arch.core.fupool.{ FuReq, FuResp }
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
@@ -17,7 +16,7 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
 
   val fuReq    = inD[FuReq]
   val fuResp   = outD[FuResp]
-  val flush    = in[ExceptionCsrReq]
+  val flush    = in[Bool]
   val ctrlReq  = in[CsrCtrlReq]
   val ctrlResp = out[CsrCtrlResp]
 
@@ -52,11 +51,11 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   ctrlResp.out.view := view
   ctrlResp.out.ir   := ir
 
-  fuReq.in.ready    := !flush.in.flush && (!busy || fuResp.out.fire)
-  fuResp.out.valid  := busy && !flush.in.flush
+  fuReq.in.ready    := !flush.in && (!busy || fuResp.out.fire)
+  fuResp.out.valid  := busy && !flush.in
   ctrlResp.out.busy := busy
 
-  when(flush.in.flush) {
+  when(flush.in) {
     busy := false.B
   }.elsewhen(fuReq.in.fire) {
     busy   := true.B

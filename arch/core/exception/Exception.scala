@@ -18,8 +18,9 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   val async             = in[ExceptionAsyncReq]
   val csrStatus         = in[ExceptionCsrStatus]
 
-  val flush    = out[ExceptionFlushReq]
-  val redirect = out[RedirectInfo]
+  val sync       = out[ExceptionSyncReq]
+  val redirect   = out[RedirectInfo]
+  val trapUpdate = out[ExceptionTrapUpdate]
 
   private val isaImpl = ExceptionIsaFactory.select(cfg)
 
@@ -45,20 +46,28 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   redirectReq.valid  := !syncAny && redirectAny
   redirectReq.target := committedRedirect.in.lanes(redirectSlot).target
 
-  private val syncFlush     = isaImpl.handleSync(syncReq, csrStatus.in.busy)
-  private val redirectFlush = isaImpl.handleRedirect(redirectReq)
-  private val asyncFlush    = isaImpl.handleAsync(async.in, csrStatus.in.busy)
+  private val (syncHandled, syncTrapUpdate)   = isaImpl.handleSync(syncReq, csrStatus.in.busy)
+  private val redirectHandled                 = isaImpl.handleRedirect(redirectReq)
+  private val (asyncHandled, asyncTrapUpdate) = isaImpl.handleAsync(async.in, csrStatus.in.busy)
 
-  flush.out := Mux(
-    syncFlush.valid,
-    syncFlush,
-    Mux(
-      redirectFlush.valid,
-      redirectFlush,
-      asyncFlush
-    )
+  private val selectedSync       = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
+  private val selectedTrapUpdate = WireDefault(0.U.asTypeOf(new ExceptionTrapUpdate))
+
+  when(syncHandled.valid) {
+    selectedSync       := syncHandled
+    selectedTrapUpdate := syncTrapUpdate
+  }.elsewhen(!redirectHandled.valid && asyncHandled.valid) {
+    selectedSync       := asyncHandled
+    selectedTrapUpdate := asyncTrapUpdate
+  }
+
+  redirect.out.valid  := syncHandled.valid || redirectHandled.valid || asyncHandled.valid
+  redirect.out.target := Mux(
+    syncHandled.valid,
+    syncHandled.target,
+    Mux(redirectHandled.valid, redirectHandled.target, asyncHandled.target)
   )
 
-  redirect.out.valid  := flush.out.valid
-  redirect.out.target := flush.out.target
+  sync.out       := selectedSync
+  trapUpdate.out := selectedTrapUpdate
 }

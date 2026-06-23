@@ -17,13 +17,13 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
   def syncEntries: Seq[ExceptionSyncEntry]
   def asyncEntries: Seq[ExceptionAsyncEntry]
 
-  private def chooseBetter(
-    lhs: ExceptionFlushReq,
+  private def chooseRedirect(
+    lhs: RedirectInfo,
     lhsPriority: UInt,
-    rhs: ExceptionFlushReq,
+    rhs: RedirectInfo,
     rhsPriority: UInt
-  )(implicit p: Parameters): (ExceptionFlushReq, UInt) = {
-    val out      = Wire(new ExceptionFlushReq)
+  )(implicit p: Parameters): (RedirectInfo, UInt) = {
+    val out      = Wire(new RedirectInfo)
     val priority = Wire(UInt(8.W))
     val takeRhs  = rhs.valid && (!lhs.valid || rhsPriority < lhsPriority)
 
@@ -33,45 +33,80 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
     (out, priority)
   }
 
-  def handleRedirect(req: RedirectInfo)(implicit p: Parameters): ExceptionFlushReq = {
-    val invalid = WireDefault(0.U.asTypeOf(new ExceptionFlushReq))
+  private def chooseSync(
+    lhsSync: ExceptionSyncReq,
+    lhsTrap: ExceptionTrapUpdate,
+    lhsPriority: UInt,
+    rhsSync: ExceptionSyncReq,
+    rhsTrap: ExceptionTrapUpdate,
+    rhsPriority: UInt
+  )(implicit p: Parameters): (ExceptionSyncReq, ExceptionTrapUpdate, UInt) = {
+    val sync     = Wire(new ExceptionSyncReq)
+    val trap     = Wire(new ExceptionTrapUpdate)
+    val priority = Wire(UInt(8.W))
+    val takeRhs  = rhsSync.valid && (!lhsSync.valid || rhsPriority < lhsPriority)
+
+    sync     := Mux(takeRhs, rhsSync, lhsSync)
+    trap     := Mux(takeRhs, rhsTrap, lhsTrap)
+    priority := Mux(takeRhs, rhsPriority, lhsPriority)
+
+    (sync, trap, priority)
+  }
+
+  def handleRedirect(req: RedirectInfo)(implicit p: Parameters): RedirectInfo = {
+    val invalid = WireDefault(0.U.asTypeOf(new RedirectInfo))
     val init    = (invalid, 255.U(8.W))
 
     redirectEntries
       .foldLeft(init) { case ((best, bestPriority), entry) =>
-        val candidate = entry.handle(req, kindWidth, causeWidth)
-        chooseBetter(best, bestPriority, candidate, entry.priority.U(8.W))
+        val candidate = entry.handle(req)
+        chooseRedirect(best, bestPriority, candidate, entry.priority.U(8.W))
       }
       ._1
   }
 
-  def handleSync(
-    req: ExceptionSyncReq,
-    csrBusy: Bool
-  )(implicit p: Parameters): ExceptionFlushReq = {
-    val invalid = WireDefault(0.U.asTypeOf(new ExceptionFlushReq))
-    val init    = (invalid, 255.U(8.W))
+  def handleSync(req: ExceptionSyncReq, csrBusy: Bool)(implicit
+    p: Parameters
+  ): (ExceptionSyncReq, ExceptionTrapUpdate) = {
+    val invalidSync = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
+    val invalidTrap = WireDefault(0.U.asTypeOf(new ExceptionTrapUpdate))
+    val init        = (invalidSync, invalidTrap, 255.U(8.W))
 
-    syncEntries
-      .foldLeft(init) { case ((best, bestPriority), entry) =>
-        val candidate = entry.handle(req, csrBusy, kindWidth, causeWidth)
-        chooseBetter(best, bestPriority, candidate, entry.priority.U(8.W))
-      }
-      ._1
+    val selected = syncEntries.foldLeft(init) { case ((bestSync, bestTrap, bestPriority), entry) =>
+      val (candidateSync, candidateTrap) = entry.handle(req, csrBusy, kindWidth, causeWidth)
+      chooseSync(
+        bestSync,
+        bestTrap,
+        bestPriority,
+        candidateSync,
+        candidateTrap,
+        entry.priority.U(8.W)
+      )
+    }
+
+    (selected._1, selected._2)
   }
 
   def handleAsync(req: ExceptionAsyncReq, csrBusy: Bool)(implicit
     p: Parameters
-  ): ExceptionFlushReq = {
-    val invalid = WireDefault(0.U.asTypeOf(new ExceptionFlushReq))
-    val init    = (invalid, 255.U(8.W))
+  ): (ExceptionSyncReq, ExceptionTrapUpdate) = {
+    val invalidSync = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
+    val invalidTrap = WireDefault(0.U.asTypeOf(new ExceptionTrapUpdate))
+    val init        = (invalidSync, invalidTrap, 255.U(8.W))
 
-    asyncEntries
-      .foldLeft(init) { case ((best, bestPriority), entry) =>
-        val candidate = entry.handle(req, csrBusy, kindWidth, causeWidth)
-        chooseBetter(best, bestPriority, candidate, entry.priority.U(8.W))
-      }
-      ._1
+    val selected = asyncEntries.foldLeft(init) { case ((bestSync, bestTrap, bestPriority), entry) =>
+      val (candidateSync, candidateTrap) = entry.handle(req, csrBusy, kindWidth, causeWidth)
+      chooseSync(
+        bestSync,
+        bestTrap,
+        bestPriority,
+        candidateSync,
+        candidateTrap,
+        entry.priority.U(8.W)
+      )
+    }
+
+    (selected._1, selected._2)
   }
 }
 

@@ -9,16 +9,11 @@ trait ExceptionRedirectEntry {
   def kind: BitPat
   def priority: Int
 
-  def handle(req: RedirectInfo, kindWidth: Int, causeWidth: Int)(implicit
-    p: Parameters
-  ): ExceptionFlushReq = {
-    val out = WireDefault(0.U.asTypeOf(new ExceptionFlushReq))
+  def handle(req: RedirectInfo)(implicit p: Parameters): RedirectInfo = {
+    val out = WireDefault(0.U.asTypeOf(new RedirectInfo))
 
     out.valid  := req.valid
     out.target := req.target
-    out.source := ExceptionSource.REDIRECT
-    out.kind   := kind.value.U(kindWidth.W)
-    out.cause  := 0.U(causeWidth.W)
 
     out
   }

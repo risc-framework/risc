@@ -109,14 +109,17 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     rob.committedSync          -> exception.committedSync,
     fuPool.asyncException      -> exception.async,
     fuPool.exceptionStatus     -> exception.csrStatus,
-    exception.flush            -> flush.exception,
+    exception.sync             -> flush.sync,
+    exception.redirect         -> flush.redirect,
     exception.redirect         -> ifu.redirect,
+    exception.trapUpdate       -> flush.trapUpdate,
+    exception.trapUpdate       -> fuPool.trapUpdate,
     flush.globalFlush          -> ibuffer.flush,
     flush.globalFlush          -> dispatch.flush,
     flush.globalFlush          -> scheduler.flush,
+    flush.globalFlush          -> fuPool.flush,
     flush.globalFlush          -> storeBuffer.flush,
     flush.globalFlush          -> rob.flush,
-    flush.fuPoolReq            -> fuPool.exceptionReq,
   )
 
   debug.out.cycle_count   := cycleCount
