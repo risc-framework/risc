@@ -7,6 +7,7 @@ import vutils.graph.Node
 import chisel3._
 
 class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
+  val flush        = in[Bool]
   val decode       = inDVec[DecodedPacket](p => p(IssueWidth))
   val regfileReq   = out[DispatchRegfileReq]
   val regfileResp  = in[DispatchRegfileResp]
@@ -15,7 +16,6 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
   val sbReq        = outVec[DispatchStoreBufferReq](p => p(IssueWidth))
   val sbResp       = inVec[DispatchStoreBufferResp](p => p(IssueWidth))
   val schedulerReq = outDVec[FuReq](p => p(IssueWidth))
-  val flush        = in[Bool]
 
   private val laneBaseReqOk = Wire(Vec(p(IssueWidth), Bool()))
   private val lanePrefixOk  = Wire(Vec(p(IssueWidth), Bool()))

@@ -28,10 +28,6 @@ class ExceptionAsyncReq(implicit p: Parameters) extends Bundle {
   val pc     = UInt(p(XLen).W)
 }
 
-class ExceptionCsrStatus extends Bundle {
-  val busy = Bool()
-}
-
 class ExceptionTrapUpdate(implicit p: Parameters) extends Bundle {
   private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
   private val isa = ExceptionIsaFactory.select(cfg)

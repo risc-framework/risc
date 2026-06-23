@@ -5,7 +5,7 @@ import arch.core.alu.Alu
 import arch.core.bru.{ Bru, BruResolveBundle }
 import arch.core.csr.{ Csr, InterruptLines }
 import arch.core.div.Div
-import arch.core.exception.{ ExceptionAsyncReq, ExceptionTrapUpdate, ExceptionCsrStatus }
+import arch.core.exception.{ ExceptionAsyncReq, ExceptionTrapUpdate }
 import arch.core.ld.Ld
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.mult.Mult
@@ -15,12 +15,12 @@ import vutils.graph.Node
 import chisel3._
 
 class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
-  val cpu             = in[FuPoolCpuReq]
-  val flush           = in[Bool]
-  val irq             = in[InterruptLines]
-  val trapUpdate      = in[ExceptionTrapUpdate]
-  val async           = out[ExceptionAsyncReq]
-  val exceptionStatus = out[ExceptionCsrStatus]
+  val cpu        = in[FuPoolCpuReq]
+  val flush      = in[Bool]
+  val irq        = in[InterruptLines]
+  val trapUpdate = in[ExceptionTrapUpdate]
+  val async      = out[ExceptionAsyncReq]
+  val csrBusy    = out[Bool]
 
   val schedulerReq  = inDVec[FuReq](p => p(NumFUs))
   val schedulerDone = outDVec[FuResp](p => p(NumFUs))
@@ -142,10 +142,10 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
         csr.ctrlReq.in.cycle   := cpu.in.cycle
         csr.ctrlReq.in.instret := cpu.in.instret
 
-        exceptionStatus.out.busy := csr.ctrlResp.out.busy
-        async.out.valid          := csr.ctrlResp.out.ir.valid
-        async.out.kind           := csr.ctrlResp.out.ir.kind
-        async.out.target         := csr.ctrlResp.out.ir.target
+        async.out.valid  := csr.ctrlResp.out.ir.valid
+        async.out.kind   := csr.ctrlResp.out.ir.kind
+        async.out.target := csr.ctrlResp.out.ir.target
+        csrBusy.out      := csr.ctrlResp.out.busy
 
       case _ =>
     }

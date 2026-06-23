@@ -107,7 +107,7 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     rob.committedRedirect      -> exception.committedRedirect,
     rob.committedSync          -> exception.committedSync,
     fuPool.async               -> exception.async,
-    fuPool.exceptionStatus     -> exception.csrStatus,
+    fuPool.csrBusy             -> exception.csrBusy,
     exception.sync             -> flush.sync,
     exception.redirect         -> flush.redirect,
     exception.redirect         -> ifu.redirect,

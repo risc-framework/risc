@@ -16,7 +16,7 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   val committedSync     = inVec[ExceptionSyncReq](p => p(CommitWidth))
   val committedRedirect = inVec[RedirectInfo](p => p(CommitWidth))
   val async             = in[ExceptionAsyncReq]
-  val csrStatus         = in[ExceptionCsrStatus]
+  val csrBusy           = in[Bool]
 
   val sync       = out[ExceptionSyncReq]
   val redirect   = out[RedirectInfo]
@@ -46,10 +46,10 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   redirectReq.valid  := !syncAny && redirectAny
   redirectReq.target := committedRedirect.in.lanes(redirectSlot).target
 
-  private val (syncHandled, syncTrapUpdate)   = isaImpl.handleSync(syncReq, csrStatus.in.busy)
+  private val (syncHandled, syncTrapUpdate)   = isaImpl.handleSync(syncReq, csrBusy.in)
   private val redirectHandled                 = isaImpl.handleRedirect(redirectReq)
   private val (asyncHandled, asyncTrapUpdate) =
-    isaImpl.handleAsync(async.in, syncReq.pc, csrStatus.in.busy)
+    isaImpl.handleAsync(async.in, syncReq.pc, csrBusy.in)
 
   private val selectedSync       = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
   private val selectedTrapUpdate = WireDefault(0.U.asTypeOf(new ExceptionTrapUpdate))
