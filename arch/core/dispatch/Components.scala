@@ -6,16 +6,6 @@ import arch.core.sb.StoreBufferTicket
 import chisel3._
 import chisel3.util.log2Ceil
 
-class DispatchRegfileReq(implicit p: Parameters) extends Bundle {
-  val rs1_addr = Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W))
-  val rs2_addr = Vec(p(IssueWidth), UInt(log2Ceil(p(NumArchRegs)).W))
-}
-
-class DispatchRegfileResp(implicit p: Parameters) extends Bundle {
-  val rs1_data = Vec(p(IssueWidth), UInt(p(XLen).W))
-  val rs2_data = Vec(p(IssueWidth), UInt(p(XLen).W))
-}
-
 class DispatchRobPacket(implicit p: Parameters) extends Bundle {
   val decoded = new DecodedPacket
   val sq_idx  = UInt(log2Ceil(p(StoreBufferSize)).W)
