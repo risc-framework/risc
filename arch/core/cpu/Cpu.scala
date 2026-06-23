@@ -58,7 +58,6 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
 
   fuPool.cpu.in.cycle   := cycleCount
   fuPool.cpu.in.instret := instretCount
-  fuPool.cpu.in.irq     := irq.in
 
   link(
     l1ICache.lowerReq          -> imemReq,
@@ -107,7 +106,7 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     memoryArbiter.sbMmioResp   -> storeBuffer.mmioResp,
     rob.committedRedirect      -> exception.committedRedirect,
     rob.committedSync          -> exception.committedSync,
-    fuPool.asyncException      -> exception.async,
+    fuPool.async               -> exception.async,
     fuPool.exceptionStatus     -> exception.csrStatus,
     exception.sync             -> flush.sync,
     exception.redirect         -> flush.redirect,
@@ -120,6 +119,7 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     flush.globalFlush          -> fuPool.flush,
     flush.globalFlush          -> storeBuffer.flush,
     flush.globalFlush          -> rob.flush,
+    irq                        -> fuPool.irq,
   )
 
   debug.out.cycle_count   := cycleCount

@@ -12,6 +12,5 @@ class Flush(implicit p: Parameters) extends Node[Parameters]("flush") {
   val trapUpdate  = in[ExceptionTrapUpdate]
   val globalFlush = out[Bool]
 
-  // Global flush
   globalFlush.out := sync.in.valid || redirect.in.valid || trapUpdate.in.valid
 }

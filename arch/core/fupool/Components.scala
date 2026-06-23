@@ -1,7 +1,6 @@
 package arch.core.fupool
 
 import arch.configs._
-import arch.core.csr.InterruptLines
 import arch.core.decode.{ DecodeDims, DecodeIsaFactory }
 import arch.core.exception.{ ExceptionDims, ExceptionIsaFactory }
 import vutils.graph.{ NodeConfig, NodeSelector }
@@ -61,5 +60,4 @@ class FuResp(implicit p: Parameters) extends Bundle {
 class FuPoolCpuReq extends Bundle {
   val cycle   = UInt(64.W)
   val instret = UInt(64.W)
-  val irq     = new InterruptLines
 }

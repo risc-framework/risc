@@ -87,7 +87,7 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
     (selected._1, selected._2)
   }
 
-  def handleAsync(req: ExceptionAsyncReq, csrBusy: Bool)(implicit
+  def handleAsync(req: ExceptionAsyncReq, archPc: UInt, csrBusy: Bool)(implicit
     p: Parameters
   ): (ExceptionSyncReq, ExceptionTrapUpdate) = {
     val invalidSync = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
@@ -95,7 +95,7 @@ trait ExceptionIsaImpl extends ExceptionDims.ISA.Impl {
     val init        = (invalidSync, invalidTrap, 255.U(8.W))
 
     val selected = asyncEntries.foldLeft(init) { case ((bestSync, bestTrap, bestPriority), entry) =>
-      val (candidateSync, candidateTrap) = entry.handle(req, csrBusy, kindWidth, causeWidth)
+      val (candidateSync, candidateTrap) = entry.handle(req, archPc, csrBusy, kindWidth, causeWidth)
       chooseSync(
         bestSync,
         bestTrap,

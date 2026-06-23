@@ -48,7 +48,8 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
 
   private val (syncHandled, syncTrapUpdate)   = isaImpl.handleSync(syncReq, csrStatus.in.busy)
   private val redirectHandled                 = isaImpl.handleRedirect(redirectReq)
-  private val (asyncHandled, asyncTrapUpdate) = isaImpl.handleAsync(async.in, csrStatus.in.busy)
+  private val (asyncHandled, asyncTrapUpdate) =
+    isaImpl.handleAsync(async.in, syncReq.pc, csrStatus.in.busy)
 
   private val selectedSync       = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
   private val selectedTrapUpdate = WireDefault(0.U.asTypeOf(new ExceptionTrapUpdate))

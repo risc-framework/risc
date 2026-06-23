@@ -3,7 +3,7 @@ package arch.core.fupool
 import arch.configs._
 import arch.core.alu.Alu
 import arch.core.bru.{ Bru, BruResolveBundle }
-import arch.core.csr.Csr
+import arch.core.csr.{ Csr, InterruptLines }
 import arch.core.div.Div
 import arch.core.exception.{ ExceptionAsyncReq, ExceptionTrapUpdate, ExceptionCsrStatus }
 import arch.core.ld.Ld
@@ -15,12 +15,12 @@ import vutils.graph.Node
 import chisel3._
 
 class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
-  val cpu = in[FuPoolCpuReq]
-
+  val cpu             = in[FuPoolCpuReq]
   val flush           = in[Bool]
+  val irq             = in[InterruptLines]
   val trapUpdate      = in[ExceptionTrapUpdate]
+  val async           = out[ExceptionAsyncReq]
   val exceptionStatus = out[ExceptionCsrStatus]
-  val asyncException  = out[ExceptionAsyncReq]
 
   val schedulerReq  = inDVec[FuReq](p => p(NumFUs))
   val schedulerDone = outDVec[FuResp](p => p(NumFUs))
@@ -55,9 +55,6 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
 
   private val fuDescs = p(FunctionalUnits)
   require(p(NumCSRs) <= 1, s"FuPool: at most one CSR FU is supported, got ${p(NumCSRs)}")
-
-  exceptionStatus.out.busy := false.B
-  asyncException.out       := 0.U.asTypeOf(new ExceptionAsyncReq)
 
   private val units = fuDescs.zipWithIndex.map { case (desc, idx) =>
     subnode(build(desc)) -> idx
@@ -136,20 +133,19 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
         link(
           schedulerReq.lanes(fuIdx) -> csr.fuReq,
           flush                     -> csr.flush,
+          irq                       -> csr.irq,
+          trapUpdate                -> csr.trapUpdate,
           csr.fuResp                -> schedulerDone.lanes(fuIdx),
           csr.fuResp                -> robDone.lanes(fuIdx),
         )
 
-        csr.ctrlReq.in.cycle       := cpu.in.cycle
-        csr.ctrlReq.in.instret     := cpu.in.instret
-        csr.ctrlReq.in.irq         := cpu.in.irq
-        csr.ctrlReq.in.trap_update := trapUpdate.in
+        csr.ctrlReq.in.cycle   := cpu.in.cycle
+        csr.ctrlReq.in.instret := cpu.in.instret
 
         exceptionStatus.out.busy := csr.ctrlResp.out.busy
-
-        asyncException.out.valid  := csr.ctrlResp.out.ir.valid
-        asyncException.out.kind   := csr.ctrlResp.out.ir.kind
-        asyncException.out.target := csr.ctrlResp.out.ir.target
+        async.out.valid          := csr.ctrlResp.out.ir.valid
+        async.out.kind           := csr.ctrlResp.out.ir.kind
+        async.out.target         := csr.ctrlResp.out.ir.target
 
       case _ =>
     }

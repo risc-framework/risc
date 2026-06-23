@@ -14,8 +14,8 @@ trait ExceptionAsyncEntry {
   def matches(req: ExceptionAsyncReq, kindWidth: Int): Bool =
     req.valid && req.kind === kind.value.U(kindWidth.W)
 
-  def handle(req: ExceptionAsyncReq, csrBusy: Bool, kindWidth: Int, causeWidth: Int)(implicit
-    p: Parameters
+  def handle(req: ExceptionAsyncReq, archPc: UInt, csrBusy: Bool, kindWidth: Int, causeWidth: Int)(
+    implicit p: Parameters
   ): (ExceptionSyncReq, ExceptionTrapUpdate) = {
     val sync       = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
     val trap       = WireDefault(0.U.asTypeOf(new ExceptionTrapUpdate))
@@ -25,11 +25,11 @@ trait ExceptionAsyncEntry {
     sync.valid  := allowed
     sync.kind   := req.kind
     sync.target := req.target
-    sync.pc     := req.pc
+    sync.pc     := archPc
 
     trap.valid  := allowed && writeCsr.B
     trap.is_ret := false.B
-    trap.pc     := req.pc
+    trap.pc     := archPc
     trap.kind   := req.kind
     trap.cause  := causeValue
 
