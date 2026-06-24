@@ -24,10 +24,9 @@ class DispatchRobResp(implicit p: Parameters) extends Bundle {
 }
 
 class DispatchStoreBufferReq(implicit p: Parameters) extends Bundle {
-  val valid   = Bool()
-  val bits    = new DecodedPacket
-  val fire    = Bool()
-  val rob_tag = UInt(p(RobTagWidth).W)
+  val valid = Bool()
+  val bits  = new DecodedPacket
+  val fire  = Bool()
 }
 
 class DispatchStoreBufferResp(implicit p: Parameters) extends Bundle {

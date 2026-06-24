@@ -11,7 +11,6 @@ class StoreBufferTicket(implicit p: Parameters) extends Bundle {
 
 class StoreWriteBundle(implicit p: Parameters) extends Bundle {
   val sq_idx    = UInt(log2Ceil(p(StoreBufferSize)).W)
-  val rob_tag   = UInt(p(RobTagWidth).W)
   val addr      = UInt(p(XLen).W)
   val data      = UInt(p(XLen).W)
   val mask      = UInt(p(BytesPerWord).W)
@@ -40,7 +39,6 @@ class StoreBufferEntry(implicit p: Parameters) extends Bundle {
   val addrValid = Bool()
   val fwdValid  = Bool()
   val seq       = UInt(64.W)
-  val rob_tag   = UInt(p(RobTagWidth).W)
   val addr      = UInt(p(XLen).W)
   val data      = UInt(p(XLen).W)
   val mask      = UInt(p(BytesPerWord).W)

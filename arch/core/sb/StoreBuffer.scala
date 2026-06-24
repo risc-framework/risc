@@ -215,7 +215,6 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
       writeHit(s) := storeWrite.in.lanes(s).fire &&
         storeWrite.in.lanes(s).bits.sq_idx === i.U &&
         entries(i).valid &&
-        entries(i).rob_tag === storeWrite.in.lanes(s).bits.rob_tag &&
         !drainedThis
 
     for (c <- 0 until p(CommitWidth))
@@ -244,9 +243,6 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
       (0 until numStorePorts).map(s => writeHit(s) -> storeWrite.in.lanes(s).bits.cacheable)
     )
     val allocSeq       = Mux1H((0 until p(IssueWidth)).map(a => allocHit(a) -> sqSeqForLane(a)))
-    val allocRobTag    = Mux1H(
-      (0 until p(IssueWidth)).map(a => allocHit(a) -> dispatchReq.in.lanes(a).rob_tag)
-    )
     val e              = Wire(new StoreBufferEntry)
 
     e := entries(i)
@@ -259,7 +255,6 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
       e.addrValid := false.B
       e.fwdValid  := false.B
       e.seq       := allocSeq
-      e.rob_tag   := allocRobTag
       e.addr      := 0.U
       e.data      := 0.U
       e.mask      := 0.U

@@ -40,7 +40,6 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
     val addr  = isaImpl.addr(req)
 
     entry.store.sq_idx    := req.sq_idx
-    entry.store.rob_tag   := req.rob_tag
     entry.store.addr      := addr
     entry.store.data      := isaImpl.data(req)
     entry.store.mask      := isaImpl.mask(req)

@@ -33,9 +33,8 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
     rs2Read.out.lanes(w).valid     := decoded.in.lanes(w).valid && dec.rs2_read && !flush.in
     rs2Read.out.lanes(w).bits.addr := dec.rs2
 
-    sbReq.out.lanes(w).valid   := decoded.in.lanes(w).valid
-    sbReq.out.lanes(w).bits    := dec
-    sbReq.out.lanes(w).rob_tag := robResp.in.lanes(w).rob_tag
+    sbReq.out.lanes(w).valid := decoded.in.lanes(w).valid
+    sbReq.out.lanes(w).bits  := dec
 
     robReq.out.lanes(w).bits.decoded := dec
     robReq.out.lanes(w).bits.sq_idx  := sbResp.in.lanes(w).ticket.sq_idx
