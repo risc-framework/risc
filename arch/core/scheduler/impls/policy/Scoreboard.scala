@@ -57,8 +57,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
 
       for (r <- 0 until p(NumArchRegs)) {
         for (f <- 0 until p(NumFUs))
-          if (r == 0) cdbHit(r)(f) := false.B
-          else cdbHit(r)(f)        := fuDone(f).fire && fuDone(f).bits.rd === r.U
+          cdbHit(r)(f) := fuDone(f).fire && fuDone(f).bits.rd === r.U
 
         cdbValid(r) := cdbHit(r).asUInt.orR
         cdbData(r)  := Mux1H(cdbHit(r), (0 until p(NumFUs)).map(f => fuDone(f).bits.result))
