@@ -5,9 +5,10 @@ import arch.core.bpu.BpuUpdate
 import arch.core.ifu.RedirectInfo
 import arch.core.bru.BruResolveBundle
 import arch.core.dispatch.{ DispatchRobPacket, DispatchRobResp }
+import arch.core.exception.ExceptionSyncReq
 import arch.core.fupool.FuResp
 import arch.core.regfile.RegfileWrite
-import arch.core.exception.ExceptionSyncReq
+import arch.core.sb.{ StoreBufferAllocReq, StoreBufferAllocStatus }
 import vutils.graph.Node
 import chisel3._
 import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
@@ -18,6 +19,8 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val fuDone            = inDVec[FuResp](p => p(NumFUs))
   val bruResolved       = inVVec[BruResolveBundle](p => p(NumBRUs))
   val rdWrite           = outVVec[RegfileWrite](p => p(CommitWidth))
+  val sbAllocStatus     = in[StoreBufferAllocStatus]
+  val sbAlloc           = outVVec[StoreBufferAllocReq](p => p(IssueWidth))
   val sbCommit          = outVVec[RobSbCommit](p => p(CommitWidth))
   val bpuUpdate         = out[BpuUpdate]
   val committedRedirect = outVec[RedirectInfo](p => p(CommitWidth))
@@ -25,7 +28,9 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val flush             = in[Bool]
   val debug             = out[RobDebugInfo]
 
-  private val CntW = log2Ceil(p(RobSize) + 1)
+  private val CntW   = log2Ceil(p(RobSize) + 1)
+  private val SqIdxW = log2Ceil(p(StoreBufferSize))
+  private val SqCntW = log2Ceil(p(StoreBufferSize) + 1)
 
   private val buffer = RegInit(VecInit(Seq.fill(p(RobSize))(0.U.asTypeOf(new RobEntry))))
   private val head   = RegInit(0.U(p(RobTagWidth).W))
@@ -38,6 +43,11 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   private def wrapAdd(x: UInt, y: UInt): UInt = {
     val sum = x +& y
     Mux(sum >= p(RobSize).U, sum - p(RobSize).U, sum)(p(RobTagWidth) - 1, 0)
+  }
+
+  private def wrapSqAdd(x: UInt, y: UInt): UInt = {
+    val sum = x +& y
+    Mux(sum >= p(StoreBufferSize).U, sum - p(StoreBufferSize).U, sum)(SqIdxW - 1, 0)
   }
 
   private def indexFromNewest(distance: Int): UInt = {
@@ -163,25 +173,52 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   private val commitCount               = PopCount(commitPops)
   private val availableSlots            = p(RobSize).U(CntW.W) - count
   private val availableSlotsAfterCommit = availableSlots + commitCount
+  private val laneActive                = Wire(Vec(p(IssueWidth), Bool()))
+  private val laneIsStore               = Wire(Vec(p(IssueWidth), Bool()))
+  private val laneCanReserve            = Wire(Vec(p(IssueWidth), Bool()))
+  private val robUsed                   = Wire(Vec(p(IssueWidth) + 1, UInt(CntW.W)))
+  private val sqUsed                    = Wire(Vec(p(IssueWidth) + 1, UInt(SqCntW.W)))
   private val enqFire                   = Wire(Vec(p(IssueWidth), Bool()))
   private val enqOffset                 = Wire(Vec(p(IssueWidth), UInt(p(RobTagWidth).W)))
   private val enqIdx                    = Wire(Vec(p(IssueWidth), UInt(p(RobTagWidth).W)))
+  private val enqSqIdx                  = Wire(Vec(p(IssueWidth), UInt(SqIdxW.W)))
+  private val enqSqSeq                  = Wire(Vec(p(IssueWidth), UInt(64.W)))
+
+  robUsed(0) := 0.U
+  sqUsed(0)  := 0.U
 
   for (w <- 0 until p(IssueWidth)) {
-    val olderFires = Wire(UInt(CntW.W))
+    val pkt           = dispatchReq.in.lanes(w).bits
+    val olderRobUsed  = Wire(UInt(CntW.W))
+    val olderSqUsed   = Wire(UInt(SqCntW.W))
+    val robCanReserve = !laneActive(w) || availableSlotsAfterCommit > robUsed(w)
+    val sqCanReserve  = !laneIsStore(w) || sbAllocStatus.in.free_count > sqUsed(w)
 
-    if (w == 0) {
-      olderFires := 0.U
-    } else {
-      olderFires := PopCount((0 until w).map(i => enqFire(i)))
-    }
+    olderRobUsed := robUsed(w)
+    olderSqUsed  := sqUsed(w)
 
-    dispatchReq.in.lanes(w).ready := availableSlotsAfterCommit > olderFires
-    enqFire(w)                    := dispatchReq.in.lanes(w).valid && dispatchReq.in.lanes(w).ready
-    enqOffset(w)                  := olderFires(p(RobTagWidth) - 1, 0)
-    enqIdx(w)                     := wrapAdd(tail, enqOffset(w))
+    laneActive(w)     := pkt.active && pkt.decoded.legal && !flush.in
+    laneIsStore(w)    := laneActive(w) && pkt.decoded.isStore
+    laneCanReserve(w) := laneActive(w) && robCanReserve && sqCanReserve
+
+    dispatchReq.in.lanes(w).ready := robCanReserve && sqCanReserve
+
+    robUsed(w + 1) := robUsed(w) + laneCanReserve(w).asUInt
+    sqUsed(w + 1)  := sqUsed(w) + (laneCanReserve(w) && pkt.decoded.isStore).asUInt
+
+    enqFire(w)   := dispatchReq.in.lanes(w).valid && dispatchReq.in.lanes(w).ready && !flush.in
+    enqOffset(w) := olderRobUsed(p(RobTagWidth) - 1, 0)
+    enqIdx(w)    := wrapAdd(tail, enqOffset(w))
+    enqSqIdx(w)  := wrapSqAdd(sbAllocStatus.in.tail, olderSqUsed)
+    enqSqSeq(w)  := sbAllocStatus.in.tail_seq + olderSqUsed
 
     dispatchResp.out.lanes(w).rob_tag := enqIdx(w)
+    dispatchResp.out.lanes(w).sq_idx  := enqSqIdx(w)
+    dispatchResp.out.lanes(w).sq_seq  := enqSqSeq(w)
+
+    sbAlloc.out.lanes(w).valid       := enqFire(w) && pkt.decoded.isStore
+    sbAlloc.out.lanes(w).bits.sq_idx := enqSqIdx(w)
+    sbAlloc.out.lanes(w).bits.sq_seq := enqSqSeq(w)
   }
 
   private val enqCount = PopCount(enqFire)
@@ -215,7 +252,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       buffer(idx).actual_target  := 0.U
       buffer(idx).flush_pipeline := false.B
       buffer(idx).flush_target   := 0.U
-      buffer(idx).sq_idx         := pkt.sq_idx
+      buffer(idx).sq_idx         := enqSqIdx(w)
       buffer(idx).sync_valid     := false.B
       buffer(idx).sync_kind      := 0.U
     }
@@ -292,21 +329,16 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     committedSync.out.lanes(w).pc     := lane.pc
   }
 
-  debug.out.commit_count  := commitCount
-  debug.out.branch_commit := PopCount(
+  debug.out.commit_count   := commitCount
+  debug.out.branch_commit  := PopCount(
     commitInfo.map(lane => lane.pop && lane.is_branch && !lane.sync_valid)
   )
-
   debug.out.bpu_mispredict := commitInfo
     .map(lane =>
-      lane.pop &&
-        !lane.sync_valid &&
-        (lane.is_branch || (!lane.is_branch && lane.bpu_pred_taken)) &&
-        lane.flush_pipeline
+      lane.pop && !lane.sync_valid && (lane.is_branch || (!lane.is_branch && lane.bpu_pred_taken)) && lane.flush_pipeline
     )
     .reduce(_ || _)
-
-  debug.out.empty := count === 0.U
+  debug.out.empty          := count === 0.U
 
   for (w <- 0 until p(CommitWidth)) {
     debug.out.instret(w)  := commitInfo(w).pop && !commitInfo(w).sync_valid

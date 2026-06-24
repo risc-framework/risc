@@ -16,13 +16,11 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
   val rs2Data    = inVVec[RegfileReadResp](p => p(IssueWidth))
   val robReq     = outDVec[DispatchRobPacket](p => p(IssueWidth))
   val robResp    = inVec[DispatchRobResp](p => p(IssueWidth))
-  val sbReq      = outVec[DispatchStoreBufferReq](p => p(IssueWidth))
-  val sbResp     = inVec[DispatchStoreBufferResp](p => p(IssueWidth))
   val dispatched = outDVec[FuReq](p => p(IssueWidth))
 
-  private val laneBaseReqOk = Wire(Vec(p(IssueWidth), Bool()))
-  private val lanePrefixOk  = Wire(Vec(p(IssueWidth), Bool()))
-  private val coreValidReq  = Wire(Vec(p(IssueWidth), Bool()))
+  private val laneBaseReqOk  = Wire(Vec(p(IssueWidth), Bool()))
+  private val lanePrefixFire = Wire(Vec(p(IssueWidth), Bool()))
+  private val coreValidReq   = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
     val dec = decoded.in.lanes(w).bits
@@ -33,51 +31,35 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
     rs2Read.out.lanes(w).valid     := decoded.in.lanes(w).valid && dec.rs2_read && !flush.in
     rs2Read.out.lanes(w).bits.addr := dec.rs2
 
-    sbReq.out.lanes(w).valid := decoded.in.lanes(w).valid
-    sbReq.out.lanes(w).bits  := dec
-
+    robReq.out.lanes(w).bits.active  := decoded.in.lanes(w).valid && dec.legal && !flush.in
     robReq.out.lanes(w).bits.decoded := dec
-    robReq.out.lanes(w).bits.sq_idx  := sbResp.in.lanes(w).ticket.sq_idx
 
-    laneBaseReqOk(w) := decoded.in.lanes(w).valid && dec.legal && !flush.in && sbResp.in
+    laneBaseReqOk(w) := decoded.in.lanes(w).valid && dec.legal && !flush.in && robReq.out
       .lanes(w)
-      .ready && robReq.out.lanes(w).ready
+      .ready
   }
 
-  lanePrefixOk(0) := true.B
+  lanePrefixFire(0) := true.B
 
   for (w <- 1 until p(IssueWidth)) {
-    val olderLaneMayBeSkipped   = !decoded.in.lanes(w - 1).valid || flush.in
-    val olderLaneCanBePresented = laneBaseReqOk(w - 1)
-
-    lanePrefixOk(w) := lanePrefixOk(w - 1) && (olderLaneMayBeSkipped || olderLaneCanBePresented)
+    val olderLaneMayBeSkipped = !decoded.in.lanes(w - 1).valid || flush.in
+    val olderLaneDidDispatch  = dispatched.out.lanes(w - 1).fire
+    lanePrefixFire(w) := lanePrefixFire(w - 1) && (olderLaneMayBeSkipped || olderLaneDidDispatch)
   }
 
   for (w <- 0 until p(IssueWidth))
-    coreValidReq(w) := laneBaseReqOk(w) && lanePrefixOk(w)
+    coreValidReq(w) := laneBaseReqOk(w) && lanePrefixFire(w)
 
   for (w <- 0 until p(IssueWidth)) {
     val dec = decoded.in.lanes(w).bits
 
-    val rs1Raw =
-      Mux(rs1Data.in.lanes(w).valid, rs1Data.in.lanes(w).bits.data, 0.U(p(XLen).W))
-
-    val rs2Raw =
-      Mux(rs2Data.in.lanes(w).valid, rs2Data.in.lanes(w).bits.data, 0.U(p(XLen).W))
+    val rs1Raw = Mux(rs1Data.in.lanes(w).valid, rs1Data.in.lanes(w).bits.data, 0.U(p(XLen).W))
+    val rs2Raw = Mux(rs2Data.in.lanes(w).valid, rs2Data.in.lanes(w).bits.data, 0.U(p(XLen).W))
 
     val rs1Bypassed =
-      Mux(
-        robResp.in.lanes(w).rs1_bypass_valid,
-        robResp.in.lanes(w).rs1_bypass_data,
-        rs1Raw
-      )
-
+      Mux(robResp.in.lanes(w).rs1_bypass_valid, robResp.in.lanes(w).rs1_bypass_data, rs1Raw)
     val rs2Bypassed =
-      Mux(
-        robResp.in.lanes(w).rs2_bypass_valid,
-        robResp.in.lanes(w).rs2_bypass_data,
-        rs2Raw
-      )
+      Mux(robResp.in.lanes(w).rs2_bypass_valid, robResp.in.lanes(w).rs2_bypass_data, rs2Raw)
 
     val dis     = dispatched.out.lanes(w)
     val issueOp = Wire(new FuReq)
@@ -97,23 +79,17 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
     issueOp.rs1_data := rs1Bypassed
     issueOp.rs2_data := rs2Bypassed
     issueOp.rob_tag  := robResp.in.lanes(w).rob_tag
-    issueOp.sq_idx   := sbResp.in.lanes(w).ticket.sq_idx
-    issueOp.sq_seq   := sbResp.in.lanes(w).ticket.sq_seq
+    issueOp.sq_idx   := robResp.in.lanes(w).sq_idx
+    issueOp.sq_seq   := robResp.in.lanes(w).sq_seq
 
     dis.valid := coreValidReq(w)
     dis.bits  := issueOp
 
     robReq.out.lanes(w).valid := dis.fire
-    sbReq.out.lanes(w).fire   := dis.fire
   }
 
   for (w <- 0 until p(IssueWidth)) {
     val consumeThisLane = flush.in || dispatched.out.lanes(w).fire
-
-    if (w == 0) {
-      decoded.in.lanes(w).ready := consumeThisLane
-    } else {
-      decoded.in.lanes(w).ready := decoded.in.lanes(w - 1).fire && consumeThisLane
-    }
+    decoded.in.lanes(w).ready := lanePrefixFire(w) && consumeThisLane
   }
 }

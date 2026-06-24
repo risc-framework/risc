@@ -1,7 +1,6 @@
 package arch.core.sb
 
 import arch.configs._
-import arch.core.dispatch.{ DispatchStoreBufferReq, DispatchStoreBufferResp }
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.rob.RobSbCommit
 import vcache.CacheCommand
@@ -12,10 +11,9 @@ import chisel3.util.{ Cat, Mux1H, PopCount, log2Ceil }
 class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer") {
   val flush = in[Bool]
 
-  val dispatchReq  = inVec[DispatchStoreBufferReq](p => p(IssueWidth))
-  val dispatchResp = outVec[DispatchStoreBufferResp](p => p(IssueWidth))
-
-  val robCommit = inVVec[RobSbCommit](p => p(CommitWidth))
+  val allocStatus = out[StoreBufferAllocStatus]
+  val robAlloc    = inVVec[StoreBufferAllocReq](p => p(IssueWidth))
+  val robCommit   = inVVec[RobSbCommit](p => p(CommitWidth))
 
   val fwdReq  = inDVec[StoreForwardReq](p => p(NumLDs))
   val fwdResp = outDVec[StoreForwardResp](p => p(NumLDs))
@@ -39,8 +37,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     Mux(sum >= p(StoreBufferSize).U, sum - p(StoreBufferSize).U, sum)(idxW - 1, 0)
   }
 
-  private def zeroEntry: StoreBufferEntry =
-    0.U.asTypeOf(new StoreBufferEntry)
+  private def zeroEntry: StoreBufferEntry = 0.U.asTypeOf(new StoreBufferEntry)
 
   private val entries          = RegInit(VecInit(Seq.fill(p(StoreBufferSize))(zeroEntry)))
   private val head             = RegInit(0.U(idxW.W))
@@ -52,50 +49,24 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
 
   private val freeCount = p(StoreBufferSize).U(cntW.W) - count
 
+  allocStatus.out.free_count := freeCount
+  allocStatus.out.tail       := tail
+  allocStatus.out.tail_seq   := tailSeq
+
   status.out.oldest_valid := count =/= 0.U
   status.out.oldest_seq   := entries(head).seq
 
   for (s <- 0 until numStorePorts)
     storeWrite.in.lanes(s).ready := !flush.in
 
-  private val laneIsStore = Wire(Vec(p(IssueWidth), Bool()))
-
-  for (w <- 0 until p(IssueWidth))
-    laneIsStore(w) := dispatchReq.in
-      .lanes(w)
-      .valid && dispatchReq.in.lanes(w).bits.isStore && !flush.in
-
-  private val possibleStoreBeforeOrAt = Wire(
-    Vec(p(IssueWidth), UInt(log2Ceil(p(IssueWidth) + 1).W))
-  )
-
-  for (w <- 0 until p(IssueWidth))
-    possibleStoreBeforeOrAt(w) := PopCount((0 to w).map(i => laneIsStore(i)))
-
   private val sqIdxForLane = Wire(Vec(p(IssueWidth), UInt(idxW.W)))
-  private val sqTailAfter  = Wire(Vec(p(IssueWidth) + 1, UInt(idxW.W)))
   private val sqSeqForLane = Wire(Vec(p(IssueWidth), UInt(64.W)))
-  private val sqSeqAfter   = Wire(Vec(p(IssueWidth) + 1, UInt(64.W)))
   private val allocValid   = Wire(Vec(p(IssueWidth), Bool()))
 
-  sqTailAfter(0) := tail
-  sqSeqAfter(0)  := tailSeq
-
   for (w <- 0 until p(IssueWidth)) {
-    val canReserve = !laneIsStore(w) || possibleStoreBeforeOrAt(w) <= freeCount
-    val allocStore =
-      dispatchReq.in.lanes(w).fire && dispatchReq.in.lanes(w).bits.isStore && !flush.in
-
-    dispatchResp.out.lanes(w).ready         := canReserve
-    dispatchResp.out.lanes(w).ticket.sq_idx := sqTailAfter(w)
-    dispatchResp.out.lanes(w).ticket.sq_seq := sqSeqAfter(w)
-
-    sqIdxForLane(w) := sqTailAfter(w)
-    sqSeqForLane(w) := sqSeqAfter(w)
-
-    sqTailAfter(w + 1) := Mux(allocStore, wrapAdd(sqTailAfter(w), 1.U), sqTailAfter(w))
-    sqSeqAfter(w + 1)  := sqSeqAfter(w) + allocStore.asUInt
-    allocValid(w)      := allocStore
+    sqIdxForLane(w) := robAlloc.in.lanes(w).bits.sq_idx
+    sqSeqForLane(w) := robAlloc.in.lanes(w).bits.sq_seq
+    allocValid(w)   := robAlloc.in.lanes(w).valid && !flush.in
   }
 
   for (q <- 0 until numLoadPorts) {
@@ -132,7 +103,6 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
 
       for (b <- 0 until p(BytesPerWord)) {
         val byteHit = sameLine && e.mask(b) && req.mask(b)
-
         dataStage(logical + 1)(b) := Mux(byteHit, e.data(8 * b + 7, 8 * b), dataStage(logical)(b))
         maskStage(logical + 1)(b) := Mux(byteHit, true.B, maskStage(logical)(b))
       }
@@ -212,17 +182,15 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     val allocHit    = Wire(Vec(p(IssueWidth), Bool()))
 
     for (s <- 0 until numStorePorts)
-      writeHit(s) := storeWrite.in.lanes(s).fire &&
-        storeWrite.in.lanes(s).bits.sq_idx === i.U &&
-        entries(i).valid &&
-        !drainedThis
+      writeHit(s) := storeWrite.in
+        .lanes(s)
+        .fire && storeWrite.in.lanes(s).bits.sq_idx === i.U && entries(i).valid && !drainedThis
 
     for (c <- 0 until p(CommitWidth))
-      commitHit(c) := robCommit.in.lanes(c).valid &&
-        robCommit.in.lanes(c).bits.is_store &&
-        robCommit.in.lanes(c).bits.sq_idx === i.U &&
-        entries(i).valid &&
-        !drainedThis
+      commitHit(c) := robCommit.in.lanes(c).valid && robCommit.in
+        .lanes(c)
+        .bits
+        .is_store && robCommit.in.lanes(c).bits.sq_idx === i.U && entries(i).valid && !drainedThis
 
     for (a <- 0 until p(IssueWidth))
       allocHit(a) := allocValid(a) && sqIdxForLane(a) === i.U
