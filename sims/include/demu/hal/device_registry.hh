@@ -11,7 +11,6 @@
 #include "demu/hal/bus/axil/sram.hh"
 #include "demu/hal/bus/axil/uart.hh"
 #include "demu/hal/device_manager.hh"
-#include "demu/hal/interrupt.hh"
 #include "demu/logger.hh"
 #include <cstddef>
 #include <memory>

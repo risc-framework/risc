@@ -1,7 +1,7 @@
 #pragma once
 
 #include "demu/hal/device_manager.hh"
-#include "demu/hal/interrupt.hh"
+#include "demu/hal/peripheral/interrupt/interrupt_line.hh"
 #include "verilated.h"
 #include <cstdint>
 #include <memory>

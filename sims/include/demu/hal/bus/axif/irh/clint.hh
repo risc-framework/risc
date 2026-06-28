@@ -2,7 +2,7 @@
 
 #include "demu/hal/allocator.hh"
 #include "demu/hal/bus/axif/slave.hh"
-#include "demu/hal/interrupt.hh"
+#include "demu/hal/peripheral/interrupt/interrupt_line.hh"
 
 namespace demu::hal::axif {
 

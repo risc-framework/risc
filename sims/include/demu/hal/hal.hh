@@ -4,12 +4,14 @@
 #include "device_manager.hh"
 #include "device_registry.hh"
 #include "hardware.hh"
-#include "interrupt.hh"
 #include "port_handler.hh"
 
 // Peripherals
 // SRAM
 #include "peripheral/sram/sram.hh"
+
+// Interrupt
+#include "peripheral/interrupt/interrupt_line.hh"
 
 // UART
 #include "peripheral/uart/uart.hh"
