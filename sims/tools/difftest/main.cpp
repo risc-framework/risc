@@ -76,15 +76,6 @@ public:
   }
 
 protected:
-  struct RetirePacket {
-    bool valid{false};
-    addr_t pc{0};
-    instr_t instr{0};
-    bool reg_we{false};
-    uint8_t reg_addr{0};
-    word_t reg_data{0};
-  };
-
   void on_init() override {
     difftest_error_.store(false);
     sim_running_.store(true);
