@@ -45,6 +45,9 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         (PriorityEncoder(mask), mask.asUInt.orR)
       }
 
+      def olderLaneAccepted(w: Int, accepted: Vec[Bool]): Bool =
+        if (w == 0) true.B else !dispatched(w - 1).valid || accepted(w - 1)
+
       val regPending = RegInit(VecInit(Seq.fill(p(NumArchRegs))(false.B)))
 
       defaultFuReqs()
@@ -57,7 +60,8 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
 
       for (r <- 0 until p(NumArchRegs)) {
         for (f <- 0 until p(NumFUs))
-          cdbHit(r)(f) := fuDone(f).fire && fuDone(f).bits.rd === r.U
+          if (r == 0) cdbHit(r)(f) := false.B
+          else cdbHit(r)(f)        := fuDone(f).fire && fuDone(f).bits.rd === r.U
 
         cdbValid(r) := cdbHit(r).asUInt.orR
         cdbData(r)  := Mux1H(cdbHit(r), (0 until p(NumFUs)).map(f => fuDone(f).bits.result))
@@ -73,20 +77,6 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       for (f <- 0 until p(NumFUs))
         tempFuUsed(0)(f) := false.B
 
-      def olderBlockedWriteHaz(w: Int, rs: UInt): Bool =
-        if (w == 0) {
-          false.B
-        } else {
-          (0 until w)
-            .map { i =>
-              val older = dispatched(i).bits
-              dispatched(i).valid && !accepted(
-                i
-              ) && older.rd_write && older.rd === rs
-            }
-            .reduce(_ || _)
-        }
-
       for (w <- 0 until p(IssueWidth)) {
         val dis = dispatched(w)
         val op  = dis.bits
@@ -95,25 +85,18 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         val rs2Used  = op.rs2_read
         val writesRd = op.rd_write
 
+        val rs1Haz = rs1Used && tempPending(w)(op.rs1)
+        val rs2Haz = rs2Used && tempPending(w)(op.rs2)
+        val wawHaz = writesRd && tempPending(w)(op.rd)
+
         val rs1FromCdb = rs1Used && cdbValid(op.rs1)
         val rs2FromCdb = rs2Used && cdbValid(op.rs2)
         val rs1Value   = Mux(rs1FromCdb, cdbData(op.rs1), op.rs1_data)
         val rs2Value   = Mux(rs2FromCdb, cdbData(op.rs2), op.rs2_data)
 
-        val rs1ScoreHaz = rs1Used && tempPending(w)(op.rs1) && !rs1FromCdb
-        val rs2ScoreHaz = rs2Used && tempPending(w)(op.rs2) && !rs2FromCdb
-        val wawScoreHaz = writesRd && tempPending(w)(op.rd)
-
-        val rs1OlderBlockedHaz = rs1Used && olderBlockedWriteHaz(w, op.rs1)
-        val rs2OlderBlockedHaz = rs2Used && olderBlockedWriteHaz(w, op.rs2)
-        val wawOlderBlockedHaz = writesRd && olderBlockedWriteHaz(w, op.rd)
-
-        val rs1Haz = rs1ScoreHaz || rs1OlderBlockedHaz
-        val rs2Haz = rs2ScoreHaz || rs2OlderBlockedHaz
-        val wawHaz = wawScoreHaz || wawOlderBlockedHaz
-
         val (target, fuOk) = selectFu(op, tempFuUsed(w))
-        val canIssue       = !flush && fuOk && !rs1Haz && !rs2Haz && !wawHaz
+        val prevOk         = olderLaneAccepted(w, accepted)
+        val canIssue       = !flush && prevOk && fuOk && !rs1Haz && !rs2Haz && !wawHaz
 
         dis.ready   := canIssue
         accepted(w) := dis.valid && canIssue
