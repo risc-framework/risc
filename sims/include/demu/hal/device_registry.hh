@@ -2,11 +2,11 @@
 
 #include "demu/generated/bus_bindings.hh"
 #include "demu/generated/sys_def.hh"
-#include "demu/hal/bus/axif/interrupt.hh"
+#include "demu/hal/bus/axif/irh/clint.hh"
 #include "demu/hal/bus/axif/port_handler.hh"
 #include "demu/hal/bus/axif/sram.hh"
 #include "demu/hal/bus/axif/uart.hh"
-#include "demu/hal/bus/axil/interrupt.hh"
+#include "demu/hal/bus/axil/irh/clint.hh"
 #include "demu/hal/bus/axil/port_handler.hh"
 #include "demu/hal/bus/axil/sram.hh"
 #include "demu/hal/bus/axil/uart.hh"

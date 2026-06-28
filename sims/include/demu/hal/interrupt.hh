@@ -15,7 +15,7 @@ public:
   }
 
 private:
-  bool level_ = false;
+  bool level_{false};
 };
 
 } // namespace demu::hal

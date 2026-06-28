@@ -105,7 +105,7 @@ protected:
 
   void on_clock_tick() override {
     if (__builtin_expect(difftest_error_.load(std::memory_order_relaxed), 0)) {
-      _terminate = true;
+      terminate();
       return;
     }
 
@@ -136,7 +136,7 @@ protected:
 
         if (__builtin_expect(difftest_error_.load(std::memory_order_relaxed),
                              0)) {
-          _terminate = true;
+          terminate();
           return;
         }
 

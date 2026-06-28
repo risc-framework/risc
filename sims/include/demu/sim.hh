@@ -31,6 +31,7 @@ public:
   void reset();
   void step(uint64_t cycles = 1);
   void run(uint64_t max_cycles = 0);
+  void terminate() noexcept { terminate_ = true; }
 
   // Architecture state access
   [[nodiscard]] auto device(addr_t addr) -> hal::Device * {
@@ -38,7 +39,10 @@ public:
   }
   [[nodiscard]] auto pc() const noexcept -> addr_t { return last_retire_pc_; }
   [[nodiscard]] auto reg(uint8_t reg) const noexcept -> word_t {
-    return _register_values[reg];
+    return register_values_[reg];
+  }
+  [[nodiscard]] auto is_terminate() const noexcept -> bool {
+    return terminate_;
   }
 
   // Simulator configuration
@@ -118,7 +122,7 @@ protected:
   bool trace_enabled_{false};
 
   // Simulator state
-  bool _terminate{false};
+  bool terminate_{false};
 
   // Cache Profiling
   uint64_t _l1_icache_accesses{0};
@@ -136,7 +140,7 @@ protected:
   uint64_t _backend_stalls{0};
 
   addr_t last_retire_pc_{0};
-  std::array<word_t, isa_def::NUM_ARCH_REGS> _register_values{};
+  std::array<word_t, isa_def::NUM_ARCH_REGS> register_values_{};
 
   // Internal simulation methods
   void clock_tick();

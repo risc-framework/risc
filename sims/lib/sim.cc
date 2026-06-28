@@ -160,8 +160,8 @@ void DemuSimulator::reset() {
   _frontend_stalls = 0;
   _backend_stalls = 0;
 
-  _terminate = false;
-  _register_values.fill(0);
+  terminate_ = false;
+  register_values_.fill(0);
 
   on_reset();
   DEMU_INFO("System Reset Complete. PC: 0x{:08x}",
@@ -180,7 +180,7 @@ void DemuSimulator::run(uint64_t max_cycles) {
 
   auto start_time = std::chrono::high_resolution_clock::now();
   on_init();
-  while (cycle_count() < target && !_terminate) {
+  while (cycle_count() < target && !is_terminate()) {
     clock_tick();
   }
   on_exit();
@@ -284,7 +284,7 @@ void DemuSimulator::handle_retirements() {
     last_retire_pc_ = retire.pc;
 
     if (retire.reg_we && retire.reg_addr < isa_def::NUM_ARCH_REGS) {
-      _register_values[retire.reg_addr] = retire.reg_data;
+      register_values_[retire.reg_addr] = retire.reg_data;
       DEMU_REG_WRITE(retire.reg_addr, retire.reg_data);
     }
 

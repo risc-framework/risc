@@ -16,14 +16,14 @@
 
 // Bus
 // AXI4-Lite
-#include "bus/axil/interrupt.hh"
+#include "bus/axil/irh/clint.hh"
 #include "bus/axil/port_handler.hh"
 #include "bus/axil/slave.hh"
 #include "bus/axil/sram.hh"
 #include "bus/axil/uart.hh"
 
 // AXI4-Full
-#include "bus/axif/interrupt.hh"
+#include "bus/axif/irh/clint.hh"
 #include "bus/axif/port_handler.hh"
 #include "bus/axif/slave.hh"
 #include "bus/axif/sram.hh"
