@@ -1,6 +1,6 @@
 #pragma once
 
-namespace demu::hal {
+namespace demu::hal::peripheral {
 
 class InterruptLine {
 public:
@@ -18,4 +18,4 @@ private:
   bool level_{false};
 };
 
-} // namespace demu::hal
+} // namespace demu::hal::peripheral

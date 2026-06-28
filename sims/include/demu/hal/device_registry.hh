@@ -20,8 +20,8 @@
 namespace demu::hal {
 
 struct GeneratedDeviceContext {
-  InterruptLine *timer_irq{nullptr};
-  InterruptLine *soft_irq{nullptr};
+  peripheral::InterruptLine *timer_irq{nullptr};
+  peripheral::InterruptLine *soft_irq{nullptr};
 };
 
 template <typename T> inline constexpr bool always_false_v = false;

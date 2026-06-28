@@ -25,8 +25,8 @@ DemuSimulator::DemuSimulator(bool enabled_trace, int threads, int argc,
 
   device_manager_ = std::make_unique<demu::hal::DeviceManager>();
 
-  timer_irq_ = std::make_unique<demu::hal::InterruptLine>();
-  soft_irq_ = std::make_unique<demu::hal::InterruptLine>();
+  timer_irq_ = std::make_unique<demu::hal::peripheral::InterruptLine>();
+  soft_irq_ = std::make_unique<demu::hal::peripheral::InterruptLine>();
 }
 
 DemuSimulator::~DemuSimulator() {

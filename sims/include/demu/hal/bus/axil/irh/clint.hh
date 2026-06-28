@@ -21,8 +21,8 @@ constexpr const uint64_t TICK_NS_DIVIDER = TICK_US_DIVIDER * 1000;
 class AXILiteCLINT final : public AXILiteSlave {
 public:
   explicit AXILiteCLINT(const sys_def::DeviceDescriptor &desc, uint64_t freq,
-                        InterruptLine *timer_line = nullptr,
-                        InterruptLine *soft_line = nullptr)
+                        peripheral::InterruptLine *timer_line = nullptr,
+                        peripheral::InterruptLine *soft_line = nullptr)
       : AXILiteSlave(desc),
         allocator_(std::make_unique<MemoryAllocator>(desc.base, desc.size)),
         freq_(freq), timer_line_(timer_line), soft_line_(soft_line) {}
@@ -39,8 +39,8 @@ public:
 private:
   std::unique_ptr<MemoryAllocator> allocator_;
   uint64_t freq_;
-  InterruptLine *timer_line_;
-  InterruptLine *soft_line_;
+  peripheral::InterruptLine *timer_line_;
+  peripheral::InterruptLine *soft_line_;
 
   void process_writes();
   void process_reads();
