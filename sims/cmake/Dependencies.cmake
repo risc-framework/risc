@@ -15,11 +15,11 @@ else()
     -Wno-PINCONNECTEMPTY
   )
 
-  if(${TARGET_FAMILY} STREQUAL "")
+  if("${TARGET_FAMILY}" STREQUAL "")
     message(FATAL_ERROR "TARGET_FAMILY not set!")
   endif()
 
-  if(${TARGET_ARCH} STREQUAL "")
+  if("${TARGET_ARCH}" STREQUAL "")
     message(FATAL_ERROR "TARGET_ARCH not set!")
   endif()
 

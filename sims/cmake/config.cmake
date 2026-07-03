@@ -4,8 +4,12 @@
 option(USE_CCACHE "Use ccache to speed up recompilation" ON)
 
 # settings
-set(TARGET_FAMILY "")
-set(TARGET_ARCH "")
+if(NOT DEFINED TARGET_FAMILY)
+  set(TARGET_FAMILY "")
+endif()
+if(NOT DEFINED TARGET_ARCH)
+  set(TARGET_ARCH "")
+endif()
 set(TOP_MODULE "top")
 set(RTL_SOURCE "${CMAKE_SOURCE_DIR}/../build/${TOP_MODULE}.sv")
 set(GEN_DIR "${CMAKE_SOURCE_DIR}/../build")
