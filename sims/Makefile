@@ -8,8 +8,8 @@ COREMARK_DIR = $(PROJECT_DIR)/tests/coremark
 
 # Build configuration
 BUILD_TYPE ?= Release
-FAMILY ?= riscv32
-ARCH ?= rv32im
+FAMILY ?= 
+ARCH ?= 
 
 # configurations for coremark
 COREMARK_ENABLE_DEBUG ?= 0
@@ -70,8 +70,6 @@ build: config
 		echo "Running CMake with generator: $(GENERATOR)"; \
 		cd $(BUILD_DIR) && cmake $(PROJECT_DIR) \
 			-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
-			-DTARGET_FAMILY=$(FAMILY) \
-			-DTARGET_ARCH=$(ARCH) \
 			-G "$(GENERATOR)"; \
 	fi
 	@echo "==> Building project with $(GENERATOR)..."
