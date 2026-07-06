@@ -261,15 +261,18 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
 
   private val flushCount   = PopCount(keepPrefix)
   private val flushTail    = wrapAdd(afterDrainHead, flushCount)
+  private val flushTailRaw = afterDrainHead +& flushCount
+  private val flushWrap    = flushTailRaw >= p(StoreBufferSize).U
   private val keepPhysical = Wire(Vec(p(StoreBufferSize), Bool()))
 
   for (i <- 0 until p(StoreBufferSize)) {
-    val keepHits = Wire(Vec(p(StoreBufferSize), Bool()))
+    val idx = i.U(idxW.W)
 
-    for (logical <- 0 until p(StoreBufferSize))
-      keepHits(logical) := keepPrefix(logical) && wrapAdd(afterDrainHead, logical.U) === i.U
-
-    keepPhysical(i) := keepHits.asUInt.orR
+    keepPhysical(i) := Mux(
+      flushWrap,
+      idx >= afterDrainHead || idx < flushTail,
+      idx >= afterDrainHead && idx < flushTail
+    )
   }
 
   for (i <- 0 until p(StoreBufferSize))
