@@ -25,8 +25,8 @@ DemuSimulator::DemuSimulator(bool enabled_trace, int threads, int argc,
 
   device_manager_ = std::make_unique<demu::hal::DeviceManager>();
 
-  timer_irq_ = std::make_unique<demu::hal::InterruptLine>();
-  soft_irq_ = std::make_unique<demu::hal::InterruptLine>();
+  timer_irq_ = std::make_unique<demu::hal::peripheral::InterruptLine>();
+  soft_irq_ = std::make_unique<demu::hal::peripheral::InterruptLine>();
 }
 
 DemuSimulator::~DemuSimulator() {
@@ -168,6 +168,11 @@ void DemuSimulator::reset() {
   _stall_issue_queue_full = 0;
   _stall_lsq_full = 0;
   _stall_flush_recovery = 0;
+  _sched_raw_wait = 0;
+  _sched_waw_wait = 0;
+  _sched_fu_busy = 0;
+  _sched_older_lane_block = 0;
+  _sched_no_matching_fu = 0;
   _mul_wait = 0;
   _div_wait = 0;
   _load_use_wait = 0;
@@ -177,8 +182,8 @@ void DemuSimulator::reset() {
   _wb_conflict = 0;
   _rob_head_not_ready = 0;
 
-  _terminate = false;
-  _register_values.fill(0);
+  terminate_ = false;
+  register_values_.fill(0);
 
   on_reset();
   DEMU_INFO("System Reset Complete. PC: 0x{:08x}",
@@ -197,7 +202,7 @@ void DemuSimulator::run(uint64_t max_cycles) {
 
   auto start_time = std::chrono::high_resolution_clock::now();
   on_init();
-  while (cycle_count() < target && !_terminate) {
+  while (cycle_count() < target && !is_terminate()) {
     clock_tick();
   }
   on_exit();
@@ -247,6 +252,16 @@ void DemuSimulator::run(uint64_t max_cycles) {
             stall_rate(_stall_rob_full) * 100);
   DEMU_INFO("    stall_issue_queue_full:   {:.2f} % of cycles",
             stall_rate(_stall_issue_queue_full) * 100);
+  DEMU_INFO("      sched_raw_wait:         {:.2f} % of cycles",
+            stall_rate(_sched_raw_wait) * 100);
+  DEMU_INFO("      sched_waw_wait:         {:.2f} % of cycles",
+            stall_rate(_sched_waw_wait) * 100);
+  DEMU_INFO("      sched_fu_busy:          {:.2f} % of cycles",
+            stall_rate(_sched_fu_busy) * 100);
+  DEMU_INFO("      sched_older_lane_block: {:.2f} % of cycles",
+            stall_rate(_sched_older_lane_block) * 100);
+  DEMU_INFO("      sched_no_matching_fu:   {:.2f} % of cycles",
+            stall_rate(_sched_no_matching_fu) * 100);
   DEMU_INFO("    stall_lsq_full:           {:.2f} % of cycles",
             stall_rate(_stall_lsq_full) * 100);
   DEMU_INFO("    stall_flush_recovery:     {:.2f} % of cycles",
@@ -335,13 +350,21 @@ void DemuSimulator::handle_retirements() {
     last_retire_pc_ = retire.pc;
 
     if (retire.reg_we && retire.reg_addr < isa_def::NUM_ARCH_REGS) {
-      _register_values[retire.reg_addr] = retire.reg_data;
+      register_values_[retire.reg_addr] = retire.reg_data;
       DEMU_REG_WRITE(retire.reg_addr, retire.reg_data);
     }
 
     Instruction inst(retire.instr);
-    DEMU_DEBUG("RETIRE[{}] | Cycle {:6d} | PC=0x{:08x} | Inst={}", lane,
-               cycle_count(), retire.pc, inst.to_string());
+
+    if (demu::Logger::demu_should_log(spdlog::level::trace)) {
+      DEMU_TRACE("LANE[{}] | Cycle {:6d} | PC=0x{:08x} | Decode={}", lane,
+                 cycle_count(), retire.pc,
+                 inst.to_string(InstructionLogLevel::Verbose));
+    } else if (demu::Logger::demu_should_log(spdlog::level::debug)) {
+      DEMU_DEBUG("LANE[{}] | Cycle {:6d} | PC=0x{:08x} | Inst={}", lane,
+                 cycle_count(), retire.pc,
+                 inst.to_string(InstructionLogLevel::Compact));
+    }
   }
 }
 
@@ -380,6 +403,13 @@ void DemuSimulator::handle_performance_profiling() {
   _stall_lsq_full += static_cast<uint64_t>(dut_->debug_stall_lsq_full);
   _stall_flush_recovery +=
       static_cast<uint64_t>(dut_->debug_stall_flush_recovery);
+  _sched_raw_wait += static_cast<uint64_t>(dut_->debug_sched_raw_wait);
+  _sched_waw_wait += static_cast<uint64_t>(dut_->debug_sched_waw_wait);
+  _sched_fu_busy += static_cast<uint64_t>(dut_->debug_sched_fu_busy);
+  _sched_older_lane_block +=
+      static_cast<uint64_t>(dut_->debug_sched_older_lane_block);
+  _sched_no_matching_fu +=
+      static_cast<uint64_t>(dut_->debug_sched_no_matching_fu);
   _mul_wait += static_cast<uint64_t>(dut_->debug_mul_wait);
   _div_wait += static_cast<uint64_t>(dut_->debug_div_wait);
   _load_use_wait += static_cast<uint64_t>(dut_->debug_load_use_wait);

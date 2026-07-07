@@ -10,6 +10,7 @@ import arch.core.exception.Exception
 import arch.core.flush.Flush
 import arch.core.fupool.{ FuPool, FunctionalUnitType }
 import arch.core.ifu.Ifu
+import arch.core.ibuffer.IBuffer
 import arch.core.memarb.MemoryArbiter
 import arch.core.regfile.Regfile
 import arch.core.rob.Rob
@@ -32,13 +33,9 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   val irq   = in[InterruptLines]
   val debug = out[CpuDebugInfo]
 
-  require(p(NumLDs) > 0, "Cpu: at least one LD node is required")
-  require(p(NumSTs) > 0, "Cpu: at least one ST node is required")
-  require(p(NumBRUs) > 0, "Cpu: at least one BRU node is required")
-  require(p(NumCSRs) <= 1, "Cpu: at most one CSR node is supported")
-
   private val bpu           = subnode(new Bpu)
   private val ifu           = subnode(new Ifu)
+  private val ibuffer       = subnode(new IBuffer)
   private val decode        = subnode(new Decode)
   private val regfile       = subnode(new Regfile)
   private val scheduler     = subnode(new Scheduler)
@@ -61,13 +58,12 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
 
   fuPool.cpu.in.cycle   := cycleCount
   fuPool.cpu.in.instret := instretCount
-  fuPool.cpu.in.irq     := irq.in
 
   link(
-    imemReq                    -> l1ICache.lowerReq,
-    l1ICache.lowerResp         -> imemResp,
-    dmemReq                    -> l1DCache.lowerReq,
-    l1DCache.lowerResp         -> dmemResp,
+    l1ICache.lowerReq          -> imemReq,
+    imemResp                   -> l1ICache.lowerResp,
+    l1DCache.lowerReq          -> dmemReq,
+    dmemResp                   -> l1DCache.lowerResp,
     ifu.icacheReq              -> l1ICache.upperReq,
     l1ICache.upperResp         -> ifu.icacheResp,
     memoryArbiter.dcacheReq    -> l1DCache.upperReq,
@@ -79,15 +75,18 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     ifu.bpuReq                 -> bpu.ifuReq,
     bpu.ifuResp                -> ifu.bpuResp,
     rob.bpuUpdate              -> bpu.robUpdate,
-    ifu.decode                 -> decode.ifu,
-    decode.dispatch            -> dispatch.decode,
-    dispatch.schedulerReq      -> scheduler.dispatchReq,
-    dispatch.regfileReq        -> regfile.dispatchReq,
-    regfile.dispatchResp       -> dispatch.regfileResp,
+    ifu.issued                 -> ibuffer.enq,
+    ibuffer.status             -> ifu.ibufferStatus,
+    ibuffer.deq                -> decode.issued,
+    decode.decoded             -> dispatch.decoded,
+    dispatch.dispatched        -> scheduler.dispatched,
+    dispatch.rs1Read           -> regfile.rs1Read,
+    dispatch.rs2Read           -> regfile.rs2Read,
+    regfile.rs1Data            -> dispatch.rs1Data,
+    regfile.rs2Data            -> dispatch.rs2Data,
+    rob.rdWrite                -> regfile.rdWrite,
     dispatch.robReq            -> rob.dispatchReq,
     rob.dispatchResp           -> dispatch.robResp,
-    dispatch.sbReq             -> storeBuffer.dispatchReq,
-    storeBuffer.dispatchResp   -> dispatch.sbResp,
     scheduler.fuReq            -> fuPool.schedulerReq,
     fuPool.schedulerDone       -> scheduler.fuDone,
     fuPool.robDone             -> rob.fuDone,
@@ -100,26 +99,29 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     storeBuffer.fwdResp        -> fuPool.storeForwardResp,
     storeBuffer.status         -> fuPool.storeBufferStatus,
     fuPool.storeWrite          -> storeBuffer.storeWrite,
-    rob.regfileWrite           -> regfile.robWrite,
+    storeBuffer.allocStatus    -> rob.sbAllocStatus,
+    rob.sbAlloc                -> storeBuffer.robAlloc,
     rob.sbCommit               -> storeBuffer.robCommit,
     storeBuffer.memReq         -> memoryArbiter.sbMemReq,
     memoryArbiter.sbMemResp    -> storeBuffer.memResp,
     storeBuffer.mmioReq        -> memoryArbiter.sbMmioReq,
     memoryArbiter.sbMmioResp   -> storeBuffer.mmioResp,
-    rob.flush                  -> flush.rob,
-    flush.redirect             -> exception.redirectReq,
-    flush.sync                 -> exception.syncReq,
-    fuPool.asyncException      -> exception.asyncReq,
-    fuPool.exceptionStatus     -> exception.csrStatus,
-    exception.flush            -> flush.exception,
-    flush.ifuReq               -> ifu.exceptionReq,
-    ifu.exceptionResp          -> exception.ifuResp,
-    flush.dispatchReq          -> dispatch.exception,
-    flush.schedulerReq         -> scheduler.exception,
-    flush.storeBufferReq       -> storeBuffer.exception,
-    flush.fuPoolReq            -> fuPool.exceptionReq,
-    flush.robReq               -> rob.exceptionReq,
-    rob.exceptionResp          -> exception.robResp
+    rob.committedRedirect      -> exception.committedRedirect,
+    rob.committedSync          -> exception.committedSync,
+    fuPool.async               -> exception.async,
+    fuPool.csrBusy             -> exception.csrBusy,
+    exception.sync             -> flush.sync,
+    exception.redirect         -> flush.redirect,
+    exception.redirect         -> ifu.redirect,
+    exception.trapUpdate       -> flush.trapUpdate,
+    exception.trapUpdate       -> fuPool.trapUpdate,
+    flush.globalFlush          -> ibuffer.flush,
+    flush.globalFlush          -> dispatch.flush,
+    flush.globalFlush          -> scheduler.flush,
+    flush.globalFlush          -> fuPool.flush,
+    flush.globalFlush          -> storeBuffer.flush,
+    flush.globalFlush          -> rob.flush,
+    irq                        -> fuPool.irq,
   )
 
   debug.out.cycle_count   := cycleCount
@@ -142,55 +144,63 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     0.U
   )
 
-  debug.out.l1_icache_access := l1ICache.upperResp.out.valid && l1ICache.upperResp.out.ready
-  debug.out.l1_icache_miss   := l1ICache.upperResp.out.valid && l1ICache.upperResp.out.ready && !l1ICache.upperResp.out.bits.hit
-  debug.out.l1_dcache_access := l1DCache.upperResp.out.valid && l1DCache.upperResp.out.ready
-  debug.out.l1_dcache_miss   := l1DCache.upperResp.out.valid && l1DCache.upperResp.out.ready && !l1DCache.upperResp.out.bits.hit
+  debug.out.l1_icache_access := l1ICache.upperResp.out.fire
+  debug.out.l1_icache_miss   := l1ICache.upperResp.out.fire && !l1ICache.upperResp.out.bits.hit
+  debug.out.l1_dcache_access := l1DCache.upperResp.out.fire
+  debug.out.l1_dcache_miss   := l1DCache.upperResp.out.fire && !l1DCache.upperResp.out.bits.hit
 
-  debug.out.flush_cycle    := exception.debug.out.flush_valid
+  debug.out.flush_cycle    := flush.globalFlush.out
   debug.out.bpu_mispredict := rob.debug.out.bpu_mispredict
   debug.out.branch_commit  := rob.debug.out.branch_commit
   debug.out.rob_empty      := rob.debug.out.empty
   debug.out.issue_count    := PopCount(
-    Seq.tabulate(p(IssueWidth))(w => dispatch.schedulerReq.out.lanes(w).fire)
+    Seq.tabulate(p(IssueWidth))(w => dispatch.dispatched.out.lanes(w).fire)
   )
   debug.out.commit_count   := rob.debug.out.commit_count
 
-  debug.out.stall_if_redirect  := flush.ifuReq.out.redirect
+  debug.out.stall_if_redirect  := exception.redirect.out.valid
   debug.out.stall_if_ras_wait  := bpu.debug.out.ras_wait
-  debug.out.stall_ibuffer_full := ifu.debug.out.ibuffer_full
+  debug.out.stall_ibuffer_full := ibuffer.status.out.full
 
   debug.out.stall_decode_not_ready := Seq
-    .tabulate(p(IssueWidth))(w => ifu.decode.out.lanes(w).valid && !ifu.decode.out.lanes(w).ready)
+    .tabulate(p(IssueWidth))(w => ibuffer.deq.out.lanes(w).valid && !ibuffer.deq.out.lanes(w).ready)
     .reduce(_ || _)
 
   debug.out.stall_dispatch_not_ready := Seq
     .tabulate(p(IssueWidth))(w =>
-      decode.dispatch.out.lanes(w).valid && !decode.dispatch.out.lanes(w).ready
+      decode.decoded.out.lanes(w).valid && !decode.decoded.out.lanes(w).ready
     )
     .reduce(_ || _)
 
   debug.out.stall_rob_full := Seq
     .tabulate(p(IssueWidth))(w =>
-      decode.dispatch.out.lanes(w).valid && !dispatch.robReq.out.lanes(w).ready
+      decode.decoded.out.lanes(w).valid && decode.decoded.out.lanes(w).bits.legal && !dispatch.robReq.out
+        .lanes(w)
+        .ready
     )
     .reduce(_ || _)
 
   debug.out.stall_issue_queue_full := Seq
     .tabulate(p(IssueWidth))(w =>
-      dispatch.schedulerReq.out.lanes(w).valid && !dispatch.schedulerReq.out.lanes(w).ready
+      dispatch.dispatched.out.lanes(w).valid && !dispatch.dispatched.out.lanes(w).ready
     )
     .reduce(_ || _)
 
   debug.out.stall_lsq_full := Seq
     .tabulate(p(IssueWidth))(w =>
-      dispatch.sbReq.out.lanes(w).valid &&
-        dispatch.sbReq.out.lanes(w).bits.isStore &&
-        !storeBuffer.dispatchResp.out.lanes(w).ready
+      decode.decoded.out.lanes(w).valid &&
+        decode.decoded.out.lanes(w).bits.isStore &&
+        !dispatch.robReq.out.lanes(w).ready
     )
     .reduce(_ || _)
 
-  debug.out.stall_flush_recovery := exception.debug.out.flush_valid
+  debug.out.stall_flush_recovery := flush.globalFlush.out
+
+  debug.out.sched_raw_wait         := scheduler.debug.out.raw_wait
+  debug.out.sched_waw_wait         := scheduler.debug.out.waw_wait
+  debug.out.sched_fu_busy          := scheduler.debug.out.fu_busy
+  debug.out.sched_older_lane_block := scheduler.debug.out.older_lane_block
+  debug.out.sched_no_matching_fu   := scheduler.debug.out.no_matching_fu
 
   debug.out.frontend_stall := debug.out.stall_if_redirect ||
     debug.out.stall_if_ras_wait ||

@@ -1,4 +1,4 @@
-package arch
+package arch.main
 
 import arch.core.alu.AluInit
 import arch.core.bpu.BpuInit
@@ -13,19 +13,18 @@ import arch.core.scheduler.SchedulerInit
 import arch.core.st.StInit
 import arch.core.csr.CsrInit
 import arch.core.exception.ExceptionInit
-import arch.core.rob.RobInit
 import arch.system.soc.Soc
 import arch.system.bridge.BusBridgeInit
 import arch.system.crossbar.BusCrossbarInit
 import arch.system.device.{ DeviceDescriptor, DeviceType }
 import arch.core.fupool.{ FunctionalUnitDescriptor, FunctionalUnitType }
 import arch.configs._
-import arch.isa._
-import cpp.CppCodegen
+import arch.isa.variants.riscv32._
+import arch.cpp.CppCodegen
 import vcache.repl.ReplPolicy
 import vutils._
 
-object MainSystem extends App {
+object Rv32imOoO extends App {
   DecodeInit
   BruInit
   BpuInit
@@ -39,7 +38,6 @@ object MainSystem extends App {
   StInit
   SchedulerInit
   ExceptionInit
-  RobInit
 
   BusBridgeInit
   BusCrossbarInit
@@ -47,6 +45,7 @@ object MainSystem extends App {
   private val params = Parameters(
     Map(
       ISA                           -> Rv32im.isa,
+      TopModuleName                 -> "top",
       Frequency                     -> 50_000_000L,
       IBufferSize                   -> 16,
       ResetVector                   -> 0x80000000L,
@@ -109,7 +108,7 @@ object MainSystem extends App {
       GShareGhrWidth                -> 10,
       RasSize                       -> 16,
       L1ICacheWays                  -> 2,
-      L1ICacheSets                  -> 8,
+      L1ICacheSets                  -> 16,
       L1ICacheLineSize              -> 64,
       L1ICacheReplPolicy            -> ReplPolicy.LRU,
       L1DCacheWays                  -> 4,
@@ -154,7 +153,7 @@ object MainSystem extends App {
 
   DesignEmitter.emit(
     gen = new Soc,
-    filename = "soc",
+    filename = p(TopModuleName),
     target = SystemVerilog,
     info = true,
     lowering = true,

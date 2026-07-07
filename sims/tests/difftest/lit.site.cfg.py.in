@@ -3,8 +3,13 @@ config.test_exec_root = "@CMAKE_CURRENT_BINARY_DIR@"
 
 config.src_root = "@CMAKE_SOURCE_DIR@"
 config.obj_root = "@CMAKE_BINARY_DIR@"
-config.difftest = "@CMAKE_BINARY_DIR@/bin/demu-@TARGET_ARCH@-diff"
 
 config.arch = "@TARGET_ARCH@"
+config.difftest = "@CMAKE_BINARY_DIR@/bin/demu-@TARGET_ARCH@-diff"
+
+config.baremetal_linker = (
+    "@CMAKE_BINARY_DIR@/runtime/bare-metal/@TARGET_FAMILY@/linker.ld"
+)
+config.baremetal_start = "@CMAKE_BINARY_DIR@/runtime/bare-metal/@TARGET_FAMILY@/start.S"
 
 lit_config.load_config(config, "@CMAKE_CURRENT_SOURCE_DIR@/lit.cfg.py")

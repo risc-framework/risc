@@ -1,6 +1,4 @@
-#include "demu/hal/bus/axil/interrupt.hh"
-
-#if defined(__ISA_RV32I__) || defined(__ISA_RV32IM__)
+#include "demu/hal/bus/axil/irh/clint.hh"
 
 namespace demu::hal::axil {
 
@@ -142,5 +140,3 @@ void AXILiteCLINT::dump(addr_t start, size_t size) const noexcept {
 }
 
 } // namespace demu::hal::axil
-
-#endif // defined(__ISA_RV32I__) || defined(__ISA_RV32IM__)

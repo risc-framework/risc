@@ -1,7 +1,7 @@
 #pragma once
 
 #include "demu/hal/device_manager.hh"
-#include "demu/hal/interrupt.hh"
+#include "demu/hal/peripheral/interrupt/interrupt_line.hh"
 #include "verilated.h"
 #include <cstdint>
 #include <memory>
@@ -31,6 +31,7 @@ public:
   void reset();
   void step(uint64_t cycles = 1);
   void run(uint64_t max_cycles = 0);
+  void terminate() noexcept { terminate_ = true; }
 
   // Architecture state access
   [[nodiscard]] auto device(addr_t addr) -> hal::Device * {
@@ -38,7 +39,10 @@ public:
   }
   [[nodiscard]] auto pc() const noexcept -> addr_t { return last_retire_pc_; }
   [[nodiscard]] auto reg(uint8_t reg) const noexcept -> word_t {
-    return _register_values[reg];
+    return register_values_[reg];
+  }
+  [[nodiscard]] auto is_terminate() const noexcept -> bool {
+    return terminate_;
   }
 
   // Simulator configuration
@@ -112,8 +116,8 @@ protected:
   std::unique_ptr<soc_t> dut_;
   std::unique_ptr<hal::DeviceManager> device_manager_;
 
-  std::unique_ptr<demu::hal::InterruptLine> timer_irq_;
-  std::unique_ptr<demu::hal::InterruptLine> soft_irq_;
+  std::unique_ptr<demu::hal::peripheral::InterruptLine> timer_irq_;
+  std::unique_ptr<demu::hal::peripheral::InterruptLine> soft_irq_;
 
 #ifdef ENABLE_TRACE
   std::unique_ptr<VerilatedVcdC> vcd_;
@@ -123,7 +127,7 @@ protected:
   bool trace_enabled_{false};
 
   // Simulator state
-  bool _terminate{false};
+  bool terminate_{false};
 
   // Cache Profiling
   uint64_t _l1_icache_accesses{0};
@@ -148,6 +152,11 @@ protected:
   uint64_t _stall_issue_queue_full{0};
   uint64_t _stall_lsq_full{0};
   uint64_t _stall_flush_recovery{0};
+  uint64_t _sched_raw_wait{0};
+  uint64_t _sched_waw_wait{0};
+  uint64_t _sched_fu_busy{0};
+  uint64_t _sched_older_lane_block{0};
+  uint64_t _sched_no_matching_fu{0};
   uint64_t _mul_wait{0};
   uint64_t _div_wait{0};
   uint64_t _load_use_wait{0};
@@ -158,7 +167,7 @@ protected:
   uint64_t _rob_head_not_ready{0};
 
   addr_t last_retire_pc_{0};
-  std::array<word_t, isa_def::NUM_ARCH_REGS> _register_values{};
+  std::array<word_t, isa_def::NUM_ARCH_REGS> register_values_{};
 
   // Internal simulation methods
   void clock_tick();

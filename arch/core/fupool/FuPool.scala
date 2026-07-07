@@ -3,9 +3,9 @@ package arch.core.fupool
 import arch.configs._
 import arch.core.alu.Alu
 import arch.core.bru.{ Bru, BruResolveBundle }
-import arch.core.csr.Csr
+import arch.core.csr.{ Csr, InterruptLines }
 import arch.core.div.Div
-import arch.core.exception.{ ExceptionAsyncReq, ExceptionCsrReq, ExceptionCsrStatus }
+import arch.core.exception.{ ExceptionAsyncReq, ExceptionTrapUpdate }
 import arch.core.ld.Ld
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.mult.Mult
@@ -15,11 +15,12 @@ import vutils.graph.Node
 import chisel3._
 
 class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
-  val cpu = in[FuPoolCpuReq]
-
-  val exceptionReq    = in[ExceptionCsrReq]
-  val exceptionStatus = out[ExceptionCsrStatus]
-  val asyncException  = out[ExceptionAsyncReq]
+  val cpu        = in[FuPoolCpuReq]
+  val flush      = in[Bool]
+  val irq        = in[InterruptLines]
+  val trapUpdate = in[ExceptionTrapUpdate]
+  val async      = out[ExceptionAsyncReq]
+  val csrBusy    = out[Bool]
 
   val schedulerReq  = inDVec[FuReq](p => p(NumFUs))
   val schedulerDone = outDVec[FuResp](p => p(NumFUs))
@@ -54,22 +55,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
     }
 
   private val fuDescs = p(FunctionalUnits)
-  private val numLd   = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
-  private val numSt   = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST)
-  private val numBru  = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_BRU)
-  private val numCsr  = fuDescs.count(_.`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR)
-
-  require(
-    fuDescs.length == p(NumFUs),
-    s"FuPool: FunctionalUnits length ${fuDescs.length} != NumFUs ${p(NumFUs)}"
-  )
-  require(numLd == p(NumLDs), s"FuPool: LD descriptor count $numLd != NumLDs ${p(NumLDs)}")
-  require(numSt == p(NumSTs), s"FuPool: ST descriptor count $numSt != NumSTs ${p(NumSTs)}")
-  require(numBru == p(NumBRUs), s"FuPool: BRU descriptor count $numBru != NumBRUs ${p(NumBRUs)}")
-  require(numCsr <= 1, s"FuPool: at most one CSR FU is supported, got $numCsr")
-
-  exceptionStatus.out.busy := false.B
-  asyncException.out       := 0.U.asTypeOf(new ExceptionAsyncReq)
+  require(p(NumCSRs) <= 1, s"FuPool: at most one CSR FU is supported, got ${p(NumCSRs)}")
 
   private val units = fuDescs.zipWithIndex.map { case (desc, idx) =>
     subnode(build(desc)) -> idx
@@ -92,7 +78,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case alu: Alu =>
         link(
           schedulerReq.lanes(fuIdx) -> alu.fuReq,
-          exceptionReq              -> alu.flush,
+          flush                     -> alu.flush,
           alu.fuResp                -> schedulerDone.lanes(fuIdx),
           alu.fuResp                -> robDone.lanes(fuIdx)
         )
@@ -100,7 +86,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case mult: Mult =>
         link(
           schedulerReq.lanes(fuIdx) -> mult.fuReq,
-          exceptionReq              -> mult.flush,
+          flush                     -> mult.flush,
           mult.fuResp               -> schedulerDone.lanes(fuIdx),
           mult.fuResp               -> robDone.lanes(fuIdx)
         )
@@ -108,7 +94,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case div: Div =>
         link(
           schedulerReq.lanes(fuIdx) -> div.fuReq,
-          exceptionReq              -> div.flush,
+          flush                     -> div.flush,
           div.fuResp                -> schedulerDone.lanes(fuIdx),
           div.fuResp                -> robDone.lanes(fuIdx)
         )
@@ -116,7 +102,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case ld: Ld =>
         link(
           schedulerReq.lanes(fuIdx)     -> ld.fuReq,
-          exceptionReq                  -> ld.flush,
+          flush                         -> ld.flush,
           ld.fuResp                     -> schedulerDone.lanes(fuIdx),
           ld.fuResp                     -> robDone.lanes(fuIdx),
           ld.memReq                     -> loadMemReq.lanes(ldIdx),
@@ -137,7 +123,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case st: St =>
         link(
           schedulerReq.lanes(fuIdx) -> st.fuReq,
-          exceptionReq              -> st.flush,
+          flush                     -> st.flush,
           st.fuResp                 -> schedulerDone.lanes(fuIdx),
           st.fuResp                 -> robDone.lanes(fuIdx),
           st.storeWrite             -> storeWrite.lanes(stIdx)
@@ -148,7 +134,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case bru: Bru =>
         link(
           schedulerReq.lanes(fuIdx) -> bru.fuReq,
-          exceptionReq              -> bru.flush,
+          flush                     -> bru.flush,
           bru.fuResp                -> schedulerDone.lanes(fuIdx),
           bru.fuResp                -> robDone.lanes(fuIdx),
           bru.resolved              -> bruResolved.lanes(bruIdx)
@@ -159,23 +145,20 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
       case csr: Csr =>
         link(
           schedulerReq.lanes(fuIdx) -> csr.fuReq,
-          exceptionReq              -> csr.flush,
+          flush                     -> csr.flush,
+          irq                       -> csr.irq,
+          trapUpdate                -> csr.trapUpdate,
           csr.fuResp                -> schedulerDone.lanes(fuIdx),
           csr.fuResp                -> robDone.lanes(fuIdx),
         )
 
-        csr.ctrlReq.in.cycle       := cpu.in.cycle
-        csr.ctrlReq.in.instret     := cpu.in.instret
-        csr.ctrlReq.in.irq         := cpu.in.irq
-        csr.ctrlReq.in.arch_pc     := exceptionReq.in.arch_pc
-        csr.ctrlReq.in.trap_update := exceptionReq.in.trap_update
+        csr.ctrlReq.in.cycle   := cpu.in.cycle
+        csr.ctrlReq.in.instret := cpu.in.instret
 
-        exceptionStatus.out.busy := csr.ctrlResp.out.busy
-
-        asyncException.out.valid             := csr.ctrlResp.out.ir.valid
-        asyncException.out.kind              := csr.ctrlResp.out.ir.kind
-        asyncException.out.target            := csr.ctrlResp.out.ir.target
-        asyncException.out.requires_csr_idle := true.B
+        async.out.valid  := csr.ctrlResp.out.ir.valid
+        async.out.kind   := csr.ctrlResp.out.ir.kind
+        async.out.target := csr.ctrlResp.out.ir.target
+        csrBusy.out      := csr.ctrlResp.out.busy
 
       case _ =>
     }

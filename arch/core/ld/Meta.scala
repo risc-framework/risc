@@ -2,14 +2,17 @@ package arch.core.ld
 
 import arch.configs._
 import vutils.graph.NodeDims
+import arch.core.fupool.FuReq
 import chisel3._
 
 object LdDims extends NodeDims("ld") {
   val ISA = dim("isa")
 }
 
-trait LdIsaImpl extends LdDims.ISA.Impl with LoadDataHelpers {
-  def decode(uop: UInt)(implicit p: Parameters): LoadCtrl
+trait LdIsaImpl extends LdDims.ISA.Impl {
+  def addr(uop: FuReq)(implicit p: Parameters): UInt
+  def data(uop: FuReq)(implicit p: Parameters): UInt
+  def mask(uop: FuReq)(implicit p: Parameters): UInt
 }
 
 object LdIsaFactory extends LdDims.ISA.Registry[LdIsaImpl]

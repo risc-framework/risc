@@ -12,10 +12,11 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
     override def value: String = "scoreboard"
 
     override def elaborate(
-      exception: SchedulerExceptionReq,
-      dispatchReq: Int => DecoupledIO[FuReq],
+      flush: Bool,
+      dispatched: Int => DecoupledIO[FuReq],
       fuReq: Int => DecoupledIO[FuReq],
-      fuDone: Int => DecoupledIO[FuResp]
+      fuDone: Int => DecoupledIO[FuResp],
+      debug: SchedulerDebugInfo
     )(implicit p: Parameters): Unit = {
       val fuTypes = p(FunctionalUnits).map(_.`type`.index.U(p(FuTypeWidth).W))
 
@@ -27,7 +28,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
 
       def defaultDispatchReady(): Unit =
         for (w <- 0 until p(IssueWidth))
-          dispatchReq(w).ready := false.B
+          dispatched(w).ready := false.B
 
       def defaultFuDoneReady(): Unit =
         for (i <- 0 until p(NumFUs))
@@ -40,13 +41,20 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         mask
       }
 
+      def fuTypeMask(op: FuReq): Vec[Bool] = {
+        val mask = Wire(Vec(p(NumFUs), Bool()))
+        for (i <- 0 until p(NumFUs))
+          mask(i) := fuTypes(i) === op.fu_type
+        mask
+      }
+
       def selectFu(op: FuReq, used: Vec[Bool]): (UInt, Bool) = {
         val mask = fuMatchMask(op, used)
         (PriorityEncoder(mask), mask.asUInt.orR)
       }
 
       def olderLaneAccepted(w: Int, accepted: Vec[Bool]): Bool =
-        if (w == 0) true.B else !dispatchReq(w - 1).valid || accepted(w - 1)
+        if (w == 0) true.B else !dispatched(w - 1).valid || accepted(w - 1)
 
       val regPending = RegInit(VecInit(Seq.fill(p(NumArchRegs))(false.B)))
 
@@ -70,6 +78,11 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       val tempPending = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumArchRegs), Bool())))
       val tempFuUsed  = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumFUs), Bool())))
       val accepted    = Wire(Vec(p(IssueWidth), Bool()))
+      val rawWait     = Wire(Vec(p(IssueWidth), Bool()))
+      val wawWait     = Wire(Vec(p(IssueWidth), Bool()))
+      val fuBusy      = Wire(Vec(p(IssueWidth), Bool()))
+      val olderBlock  = Wire(Vec(p(IssueWidth), Bool()))
+      val noMatch     = Wire(Vec(p(IssueWidth), Bool()))
 
       for (r <- 0 until p(NumArchRegs))
         tempPending(0)(r) := regPending(r) && !cdbValid(r)
@@ -78,7 +91,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         tempFuUsed(0)(f) := false.B
 
       for (w <- 0 until p(IssueWidth)) {
-        val dis = dispatchReq(w)
+        val dis = dispatched(w)
         val op  = dis.bits
 
         val rs1Used  = op.rs1_read
@@ -96,10 +109,17 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
 
         val (target, fuOk) = selectFu(op, tempFuUsed(w))
         val prevOk         = olderLaneAccepted(w, accepted)
-        val canIssue       = !exception.flush && prevOk && fuOk && !rs1Haz && !rs2Haz && !wawHaz
+        val typeMask       = fuTypeMask(op)
+        val hasFuType      = typeMask.asUInt.orR
+        val canIssue       = !flush && prevOk && fuOk && !rs1Haz && !rs2Haz && !wawHaz
 
         dis.ready   := canIssue
         accepted(w) := dis.valid && canIssue
+        rawWait(w)  := dis.valid && !flush && prevOk && (rs1Haz || rs2Haz)
+        wawWait(w)  := dis.valid && !flush && prevOk && !rawWait(w) && wawHaz
+        fuBusy(w)   := dis.valid && !flush && prevOk && !rawWait(w) && !wawWait(w) && hasFuType && !fuOk
+        olderBlock(w) := dis.valid && !flush && !prevOk
+        noMatch(w)    := dis.valid && !flush && prevOk && !hasFuType
 
         tempPending(w + 1) := tempPending(w)
         tempFuUsed(w + 1)  := tempFuUsed(w)
@@ -125,11 +145,17 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         }
       }
 
-      when(exception.flush) {
+      when(flush) {
         regPending.foreach(_ := false.B)
       }.otherwise {
         regPending := tempPending(p(IssueWidth))
       }
+
+      debug.raw_wait         := rawWait.asUInt.orR
+      debug.waw_wait         := wawWait.asUInt.orR
+      debug.fu_busy          := fuBusy.asUInt.orR
+      debug.older_lane_block := olderBlock.asUInt.orR
+      debug.no_matching_fu   := noMatch.asUInt.orR
     }
   }
 

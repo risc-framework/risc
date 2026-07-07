@@ -1,57 +1,78 @@
 package arch.core.st.impls.isa.rv32i
 
 import arch.configs._
+import arch.core.fupool.FuReq
 import arch.core.st._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ BitPat, MuxLookup }
+import chisel3.util.{ BitPat, Cat, MuxLookup }
 
-trait Rv32iMemUopConsts {
+trait Rv32iStUopConsts {
   private def cat(bps: BitPat*): BitPat = bps.reduce(_ ## _)
-  private def N                         = BitPat("b0")
-  private def Y                         = BitPat("b1")
-  private def P_X                       = BitPat("b????")
+  private def P_X                       = BitPat("b??????")
 
-  def MEM_X  = BitPat("b??")
-  def SZ_MEM = MEM_X.getWidth
+  def SMEM_X  = BitPat("b??")
+  def SZ_SMEM = SMEM_X.getWidth
+  def SMEM_B  = BitPat("b00")
+  def SMEM_H  = BitPat("b01")
+  def SMEM_W  = BitPat("b10")
 
-  def MEM_B = BitPat("b00")
-  def MEM_H = BitPat("b01")
-  def MEM_W = BitPat("b10")
+  def SMEM(size: BitPat): UInt = size.value.U(SZ_SMEM.W)
 
-  def UOP_LB  = cat(P_X, Y, N, MEM_B)
-  def UOP_LH  = cat(P_X, Y, N, MEM_H)
-  def UOP_LW  = cat(P_X, Y, N, MEM_W)
-  def UOP_LBU = cat(P_X, Y, Y, MEM_B)
-  def UOP_LHU = cat(P_X, Y, Y, MEM_H)
-
-  def UOP_SB = cat(P_X, N, N, MEM_B)
-  def UOP_SH = cat(P_X, N, N, MEM_H)
-  def UOP_SW = cat(P_X, N, N, MEM_W)
+  def UOP_SB = cat(P_X, SMEM_B)
+  def UOP_SH = cat(P_X, SMEM_H)
+  def UOP_SW = cat(P_X, SMEM_W)
 }
 
-object StRv32iIsa extends RegisteredNodeUtils[StIsaImpl] with Rv32iMemUopConsts {
-  override def utils: StIsaImpl = new StIsaImpl with Rv32iMemUopConsts {
+object StRv32iIsa extends RegisteredNodeUtils[StIsaImpl] with Rv32iStUopConsts {
+  override def utils: StIsaImpl = new StIsaImpl with Rv32iStUopConsts {
     override def value: String = "rv32i"
 
-    override def decode(uop: UInt)(implicit p: Parameters): StoreCtrl = {
-      val ctrl = Wire(new StoreCtrl)
-      val size = uop(1, 0)
+    private def bytes(uop: FuReq): UInt =
+      1.U << uop.uop(1, 0)
 
-      ctrl.is_byte  := size === MEM_B.value.U(SZ_MEM.W)
-      ctrl.is_half  := size === MEM_H.value.U(SZ_MEM.W)
-      ctrl.is_word  := size === MEM_W.value.U(SZ_MEM.W)
-      ctrl.is_dword := false.B
+    private def ea(uop: FuReq): UInt =
+      uop.rs1_data + uop.imm
 
-      ctrl.strb := MuxLookup(size, 0.U(p(BytesPerWord).W))(
+    private def rawMask(bytes: UInt)(implicit p: Parameters): UInt =
+      ((1.U((p(BytesPerWord) + 1).W) << bytes) - 1.U)(p(BytesPerWord) - 1, 0)
+
+    private def packData(accessBytes: Int, data: UInt)(implicit p: Parameters): UInt = {
+      val bits = accessBytes * 8
+      val raw  = Cat((0 until accessBytes).reverse.map { lane =>
+        val src = p(ISA).accessByteIndex(lane, accessBytes)
+        data(8 * src + 7, 8 * src)
+      })
+
+      if (bits == p(XLen)) raw else Cat(0.U((p(XLen) - bits).W), raw)
+    }
+
+    private def rawData(bytes: UInt, data: UInt)(implicit p: Parameters): UInt =
+      MuxLookup(bytes, 0.U(p(XLen).W))(
         Seq(
-          MEM_B.value.U(SZ_MEM.W) -> "b0001".U(p(BytesPerWord).W),
-          MEM_H.value.U(SZ_MEM.W) -> "b0011".U(p(BytesPerWord).W),
-          MEM_W.value.U(SZ_MEM.W) -> "b1111".U(p(BytesPerWord).W)
+          1.U -> packData(1, data),
+          2.U -> packData(2, data),
+          4.U -> packData(4, data)
         )
       )
 
-      ctrl
+    override def addr(uop: FuReq)(implicit p: Parameters): UInt =
+      p(ISA).beatAlignedAddr(ea(uop), p(BytesPerWord))
+
+    override def data(uop: FuReq)(implicit p: Parameters): UInt = {
+      val addr = ea(uop)
+      val b    = bytes(uop)
+      val off  = p(ISA).laneOffset(addr, b, p(BytesPerWord))
+
+      (rawData(b, uop.rs2_data) << (off << 3))(p(XLen) - 1, 0)
+    }
+
+    override def mask(uop: FuReq)(implicit p: Parameters): UInt = {
+      val addr = ea(uop)
+      val b    = bytes(uop)
+      val off  = p(ISA).laneOffset(addr, b, p(BytesPerWord))
+
+      (rawMask(b) << off)(p(BytesPerWord) - 1, 0)
     }
   }
 

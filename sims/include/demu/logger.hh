@@ -52,8 +52,19 @@ public:
   static auto getDemuLogger() -> std::shared_ptr<spdlog::logger> & {
     return demu_logger_;
   }
+
   static auto getHalLogger() -> std::shared_ptr<spdlog::logger> & {
     return hal_logger_;
+  }
+
+  [[nodiscard]] static auto demu_should_log(spdlog::level::level_enum level)
+      -> bool {
+    return demu_logger_ && demu_logger_->should_log(level);
+  }
+
+  [[nodiscard]] static auto hal_should_log(spdlog::level::level_enum level)
+      -> bool {
+    return hal_logger_ && hal_logger_->should_log(level);
   }
 
 private:

@@ -1,6 +1,5 @@
 package arch.core.st
 
-import arch.core.exception.ExceptionCsrReq
 import arch.core.fupool.{ FuReq, FuResp }
 import arch.core.pma.PmaModeFactory
 import arch.core.sb.StoreWriteBundle
@@ -28,7 +27,7 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
 
   val fuReq      = inD[FuReq]
   val fuResp     = outD[FuResp]
-  val flush      = in[ExceptionCsrReq]
+  val flush      = in[Bool]
   val storeWrite = outD[StoreWriteBundle]
 
   private val isaImpl = StIsaFactory.select(cfg)
@@ -37,15 +36,13 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
   private def emptyEntry: StPipeEntry = 0.U.asTypeOf(new StPipeEntry)
 
   private def buildEntry(req: FuReq): StPipeEntry = {
-    val ctrl  = isaImpl.decode(req.uop)
-    val addr  = req.rs1_data + req.imm
     val entry = WireDefault(emptyEntry)
+    val addr  = isaImpl.addr(req)
 
     entry.store.sq_idx    := req.sq_idx
-    entry.store.rob_tag   := req.rob_tag
-    entry.store.addr      := isaImpl.alignedAddr(addr)
-    entry.store.data      := isaImpl.alignedStoreData(ctrl, addr, req.rs2_data)
-    entry.store.mask      := isaImpl.shiftedStoreMask(ctrl, addr)
+    entry.store.addr      := addr
+    entry.store.data      := isaImpl.data(req)
+    entry.store.mask      := isaImpl.mask(req)
     entry.store.cacheable := pma.check(addr).cacheable
 
     entry.resp.result      := 0.U
@@ -62,11 +59,11 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
 
   private val acceptIn = Wire(Decoupled(new StPipeEntry))
 
-  acceptIn.valid := fuReq.in.valid && !flush.in.flush
+  acceptIn.valid := fuReq.in.valid && !flush.in
   acceptIn.bits  := buildEntry(fuReq.in.bits)
-  fuReq.in.ready := acceptIn.ready && !flush.in.flush
+  fuReq.in.ready := acceptIn.ready && !flush.in
 
-  elastic(new StPipeEntry, StPipeNode.WRITE_SB, clear = flush.in.flush) { g =>
+  elastic(new StPipeEntry, StPipeNode.WRITE_SB, clear = flush.in) { g =>
     import g._
 
     val WRITE_SB = stage(StPipeNode.WRITE_SB)

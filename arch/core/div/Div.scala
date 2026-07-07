@@ -2,7 +2,6 @@ package arch.core.div
 
 import arch.configs._
 import arch.core.fupool.{ FuResp, FuReq }
-import arch.core.exception.ExceptionCsrReq
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import vutils.math.div.RestoringDivider
 import chisel3._
@@ -21,7 +20,7 @@ class Div(implicit p: Parameters) extends Node[Parameters]("div") {
 
   val fuReq  = inD[FuReq]
   val fuResp = outD[FuResp]
-  val flush  = in[ExceptionCsrReq]
+  val flush  = in[Bool]
 
   private val isaImpl   = DivIsaFactory.select(cfg)
   private val divider   = Module(new RestoringDivider(p(XLen)))
@@ -31,17 +30,17 @@ class Div(implicit p: Parameters) extends Node[Parameters]("div") {
 
   private val ctrl = isaImpl.decode(fuReq.in.bits.uop)
 
-  fuReq.in.ready := !flush.in.flush && state === DivState.IDLE && divider.io.in.ready
+  fuReq.in.ready := !flush.in && state === DivState.IDLE && divider.io.in.ready
 
-  divider.io.kill                    := flush.in.flush
-  divider.io.in.valid                := !flush.in.flush && state === DivState.IDLE && fuReq.in.valid
+  divider.io.kill                    := flush.in
+  divider.io.in.valid                := !flush.in && state === DivState.IDLE && fuReq.in.valid
   divider.io.in.bits.dividend        := fuReq.in.bits.rs1_data
   divider.io.in.bits.divisor         := fuReq.in.bits.rs2_data
   divider.io.in.bits.signed          := ctrl.is_signed
   divider.io.in.bits.selectRemainder := ctrl.is_rem
-  divider.io.out.ready               := !flush.in.flush && state === DivState.BUSY
+  divider.io.out.ready               := !flush.in && state === DivState.BUSY
 
-  when(flush.in.flush) {
+  when(flush.in) {
     state := DivState.IDLE
   }.otherwise {
     switch(state) {
@@ -67,17 +66,11 @@ class Div(implicit p: Parameters) extends Node[Parameters]("div") {
     }
   }
 
-  private val resp = Wire(new FuResp)
+  fuResp.out.valid := state === DivState.DONE && !flush.in
 
-  resp.result      := resultReg
-  resp.rd          := uopReg.rd
-  resp.pc          := uopReg.pc
-  resp.instr       := uopReg.instr
-  resp.rob_tag     := uopReg.rob_tag
-  resp.trap_req    := false.B
-  resp.trap_kind   := 0.U
-  resp.trap_target := 0.U
-
-  fuResp.out.valid := state === DivState.DONE && !flush.in.flush
-  fuResp.out.bits  := resp
+  fuResp.out.bits.result  := resultReg
+  fuResp.out.bits.rd      := uopReg.rd
+  fuResp.out.bits.pc      := uopReg.pc
+  fuResp.out.bits.instr   := uopReg.instr
+  fuResp.out.bits.rob_tag := uopReg.rob_tag
 }

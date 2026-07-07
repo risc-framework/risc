@@ -7,8 +7,25 @@ import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.{ BitPat, MuxLookup }
 
-trait Rv32iAluUopConsts extends AluConsts {
+trait Rv32iAluUopConsts {
   private def cat(bps: BitPat*): BitPat = bps.reduce(_ ## _)
+
+  def A1_X    = BitPat("b??")
+  def SZ_A1   = A1_X.getWidth
+  def A1_ZERO = BitPat("b00")
+  def A1_RS1  = BitPat("b01")
+  def A1_PC   = BitPat("b10")
+
+  def A1(sel: BitPat): UInt = sel.value.U(SZ_A1.W)
+
+  def A2_X      = BitPat("b??")
+  def SZ_A2     = A2_X.getWidth
+  def A2_ZERO   = BitPat("b00")
+  def A2_RS2    = BitPat("b01")
+  def A2_IMM    = BitPat("b10")
+  def A2_PCSTEP = BitPat("b11")
+
+  def A2(sel: BitPat): UInt = sel.value.U(SZ_A2.W)
 
   def AM_X  = BitPat("b?")
   def SZ_AM = AM_X.getWidth
@@ -51,28 +68,19 @@ trait Rv32iAluUopConsts extends AluConsts {
 
   def UOP_LUI   = cat(A1_ZERO, A2_IMM, AM_0, AFN_ADD)
   def UOP_AUIPC = cat(A1_PC, A2_IMM, AM_0, AFN_ADD)
+
+  def decode(uop: UInt): (UInt, UInt, Bool, UInt) =
+    (uop(7, 6), uop(5, 4), uop(3), uop(2, 0))
 }
 
 object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConsts {
   override def utils: AluIsaImpl = new AluIsaImpl {
-    override def value: String    = "rv32i"
-    override def fnTypeWidth: Int = SZ_AFN
-
-    override def decode(uop: UInt): AluCtrl = {
-      val ctrl = Wire(new AluCtrl(fnTypeWidth))
-
-      ctrl.sel1 := uop(7, 6)
-      ctrl.sel2 := uop(5, 4)
-      ctrl.mode := uop(3)
-      ctrl.fn   := uop(2, 0)
-
-      ctrl
-    }
+    override def value: String = "rv32i"
 
     override def execute(uop: FuReq)(implicit p: Parameters): UInt = {
       val ctrl = decode(uop.uop)
 
-      val src1 = MuxLookup(ctrl.sel1, 0.U(p(XLen).W))(
+      val src1 = MuxLookup(ctrl._1, 0.U(p(XLen).W))(
         Seq(
           A1(A1_ZERO) -> 0.U(p(XLen).W),
           A1(A1_RS1)  -> uop.rs1_data,
@@ -80,7 +88,7 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
         )
       )
 
-      val src2 = MuxLookup(ctrl.sel2, 0.U(p(XLen).W))(
+      val src2 = MuxLookup(ctrl._2, 0.U(p(XLen).W))(
         Seq(
           A2(A2_ZERO)   -> 0.U(p(XLen).W),
           A2(A2_RS2)    -> uop.rs2_data,
@@ -91,13 +99,13 @@ object AluRv32iIsa extends RegisteredNodeUtils[AluIsaImpl] with Rv32iAluUopConst
 
       val lt       = src1.asSInt < src2.asSInt
       val ltu      = src1 < src2
-      val src2Inv  = Mux(ctrl.mode, ~src2, src2)
-      val adderOut = (src1 + src2Inv + ctrl.mode.asUInt)(p(XLen) - 1, 0)
+      val src2Inv  = Mux(ctrl._3, ~src2, src2)
+      val adderOut = (src1 + src2Inv + ctrl._3.asUInt)(p(XLen) - 1, 0)
       val shamt    = src2(4, 0)
       val sllOut   = (src1 << shamt)(p(XLen) - 1, 0)
-      val srlOut   = Mux(ctrl.mode, (src1.asSInt >> shamt).asUInt, src1 >> shamt)(p(XLen) - 1, 0)
+      val srlOut   = Mux(ctrl._3, (src1.asSInt >> shamt).asUInt, src1 >> shamt)(p(XLen) - 1, 0)
 
-      MuxLookup(ctrl.fn, 0.U(p(XLen).W))(
+      MuxLookup(ctrl._4, 0.U(p(XLen).W))(
         Seq(
           AFN(AFN_ADD)  -> adderOut,
           AFN(AFN_SLL)  -> sllOut,

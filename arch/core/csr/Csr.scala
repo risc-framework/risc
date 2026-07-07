@@ -1,8 +1,8 @@
 package arch.core.csr
 
 import arch.configs._
-import arch.core.exception.ExceptionCsrReq
 import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.exception.ExceptionTrapUpdate
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
 
@@ -15,11 +15,13 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
     )
   )
 
-  val fuReq    = inD[FuReq]
-  val fuResp   = outD[FuResp]
-  val flush    = in[ExceptionCsrReq]
-  val ctrlReq  = in[CsrCtrlReq]
-  val ctrlResp = out[CsrCtrlResp]
+  val fuReq      = inD[FuReq]
+  val fuResp     = outD[FuResp]
+  val flush      = in[Bool]
+  val irq        = in[InterruptLines]
+  val trapUpdate = in[ExceptionTrapUpdate]
+  val ctrlReq    = in[CsrCtrlReq]
+  val ctrlResp   = out[CsrCtrlResp]
 
   private val fileImpl = CsrFileFactory.select(cfg)
   private val syncImpl = CsrSyncFactory.select(cfg)
@@ -41,9 +43,9 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   private val extraMap = Map(
     "cycle"     -> ctrlReq.in.cycle,
     "instret"   -> ctrlReq.in.instret,
-    "timer_irq" -> ctrlReq.in.irq.timer_irq.asUInt,
-    "soft_irq"  -> ctrlReq.in.irq.soft_irq.asUInt,
-    "ext_irq"   -> ctrlReq.in.irq.ext_irq.asUInt
+    "timer_irq" -> irq.in.timer_irq.asUInt,
+    "soft_irq"  -> irq.in.soft_irq.asUInt,
+    "ext_irq"   -> irq.in.ext_irq.asUInt
   )
 
   private val view = syncImpl.view(regMap, extraMap)
@@ -52,11 +54,11 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   ctrlResp.out.view := view
   ctrlResp.out.ir   := ir
 
-  fuReq.in.ready    := !flush.in.flush && (!busy || fuResp.out.fire)
-  fuResp.out.valid  := busy && !flush.in.flush
+  fuReq.in.ready    := !flush.in && (!busy || fuResp.out.fire)
+  fuResp.out.valid  := busy && !flush.in
   ctrlResp.out.busy := busy
 
-  when(flush.in.flush) {
+  when(flush.in) {
     busy := false.B
   }.elsewhen(fuReq.in.fire) {
     busy   := true.B
@@ -85,12 +87,12 @@ class Csr(implicit p: Parameters) extends Node[Parameters]("csr") {
   private val syncKind          = Mux(illegalFileAccess, syncImpl.illegalAccessKind(fileCmd), syncCmd.kind)
   private val syncTarget        = Mux(illegalFileAccess, syncImpl.trapTarget(view), syncCmd.target)
 
-  private val trapUpdates  = syncImpl.trapUpdates(regMap, ctrlReq.in.trap_update)
+  private val trapUpdates  = syncImpl.trapUpdates(regMap, trapUpdate.in)
   private val writeAllowed =
     busy && fileCmd.valid && fileCmd.write && !syncValid && hitAny && writeLegal
 
   for (((reg, behavior), i) <- csrTable.zipWithIndex) {
-    val trapUpdateHit = ctrlReq.in.trap_update.valid && trapUpdates.contains(reg.name).B
+    val trapUpdateHit = trapUpdate.in.valid && trapUpdates.contains(reg.name).B
     val trapUpdateVal = trapUpdates.getOrElse(reg.name, 0.U(p(XLen).W))
     val next          = WireDefault(csrRegs(i))
 

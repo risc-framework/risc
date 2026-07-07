@@ -12,8 +12,6 @@ object AluRv32imIsa extends RegisteredNodeUtils[AluIsaImpl] {
     private val rv32i = AluRv32iIsa.utils
 
     override def value: String                                     = "rv32im"
-    override def fnTypeWidth: Int                                  = rv32i.fnTypeWidth
-    override def decode(uop: UInt): AluCtrl                        = rv32i.decode(uop)
     override def execute(uop: FuReq)(implicit p: Parameters): UInt = rv32i.execute(uop)
   }
 

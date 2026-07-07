@@ -2,15 +2,10 @@ package arch.core.mult
 
 import arch.configs._
 import arch.core.fupool.{ FuResp, FuReq }
-import arch.core.exception.ExceptionCsrReq
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import vutils.math.mul.IntegerMultiplier
 import chisel3._
-import chisel3.util.{ switch, is }
-
-object MultState extends ChiselEnum {
-  val IDLE, BUSY, DONE = Value
-}
+import chisel3.util.Queue
 
 class Mult(implicit p: Parameters) extends Node[Parameters]("mult") {
   override protected def cfg: NodeConfig = NodeConfig(
@@ -21,64 +16,39 @@ class Mult(implicit p: Parameters) extends Node[Parameters]("mult") {
 
   val fuReq  = inD[FuReq]
   val fuResp = outD[FuResp]
-  val flush  = in[ExceptionCsrReq]
+  val flush  = in[Bool]
 
   private val isaImpl    = MultIsaFactory.select(cfg)
   private val multiplier = Module(new IntegerMultiplier(p(XLen), p(MultPipelineStages)))
-  private val state      = RegInit(MultState.IDLE)
-  private val uopReg     = Reg(new FuReq)
-  private val resultReg  = RegInit(0.U(p(XLen).W))
+  private val uopQ       = Module(new Queue(new FuReq, p(MultPipelineStages) + 2, hasFlush = true))
 
   private val ctrl = isaImpl.decode(fuReq.in.bits.uop)
 
-  fuReq.in.ready := !flush.in.flush && state === MultState.IDLE && multiplier.io.in.ready
+  fuReq.in.ready := !flush.in && multiplier.io.in.ready && uopQ.io.enq.ready
 
-  multiplier.io.kill                 := flush.in.flush
-  multiplier.io.in.valid             := !flush.in.flush && state === MultState.IDLE && fuReq.in.valid
+  multiplier.io.kill                 := flush.in
+  multiplier.io.in.valid             := !flush.in && fuReq.in.valid && uopQ.io.enq.ready
   multiplier.io.in.bits.multiplicand := fuReq.in.bits.rs1_data
   multiplier.io.in.bits.multiplier   := fuReq.in.bits.rs2_data
   multiplier.io.in.bits.aSigned      := ctrl.a_signed
   multiplier.io.in.bits.bSigned      := ctrl.b_signed
   multiplier.io.in.bits.takeHigh     := ctrl.high
-  multiplier.io.out.ready            := !flush.in.flush && state === MultState.BUSY
 
-  when(flush.in.flush) {
-    state := MultState.IDLE
-  }.otherwise {
-    switch(state) {
-      is(MultState.IDLE) {
-        when(fuReq.in.fire) {
-          uopReg := fuReq.in.bits
-          state  := MultState.BUSY
-        }
-      }
+  uopQ.io.flush.get := flush.in
+  uopQ.io.enq.valid := !flush.in && fuReq.in.valid && multiplier.io.in.ready
+  uopQ.io.enq.bits  := fuReq.in.bits
 
-      is(MultState.BUSY) {
-        when(multiplier.io.out.fire) {
-          resultReg := multiplier.io.out.bits.result
-          state     := MultState.DONE
-        }
-      }
+  multiplier.io.out.ready := !flush.in && uopQ.io.deq.valid && fuResp.out.ready
+  uopQ.io.deq.ready       := !flush.in && multiplier.io.out.valid && fuResp.out.ready
 
-      is(MultState.DONE) {
-        when(fuResp.out.fire) {
-          state := MultState.IDLE
-        }
-      }
-    }
-  }
+  fuResp.out.valid := !flush.in && multiplier.io.out.valid && uopQ.io.deq.valid
 
-  private val resp = Wire(new FuResp)
-
-  resp.result      := resultReg
-  resp.rd          := uopReg.rd
-  resp.pc          := uopReg.pc
-  resp.instr       := uopReg.instr
-  resp.rob_tag     := uopReg.rob_tag
-  resp.trap_req    := false.B
-  resp.trap_kind   := 0.U
-  resp.trap_target := 0.U
-
-  fuResp.out.valid := state === MultState.DONE && !flush.in.flush
-  fuResp.out.bits  := resp
+  fuResp.out.bits.result  := multiplier.io.out.bits.result
+  fuResp.out.bits.rd      := uopQ.io.deq.bits.rd
+  fuResp.out.bits.pc      := uopQ.io.deq.bits.pc
+  fuResp.out.bits.instr   := uopQ.io.deq.bits.instr
+  fuResp.out.bits.rob_tag := uopQ.io.deq.bits.rob_tag
+  fuResp.out.bits.trap_req    := false.B
+  fuResp.out.bits.trap_kind   := 0.U
+  fuResp.out.bits.trap_target := 0.U
 }

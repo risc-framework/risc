@@ -2,6 +2,7 @@ package arch.core.ifu
 
 import arch.configs._
 import arch.core.bpu.{ BpuIfuReq, BpuIfuResp }
+import arch.core.ibuffer.{ IBufferEntry, IBufferStatus }
 import vcache.{ CacheReadReq, CacheResp }
 import vutils.graph.Node
 import chisel3._
@@ -19,18 +20,11 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   val bpuReq  = out[BpuIfuReq]
   val bpuResp = in[BpuIfuResp]
 
-  val decode = outDVecWith[IBufferEntry](p => p(IssueWidth)) { p =>
-    new IBufferEntry()(p)
-  }
+  val ibufferStatus = in[IBufferStatus]
+  val redirect      = in[RedirectInfo]
+  val issued        = outDVec[IBufferEntry](p => p(IssueWidth))
 
-  val exceptionReq  = in[IfuExceptionReq]
-  val exceptionResp = out[IfuExceptionResp]
-  val debug         = out[IfuDebugInfo]
-
-  private val ibuffer = subnode(new IBuffer)
-  private val pc      = RegInit(p(ResetVector).U(p(XLen).W))
-
-  private val doRedirect = exceptionReq.in.redirect
+  private val pc = RegInit(p(ResetVector).U(p(XLen).W))
 
   class FetchMeta extends Bundle {
     val pc               = UInt(p(XLen).W)
@@ -49,7 +43,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   private val respFire      = icacheResp.in.valid && icacheResp.in.ready
   private val nextDropCount = dropCount + pendingReqs
   private val isDropping    = respFire && nextDropCount > 0.U
-  private val isValidResp   = dropCount === 0.U && !doRedirect
+  private val isValidResp   = dropCount === 0.U && !redirect.in.valid
 
   private val alignBytes  = p(IssueWidth) * p(BytesPerInstr)
   private val alignMask   = ~(alignBytes - 1).U(p(XLen).W)
@@ -80,7 +74,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   private val reqTakenSlot   = PriorityEncoder(reqTakenCands.asUInt)
   private val reqTakenTarget = Mux(reqHasTaken, bpuResp.in.target(reqTakenSlot), nextBlockPc)
 
-  when(doRedirect) {
+  when(redirect.in.valid) {
     dropCount   := nextDropCount - Mux(isDropping, 1.U, 0.U)
     pendingReqs := 0.U
   }.otherwise {
@@ -102,16 +96,14 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
     bpuReq.out.query_pc(w) := alignedPc + (w * p(PCStep)).U
 
   bpuReq.out.advance_valid := reqFire
-  bpuReq.out.flush         := doRedirect
+  bpuReq.out.flush         := redirect.in.valid
 
-  metaQ.io.flush.get := doRedirect
+  metaQ.io.flush.get := redirect.in.valid
 
-  icacheReq.out.valid     := metaQ.io.enq.ready && ibuffer.status.out.enq_ready && !doRedirect
+  icacheReq.out.valid     := metaQ.io.enq.ready && ibufferStatus.in.ready && !redirect.in.valid
   icacheReq.out.bits.addr := alignedPc
 
-  icacheResp.in.ready := ibuffer.status.out.enq_ready
-
-  exceptionResp.out.fetch_pc := pc
+  icacheResp.in.ready := ibufferStatus.in.ready
 
   metaQ.io.enq.valid                 := reqFire
   metaQ.io.enq.bits.pc               := pc
@@ -120,20 +112,17 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   metaQ.io.enq.bits.bpu_pht_index    := bpuResp.in.pht_index
   metaQ.io.enq.bits.bpu_ghr_snapshot := bpuResp.in.ghr_snapshot
 
-  when(doRedirect) {
-    pc := exceptionReq.in.target
+  when(redirect.in.valid) {
+    pc := redirect.in.target
   }.elsewhen(reqFire) {
     pc := reqTakenTarget
   }
 
   metaQ.io.deq.ready := respFire && isValidResp
 
-  private val respPc =
-    metaQ.io.deq.bits.pc
-
-  private val respIdx =
+  private val respPc     = metaQ.io.deq.bits.pc
+  private val respIdx    =
     if (p(IssueWidth) > 1) respPc(log2Ceil(alignBytes) - 1, log2Ceil(p(BytesPerInstr))) else 0.U
-
   private val respKilled = Wire(Vec(p(IssueWidth), Bool()))
   private val respLive   = Wire(Vec(p(IssueWidth), Bool()))
 
@@ -149,20 +138,12 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   }
 
   for (w <- 0 until p(IssueWidth)) {
-    ibuffer.enqValid.in.lanes(w) := respFire && isValidResp && metaQ.io.deq.valid && respLive(w)
-
-    ibuffer.enqBits.in.lanes(w).pc               := (respPc & alignMask) + (w * p(PCStep)).U
-    ibuffer.enqBits.in.lanes(w).instr            := icacheResp.in.bits.data(w)
-    ibuffer.enqBits.in.lanes(w).bpu_pred_taken   := metaQ.io.deq.bits.bpu_pred_taken(w)
-    ibuffer.enqBits.in.lanes(w).bpu_pred_target  := metaQ.io.deq.bits.bpu_pred_target(w)
-    ibuffer.enqBits.in.lanes(w).bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)
-    ibuffer.enqBits.in.lanes(w).bpu_ghr_snapshot := metaQ.io.deq.bits.bpu_ghr_snapshot(w)
+    issued.out.lanes(w).valid                 := respFire && isValidResp && metaQ.io.deq.valid && respLive(w)
+    issued.out.lanes(w).bits.pc               := (respPc & alignMask) + (w * p(PCStep)).U
+    issued.out.lanes(w).bits.instr            := icacheResp.in.bits.data(w)
+    issued.out.lanes(w).bits.bpu_pred_taken   := metaQ.io.deq.bits.bpu_pred_taken(w)
+    issued.out.lanes(w).bits.bpu_pred_target  := metaQ.io.deq.bits.bpu_pred_target(w)
+    issued.out.lanes(w).bits.bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)
+    issued.out.lanes(w).bits.bpu_ghr_snapshot := metaQ.io.deq.bits.bpu_ghr_snapshot(w)
   }
-
-  ibuffer.flush.in.flush := doRedirect
-  debug.out.ibuffer_full := ibuffer.status.out.full
-
-  link(
-    ibuffer.deq -> decode
-  )
 }

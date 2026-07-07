@@ -4,7 +4,7 @@ import arch.configs._
 import arch.core.csr._
 import arch.core.exception.ExceptionTrapUpdate
 import arch.core.exception.impls.isa.rv32i.Rv32iExceptionKindConsts
-import arch.isa.Rv32i
+import arch.isa.variants.riscv32.Rv32i
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
 import chisel3.util.Cat
@@ -18,9 +18,9 @@ object Rv32iCsrSync extends RegisteredNodeUtils[CsrSyncImpl] with Rv32iException
     ): CsrSysCmd = {
       val cmd      = WireDefault(0.U.asTypeOf(new CsrSysCmd))
       val isSys    = uop(3)
-      val isEcall  = isSys && instr === Rv32i.isa.bitPat("ecall").value.U(p(ILen).W)
-      val isEbreak = isSys && instr === Rv32i.isa.bitPat("ebreak").value.U(p(ILen).W)
-      val isMret   = isSys && instr === Rv32i.isa.bitPat("mret").value.U(p(ILen).W)
+      val isEcall  = isSys && instr === Rv32i.bitPat("ecall").value.U(p(ILen).W)
+      val isEbreak = isSys && instr === Rv32i.bitPat("ebreak").value.U(p(ILen).W)
+      val isMret   = isSys && instr === Rv32i.bitPat("mret").value.U(p(ILen).W)
       val trapVec  = Cat(view.trapVector(p(XLen) - 1, 2), 0.U(2.W))
 
       cmd.valid  := isEcall || isEbreak || isMret

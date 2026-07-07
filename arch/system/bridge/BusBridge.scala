@@ -12,6 +12,8 @@ class BusBridge(implicit p: Parameters) extends Node[Parameters]("bus_bridge") {
     )
   )
 
+  private val impl = BusBridgeTypeFactory.select(cfg)
+
   val imemReq  = inD[CpuImemReq]
   val imemResp = outD[CpuImemResp]
 
@@ -21,38 +23,25 @@ class BusBridge(implicit p: Parameters) extends Node[Parameters]("bus_bridge") {
   val mmioReq  = inD[CpuDmemReq]
   val mmioResp = outD[CpuDmemResp]
 
-  private val impl = BusBridgeTypeFactory.select(cfg)
+  val ibus = rawWith(_ => impl.busType)
+  val dbus = rawWith(_ => impl.busType)
+  val mbus = rawWith(_ => impl.busType)
 
-  val ibus = IO(impl.busType)
-  val dbus = IO(impl.busType)
-  val mbus = IO(impl.busType)
-
-  dontTouch(imemReq.in)
-  dontTouch(imemResp.out)
-  dontTouch(dmemReq.in)
-  dontTouch(dmemResp.out)
-  dontTouch(mmioReq.in)
-  dontTouch(mmioResp.out)
-
-  dontTouch(ibus)
-  dontTouch(dbus)
-  dontTouch(mbus)
-
-  ibus <> impl.createBridgeReadOnly(
+  ibus.io <> impl.createBridgeReadOnly(
     Vec(p(IssueWidth), UInt(p(ILen).W)),
     imemReq.in,
     imemResp.out,
     isMmio = false
   )
 
-  dbus <> impl.createBridge(
+  dbus.io <> impl.createBridge(
     UInt(p(XLen).W),
     dmemReq.in,
     dmemResp.out,
     isMmio = false
   )
 
-  mbus <> impl.createBridge(
+  mbus.io <> impl.createBridge(
     UInt(p(XLen).W),
     mmioReq.in,
     mmioResp.out,

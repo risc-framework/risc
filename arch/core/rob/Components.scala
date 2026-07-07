@@ -33,15 +33,6 @@ class RobSbCommit(implicit p: Parameters) extends Bundle {
   val sq_idx   = UInt(log2Ceil(p(StoreBufferSize)).W)
 }
 
-class RobExceptionReq extends Bundle {
-  val flush = Bool()
-}
-
-class RobExceptionResp(implicit p: Parameters) extends Bundle {
-  val empty     = Bool()
-  val commit_pc = UInt(p(XLen).W)
-}
-
 class RobDebugInfo(implicit p: Parameters) extends Bundle {
   val commit_count   = UInt(log2Ceil(p(CommitWidth) + 1).W)
   val branch_commit  = UInt(log2Ceil(p(CommitWidth) + 1).W)
@@ -87,9 +78,8 @@ class RobEntry(implicit p: Parameters) extends Bundle {
 
   val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
 
-  val sync_valid             = Bool()
-  val sync_kind              = UInt(isa.kindWidth.W)
-  val sync_requires_csr_idle = Bool()
+  val sync_valid = Bool()
+  val sync_kind  = UInt(isa.kindWidth.W)
 }
 
 class RobCommitInfo(implicit p: Parameters) extends Bundle {
@@ -119,7 +109,6 @@ class RobCommitInfo(implicit p: Parameters) extends Bundle {
 
   val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
 
-  val sync_valid             = Bool()
-  val sync_kind              = UInt(isa.kindWidth.W)
-  val sync_requires_csr_idle = Bool()
+  val sync_valid = Bool()
+  val sync_kind  = UInt(isa.kindWidth.W)
 }

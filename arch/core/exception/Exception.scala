@@ -1,10 +1,10 @@
 package arch.core.exception
 
 import arch.configs._
-import arch.core.ifu.IfuExceptionResp
-import arch.core.rob.RobExceptionResp
+import arch.core.ifu.RedirectInfo
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
+import chisel3.util.PriorityEncoder
 
 class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
   override protected def cfg: NodeConfig = NodeConfig(
@@ -13,37 +13,62 @@ class Exception(implicit p: Parameters) extends Node[Parameters]("exception") {
     )
   )
 
-  val redirectReq = in[ExceptionRedirectReq]
-  val syncReq     = in[ExceptionSyncReq]
-  val asyncReq    = in[ExceptionAsyncReq]
-  val csrStatus   = in[ExceptionCsrStatus]
+  val committedSync     = inVec[ExceptionSyncReq](p => p(CommitWidth))
+  val committedRedirect = inVec[RedirectInfo](p => p(CommitWidth))
+  val async             = in[ExceptionAsyncReq]
+  val csrBusy           = in[Bool]
 
-  val ifuResp = in[IfuExceptionResp]
-  val robResp = in[RobExceptionResp]
-
-  val flush = out[ExceptionFlushReq]
-  val debug = out[ExceptionDebugInfo]
+  val sync       = out[ExceptionSyncReq]
+  val redirect   = out[RedirectInfo]
+  val trapUpdate = out[ExceptionTrapUpdate]
 
   private val isaImpl = ExceptionIsaFactory.select(cfg)
-  private val archPc  = Mux(robResp.in.empty, ifuResp.in.fetch_pc, robResp.in.commit_pc)
 
-  private val selected = isaImpl.select(
-    redirect = redirectReq.in,
-    sync = syncReq.in,
-    async = asyncReq.in,
-    csrBusy = csrStatus.in.busy,
-    archPc = archPc
+  private val syncValidVec = VecInit(
+    (0 until p(CommitWidth)).map(w => committedSync.in.lanes(w).valid)
+  )
+  private val syncAny      = syncValidVec.asUInt.orR
+  private val syncSlot     = PriorityEncoder(syncValidVec.asUInt)
+  private val syncReq      = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
+
+  syncReq.valid  := syncAny
+  syncReq.kind   := committedSync.in.lanes(syncSlot).kind
+  syncReq.target := committedSync.in.lanes(syncSlot).target
+  syncReq.pc     := committedSync.in.lanes(syncSlot).pc
+
+  private val redirectValidVec = VecInit(
+    (0 until p(CommitWidth)).map(w => committedRedirect.in.lanes(w).valid)
+  )
+  private val redirectAny      = redirectValidVec.asUInt.orR
+  private val redirectSlot     = PriorityEncoder(redirectValidVec.asUInt)
+  private val redirectReq      = WireDefault(0.U.asTypeOf(new RedirectInfo))
+
+  redirectReq.valid  := !syncAny && redirectAny
+  redirectReq.target := committedRedirect.in.lanes(redirectSlot).target
+
+  private val (syncHandled, syncTrapUpdate)   = isaImpl.handleSync(syncReq, csrBusy.in)
+  private val redirectHandled                 = isaImpl.handleRedirect(redirectReq)
+  private val (asyncHandled, asyncTrapUpdate) =
+    isaImpl.handleAsync(async.in, syncReq.pc, csrBusy.in)
+
+  private val selectedSync       = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
+  private val selectedTrapUpdate = WireDefault(0.U.asTypeOf(new ExceptionTrapUpdate))
+
+  when(syncHandled.valid) {
+    selectedSync       := syncHandled
+    selectedTrapUpdate := syncTrapUpdate
+  }.elsewhen(!redirectHandled.valid && asyncHandled.valid) {
+    selectedSync       := asyncHandled
+    selectedTrapUpdate := asyncTrapUpdate
+  }
+
+  redirect.out.valid  := syncHandled.valid || redirectHandled.valid || asyncHandled.valid
+  redirect.out.target := Mux(
+    syncHandled.valid,
+    syncHandled.target,
+    Mux(redirectHandled.valid, redirectHandled.target, asyncHandled.target)
   )
 
-  flush.out := selected
-
-  debug.out.flush_valid  := selected.valid
-  debug.out.flush_target := selected.target
-  debug.out.source       := selected.source
-  debug.out.kind         := selected.kind
-  debug.out.cause        := selected.cause
-  debug.out.arch_pc      := selected.arch_pc
-  debug.out.redirect     := selected.source === ExceptionSource.REDIRECT
-  debug.out.sync         := selected.source === ExceptionSource.SYNC
-  debug.out.async        := selected.source === ExceptionSource.ASYNC
+  sync.out       := selectedSync
+  trapUpdate.out := selectedTrapUpdate
 }

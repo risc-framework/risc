@@ -1,0 +1,39 @@
+package arch.core.exception
+
+import arch.configs._
+import chisel3._
+import chisel3.util.BitPat
+
+trait ExceptionSyncEntry {
+  def kind: BitPat
+  def cause: BigInt
+  def priority: Int
+  def writeCsr: Boolean
+  def isRet: Boolean
+  def requiresCsrIdle: Boolean
+
+  def matches(req: ExceptionSyncReq, kindWidth: Int): Bool =
+    req.valid && req.kind === kind.value.U(kindWidth.W)
+
+  def handle(req: ExceptionSyncReq, csrBusy: Bool, kindWidth: Int, causeWidth: Int)(implicit
+    p: Parameters
+  ): (ExceptionSyncReq, ExceptionTrapUpdate) = {
+    val sync       = WireDefault(0.U.asTypeOf(new ExceptionSyncReq))
+    val trap       = WireDefault(0.U.asTypeOf(new ExceptionTrapUpdate))
+    val allowed    = matches(req, kindWidth) && !(requiresCsrIdle.B && csrBusy)
+    val causeValue = cause.U(causeWidth.W)
+
+    sync.valid  := allowed
+    sync.kind   := req.kind
+    sync.target := req.target
+    sync.pc     := req.pc
+
+    trap.valid  := allowed && writeCsr.B
+    trap.is_ret := isRet.B
+    trap.pc     := req.pc
+    trap.kind   := req.kind
+    trap.cause  := causeValue
+
+    (sync, trap)
+  }
+}

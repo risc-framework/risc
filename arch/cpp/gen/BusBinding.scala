@@ -108,7 +108,6 @@ private[cpp] object CppBusBindingsSchema {
         port = port,
         bindingName = "AXIFPortBinding",
         signalType = "AXIFullSignals",
-        rtlPrefix = "M_AXIF",
         fields = axifSignals,
       )
 
@@ -122,7 +121,6 @@ private[cpp] object CppBusBindingsSchema {
         port = port,
         bindingName = "AXILPortBinding",
         signalType = "AXILiteSignals",
-        rtlPrefix = "M_AXIL",
         fields = axilSignals,
       )
 
@@ -134,7 +132,6 @@ private[cpp] object CppBusBindingsSchema {
     port: Int,
     bindingName: String,
     signalType: String,
-    rtlPrefix: String,
     fields: Seq[StructField]
   ): Unit = {
     val pid = port.toString
@@ -147,7 +144,7 @@ private[cpp] object CppBusBindingsSchema {
         w.line(s"$signalType s{};")
 
         fields.foreach { f =>
-          bind(w, f.name, s"${rtlPrefix}_${pid}_${f.name.toUpperCase}")
+          bind(w, f.name, s"devices_${pid}_${f.name.toUpperCase}")
         }
 
         w.line("return s;")

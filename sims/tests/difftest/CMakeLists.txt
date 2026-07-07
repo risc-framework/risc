@@ -8,14 +8,14 @@ configure_file(
 
 add_custom_target(check-difftest
   COMMAND ${LIT_EXECUTABLE} -v ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS ${DEMU_DIFF_TARGET}
+  DEPENDS ${DEMU_DIFF_TARGET} demu-runtime-linker
   COMMENT "Running difftest test suite using lit..."
   USES_TERMINAL
 )
 
 add_custom_target(check-difftest-single
   COMMAND ${LIT_EXECUTABLE} -v -j 1 ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS ${DEMU_DIFF_TARGET}
+  DEPENDS ${DEMU_DIFF_TARGET} demu-runtime-linker
   COMMENT "Running difftest test suite (single-threaded)..."
   USES_TERMINAL
 )

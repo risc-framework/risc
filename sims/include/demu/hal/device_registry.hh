@@ -2,16 +2,15 @@
 
 #include "demu/generated/bus_bindings.hh"
 #include "demu/generated/sys_def.hh"
-#include "demu/hal/bus/axif/interrupt.hh"
+#include "demu/hal/bus/axif/irh/clint.hh"
 #include "demu/hal/bus/axif/port_handler.hh"
 #include "demu/hal/bus/axif/sram.hh"
 #include "demu/hal/bus/axif/uart.hh"
-#include "demu/hal/bus/axil/interrupt.hh"
+#include "demu/hal/bus/axil/irh/clint.hh"
 #include "demu/hal/bus/axil/port_handler.hh"
 #include "demu/hal/bus/axil/sram.hh"
 #include "demu/hal/bus/axil/uart.hh"
 #include "demu/hal/device_manager.hh"
-#include "demu/hal/interrupt.hh"
 #include "demu/logger.hh"
 #include <cstddef>
 #include <memory>
@@ -21,8 +20,8 @@
 namespace demu::hal {
 
 struct GeneratedDeviceContext {
-  InterruptLine *timer_irq{nullptr};
-  InterruptLine *soft_irq{nullptr};
+  peripheral::InterruptLine *timer_irq{nullptr};
+  peripheral::InterruptLine *soft_irq{nullptr};
 };
 
 template <typename T> inline constexpr bool always_false_v = false;

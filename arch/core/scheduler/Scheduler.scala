@@ -3,6 +3,7 @@ package arch.core.scheduler
 import arch.configs._
 import arch.core.fupool.{ FuReq, FuResp }
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
+import chisel3._
 
 class Scheduler(implicit p: Parameters) extends Node[Parameters]("scheduler") {
   override protected def cfg: NodeConfig = NodeConfig(
@@ -11,17 +12,19 @@ class Scheduler(implicit p: Parameters) extends Node[Parameters]("scheduler") {
     )
   )
 
-  val exception   = in[SchedulerExceptionReq]
-  val dispatchReq = inDVec[FuReq](p => p(IssueWidth))
-  val fuReq       = outDVec[FuReq](p => p(NumFUs))
-  val fuDone      = inDVec[FuResp](p => p(NumFUs))
+  val flush      = in[Bool]
+  val dispatched = inDVec[FuReq](p => p(IssueWidth))
+  val fuReq      = outDVec[FuReq](p => p(NumFUs))
+  val fuDone     = inDVec[FuResp](p => p(NumFUs))
+  val debug      = out[SchedulerDebugInfo]
 
   private val policy = SchedulerPolicyFactory.select(cfg)
 
   policy.elaborate(
-    exception.in,
-    w => dispatchReq.in.lanes(w),
+    flush.in,
+    w => dispatched.in.lanes(w),
     i => fuReq.out.lanes(i),
-    i => fuDone.in.lanes(i)
+    i => fuDone.in.lanes(i),
+    debug.out
   )
 }

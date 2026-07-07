@@ -1,12 +1,16 @@
 package arch.core.alu
 
 import arch.configs._
-import arch.core.fupool.{ FuResp, FuReq }
-import arch.core.exception.ExceptionCsrReq
-import vutils.graph.{ Node, NodeConfig, NodeSelector }
+import arch.core.fupool.{ FuReq, FuResp }
 import chisel3._
+import vutils.fsm.Moore
+import vutils.graph.{ Node, NodeConfig, NodeSelector }
 
-class Alu(implicit p: Parameters) extends Node[Parameters]("alu") {
+object AluState extends ChiselEnum {
+  val IDLE, RESP = Value
+}
+
+class Alu(implicit p: Parameters) extends Node[Parameters]("alu") with Moore {
   override protected def cfg: NodeConfig = NodeConfig(
     selector = NodeSelector(
       AluDims.ISA -> p(ISA).name
@@ -15,35 +19,38 @@ class Alu(implicit p: Parameters) extends Node[Parameters]("alu") {
 
   val fuReq  = inD[FuReq]
   val fuResp = outD[FuResp]
-  val flush  = in[ExceptionCsrReq]
+  val flush  = in[Bool]
 
-  private val isaImpl  = AluIsaFactory.select(cfg)
-  private val validReg = RegInit(false.B)
-  private val uopReg   = Reg(new FuReq)
+  private val isaImpl = AluIsaFactory.select(cfg)
+  private val uopReg  = Reg(new FuReq)
 
-  fuReq.in.ready   := !flush.in.flush && (!validReg || fuResp.out.fire)
-  fuResp.out.valid := validReg && !flush.in.flush
+  private val fsm = moore(AluState.IDLE, clear = flush.in) { g =>
+    import g._
 
-  when(flush.in.flush) {
-    validReg := false.B
-  }.elsewhen(fuReq.in.fire) {
-    validReg := true.B
-    uopReg   := fuReq.in.bits
-  }.elsewhen(fuResp.out.fire) {
-    validReg := false.B
+    val IDLE = state(AluState.IDLE)
+    val RESP = state(AluState.RESP)
+
+    trans(IDLE -> RESP, fuReq.in.fire) {
+      uopReg := fuReq.in.bits
+    }
+
+    trans(RESP -> RESP, fuResp.out.fire && fuReq.in.fire) {
+      uopReg := fuReq.in.bits
+    }
+
+    trans(RESP -> IDLE, fuResp.out.fire && !fuReq.in.fire)
   }
 
+  fuReq.in.ready   := !flush.in && (fsm(AluState.IDLE).active || (fsm(
+    AluState.RESP
+  ).active && fuResp.out.ready))
+  fuResp.out.valid := fsm(AluState.RESP).active && !flush.in
+
   private val result = isaImpl.execute(uopReg)
-  private val resp   = Wire(new FuResp)
 
-  resp.result      := result
-  resp.rd          := uopReg.rd
-  resp.pc          := uopReg.pc
-  resp.instr       := uopReg.instr
-  resp.rob_tag     := uopReg.rob_tag
-  resp.trap_req    := false.B
-  resp.trap_kind   := 0.U
-  resp.trap_target := 0.U
-
-  fuResp.out.bits := resp
+  fuResp.out.bits.result  := result
+  fuResp.out.bits.rd      := uopReg.rd
+  fuResp.out.bits.pc      := uopReg.pc
+  fuResp.out.bits.instr   := uopReg.instr
+  fuResp.out.bits.rob_tag := uopReg.rob_tag
 }

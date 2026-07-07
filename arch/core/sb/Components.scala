@@ -9,9 +9,19 @@ class StoreBufferTicket(implicit p: Parameters) extends Bundle {
   val sq_seq = UInt(64.W)
 }
 
+class StoreBufferAllocStatus(implicit p: Parameters) extends Bundle {
+  val free_count = UInt(log2Ceil(p(StoreBufferSize) + 1).W)
+  val tail       = UInt(log2Ceil(p(StoreBufferSize)).W)
+  val tail_seq   = UInt(64.W)
+}
+
+class StoreBufferAllocReq(implicit p: Parameters) extends Bundle {
+  val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
+  val sq_seq = UInt(64.W)
+}
+
 class StoreWriteBundle(implicit p: Parameters) extends Bundle {
   val sq_idx    = UInt(log2Ceil(p(StoreBufferSize)).W)
-  val rob_tag   = UInt(p(RobTagWidth).W)
   val addr      = UInt(p(XLen).W)
   val data      = UInt(p(XLen).W)
   val mask      = UInt(p(BytesPerWord).W)
@@ -40,7 +50,6 @@ class StoreBufferEntry(implicit p: Parameters) extends Bundle {
   val addrValid = Bool()
   val fwdValid  = Bool()
   val seq       = UInt(64.W)
-  val rob_tag   = UInt(p(RobTagWidth).W)
   val addr      = UInt(p(XLen).W)
   val data      = UInt(p(XLen).W)
   val mask      = UInt(p(BytesPerWord).W)
@@ -55,8 +64,4 @@ class StoreBufferStatus extends Bundle {
 class StoreBufferDebugInfo extends Bundle {
   val busy       = Bool()
   val wait_drain = Bool()
-}
-
-class StoreBufferExceptionReq extends Bundle {
-  val flush = Bool()
 }

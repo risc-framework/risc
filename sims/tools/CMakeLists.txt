@@ -11,6 +11,9 @@ if(ENABLE_DIFF)
   add_subdirectory(difftest)
 endif()
 
+# Tools
+add_subdirectory(generic)
+
 # Configuration 
 print_info("Configuration: \n" "92" "0")
 print_info("  ISA: ${TARGET_ARCH}\n" "92" "1")

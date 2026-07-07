@@ -1,6 +1,6 @@
 package arch.core.decode
 
-import arch.core.ifu.IBufferEntry
+import arch.core.ibuffer.IBufferEntry
 import arch.core.bpu.BpuBranchKind
 import arch.core.fupool.FunctionalUnitType
 import arch.configs._
@@ -10,7 +10,7 @@ import chisel3.util.log2Ceil
 
 class DecodePacket(implicit p: Parameters) extends IBufferEntry
 
-class DecodedPacket(implicit p: Parameters) extends Bundle {
+class DecodedPacket(implicit p: Parameters) extends IBufferEntry {
   private val cfg = NodeConfig(
     selector = NodeSelector(
       DecodeDims.ISA -> p(ISA).name
@@ -19,13 +19,7 @@ class DecodedPacket(implicit p: Parameters) extends Bundle {
 
   private val isa = DecodeIsaFactory.select(cfg)
 
-  val pc               = UInt(p(XLen).W)
-  val instr            = UInt(p(ILen).W)
-  val bpu_pred_taken   = Bool()
-  val bpu_pred_target  = UInt(p(XLen).W)
-  val bpu_pht_index    = UInt(p(GShareGhrWidth).W)
-  val bpu_ghr_snapshot = UInt(p(GShareGhrWidth).W)
-  val bpu_branch_kind  = UInt(BpuBranchKind.width.W)
+  val bpu_branch_kind = UInt(BpuBranchKind.width.W)
 
   val legal          = Bool()
   val regwrite       = Bool()

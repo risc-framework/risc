@@ -1,7 +1,7 @@
 package arch.core.csr
 
 import arch.configs._
-import arch.core.exception.{ ExceptionDims, ExceptionIsaFactory, ExceptionTrapUpdate }
+import arch.core.exception.{ ExceptionDims, ExceptionIsaFactory }
 import vutils.graph.{ NodeConfig, NodeSelector }
 import chisel3._
 
@@ -43,12 +43,6 @@ class CsrSysCmd(implicit p: Parameters) extends Bundle {
   val target = UInt(p(XLen).W)
 }
 
-class InterruptLines extends Bundle {
-  val timer_irq = Bool()
-  val soft_irq  = Bool()
-  val ext_irq   = Bool()
-}
-
 class CsrTrapView(implicit p: Parameters) extends Bundle {
   val status           = UInt(p(XLen).W)
   val interruptEnable  = UInt(p(XLen).W)
@@ -57,16 +51,19 @@ class CsrTrapView(implicit p: Parameters) extends Bundle {
   val epc              = UInt(p(XLen).W)
 }
 
-class CsrCtrlReq(implicit p: Parameters) extends Bundle {
-  val cycle       = UInt(64.W)
-  val instret     = UInt(64.W)
-  val irq         = new InterruptLines
-  val arch_pc     = UInt(p(XLen).W)
-  val trap_update = new ExceptionTrapUpdate
+class CsrCtrlReq extends Bundle {
+  val cycle   = UInt(64.W)
+  val instret = UInt(64.W)
 }
 
 class CsrCtrlResp(implicit p: Parameters) extends Bundle {
   val view = new CsrTrapView
   val ir   = new CsrSysCmd
   val busy = Bool()
+}
+
+class InterruptLines extends Bundle {
+  val timer_irq = Bool()
+  val soft_irq  = Bool()
+  val ext_irq   = Bool()
 }

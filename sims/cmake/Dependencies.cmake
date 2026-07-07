@@ -15,14 +15,12 @@ else()
     -Wno-PINCONNECTEMPTY
   )
 
-  if(${TARGET_ARCH} STREQUAL "rv32i")
-    set(__ISA_RV32I__ TRUE CACHE INTERNAL "rv32i is available")
-    add_compile_definitions(__ISA_RV32I__)
-  elseif(${TARGET_ARCH} STREQUAL "rv32im")
-    set(__ISA_RV32IM__ TRUE CACHE INTERNAL "rv32im is available")
-    add_compile_definitions(__ISA_RV32IM__)
-  else()
-    message(FATAL_ERROR "Unsupported ISA: ${TARGET_ARCH}. Supported ISAs: rv32i, rv32im")
+  if(${TARGET_FAMILY} STREQUAL "")
+    message(FATAL_ERROR "TARGET_FAMILY not set!")
+  endif()
+
+  if(${TARGET_ARCH} STREQUAL "")
+    message(FATAL_ERROR "TARGET_ARCH not set!")
   endif()
 
   add_definitions(-DNUM_THREADS=${NUM_THREADS})

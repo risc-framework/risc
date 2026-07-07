@@ -3,6 +3,7 @@ package arch.core.scheduler
 import arch.configs._
 import arch.core.fupool.{ FuReq, FuResp }
 import vutils.graph.NodeDims
+import chisel3._
 import chisel3.util.DecoupledIO
 
 object SchedulerDims extends NodeDims("scheduler") {
@@ -11,11 +12,20 @@ object SchedulerDims extends NodeDims("scheduler") {
 
 trait SchedulerPolicyImpl extends SchedulerDims.POLICY.Impl {
   def elaborate(
-    exception: SchedulerExceptionReq,
-    dispatchReq: Int => DecoupledIO[FuReq],
+    flush: Bool,
+    dispatched: Int => DecoupledIO[FuReq],
     fuReq: Int => DecoupledIO[FuReq],
-    fuDone: Int => DecoupledIO[FuResp]
+    fuDone: Int => DecoupledIO[FuResp],
+    debug: SchedulerDebugInfo
   )(implicit p: Parameters): Unit
+}
+
+class SchedulerDebugInfo extends Bundle {
+  val raw_wait         = Bool()
+  val waw_wait         = Bool()
+  val fu_busy          = Bool()
+  val older_lane_block = Bool()
+  val no_matching_fu   = Bool()
 }
 
 object SchedulerPolicyFactory extends SchedulerDims.POLICY.Registry[SchedulerPolicyImpl]

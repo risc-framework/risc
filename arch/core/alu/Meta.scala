@@ -10,8 +10,6 @@ object AluDims extends NodeDims("alu") {
 }
 
 trait AluIsaImpl extends AluDims.ISA.Impl {
-  def fnTypeWidth: Int
-  def decode(uop: UInt): AluCtrl
   def execute(uop: FuReq)(implicit p: Parameters): UInt
 }
 

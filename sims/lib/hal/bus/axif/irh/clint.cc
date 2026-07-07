@@ -1,6 +1,4 @@
-#include "demu/hal/bus/axif/interrupt.hh"
-
-#if defined(__ISA_RV32I__) || defined(__ISA_RV32IM__)
+#include "demu/hal/bus/axif/irh/clint.hh"
 
 namespace demu::hal::axif {
 
@@ -193,5 +191,3 @@ void AXIFullCLINT::dump(addr_t start, size_t size) const noexcept {
 }
 
 } // namespace demu::hal::axif
-
-#endif // defined(__ISA_RV32I__) || defined(__ISA_RV32IM__)
