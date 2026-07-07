@@ -107,7 +107,7 @@ object Rv32imOoO extends App {
       BTBReplPolicy                 -> ReplPolicy.PseudoLRU,
       GShareGhrWidth                -> 10,
       L1ICacheWays                  -> 2,
-      L1ICacheSets                  -> 8,
+      L1ICacheSets                  -> 16,
       L1ICacheLineSize              -> 64,
       L1ICacheReplPolicy            -> ReplPolicy.LRU,
       L1DCacheWays                  -> 4,
