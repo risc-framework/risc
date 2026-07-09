@@ -131,17 +131,17 @@ config COREMARK_ENABLE_DEBUG
 
 config COREMARK_TOTAL_DATA_SIZE
   string "CoreMark total data size"
-  default ""
+  default "2000"
   depends on ENABLE_COREMARK
 
 config COREMARK_ITERATIONS
   string "CoreMark iterations"
-  default ""
+  default "1"
   depends on ENABLE_COREMARK
 
 config COREMARK_EXECS
   string "CoreMark execs"
-  default ""
+  default "7"
   depends on ENABLE_COREMARK
 
 endmenu

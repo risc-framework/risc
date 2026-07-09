@@ -123,7 +123,7 @@ def write_make_config(kconf, output: Path) -> None:
     generated_include_dir = string_value(
         kconf, "GENERATED_INCLUDE_DIR", "build/include"
     )
-    synth_dir = string_value(kconf, "SYNTH_DIR", "build/synth")
+    synth_dir = string_value(kconf, "SYNTH_DIR", "synth")
     sim_build_dir = string_value(kconf, "SIM_BUILD_DIR", "build/sim")
     runtime_root = string_value(kconf, "RUNTIME_ROOT", "build/runtime")
 
@@ -164,9 +164,9 @@ def write_make_config(kconf, output: Path) -> None:
         "",
         f"ENABLE_COREMARK ?= {make_bool(bool_value(kconf, 'ENABLE_COREMARK', False))}",
         f"COREMARK_ENABLE_DEBUG ?= {make_bool(bool_value(kconf, 'COREMARK_ENABLE_DEBUG', False))}",
-        f"COREMARK_TOTAL_DATA_SIZE ?= {make_escape(string_value(kconf, 'COREMARK_TOTAL_DATA_SIZE', ''))}",
-        f"COREMARK_ITERATIONS ?= {make_escape(string_value(kconf, 'COREMARK_ITERATIONS', ''))}",
-        f"COREMARK_EXECS ?= {make_escape(string_value(kconf, 'COREMARK_EXECS', ''))}",
+        f"COREMARK_TOTAL_DATA_SIZE ?= {make_escape(string_value(kconf, 'COREMARK_TOTAL_DATA_SIZE', '2000'))}",
+        f"COREMARK_ITERATIONS ?= {make_escape(string_value(kconf, 'COREMARK_ITERATIONS', '1'))}",
+        f"COREMARK_EXECS ?= {make_escape(string_value(kconf, 'COREMARK_EXECS', '1'))}",
         "",
     ]
 
@@ -180,7 +180,7 @@ def write_cmake_config(kconf, output: Path) -> None:
     generated_include_dir = string_value(
         kconf, "GENERATED_INCLUDE_DIR", "build/include"
     )
-    sim_build_dir = string_value(kconf, "SIM_BUILD_DIR", "sims/build")
+    sim_build_dir = string_value(kconf, "SIM_BUILD_DIR", "build/sim")
     runtime_root = string_value(kconf, "RUNTIME_ROOT", "build/runtime")
 
     lines = [
@@ -222,9 +222,9 @@ def write_cmake_config(kconf, output: Path) -> None:
         "",
         f'set(ENABLE_COREMARK {cmake_bool(bool_value(kconf, "ENABLE_COREMARK", False))} CACHE BOOL "Enable CoreMark" FORCE)',
         f'set(COREMARK_ENABLE_DEBUG {cmake_bool(bool_value(kconf, "COREMARK_ENABLE_DEBUG", False))} CACHE BOOL "Enable CoreMark debug" FORCE)',
-        f'set(COREMARK_TOTAL_DATA_SIZE "{cmake_escape(string_value(kconf, "COREMARK_TOTAL_DATA_SIZE", ""))}" CACHE STRING "CoreMark total data size" FORCE)',
-        f'set(COREMARK_ITERATIONS "{cmake_escape(string_value(kconf, "COREMARK_ITERATIONS", ""))}" CACHE STRING "CoreMark iterations" FORCE)',
-        f'set(COREMARK_EXECS "{cmake_escape(string_value(kconf, "COREMARK_EXECS", ""))}" CACHE STRING "CoreMark execs" FORCE)',
+        f'set(COREMARK_TOTAL_DATA_SIZE "{cmake_escape(string_value(kconf, "COREMARK_TOTAL_DATA_SIZE", "2000"))}" CACHE STRING "CoreMark total data size" FORCE)',
+        f'set(COREMARK_ITERATIONS "{cmake_escape(string_value(kconf, "COREMARK_ITERATIONS", "1"))}" CACHE STRING "CoreMark iterations" FORCE)',
+        f'set(COREMARK_EXECS "{cmake_escape(string_value(kconf, "COREMARK_EXECS", "1"))}" CACHE STRING "CoreMark execs" FORCE)',
         "",
     ]
 
