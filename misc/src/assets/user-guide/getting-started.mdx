@@ -14,6 +14,7 @@ This project is still under active development.
 - **sbt** - version defined in `project/build.properties` (currently `1.10.11`)
 - **Chisel / Scala** — versions defined in `build.sbt`
 - **Kconfig** - Build system generator.
+- **Python 3/Bash** - Scripting. 
 - **[Vutils](https://github.com/risc-framework/Vutils.git)** — must be installed before building
 - **[Vamba](https://github.com/risc-framework/Vamba.git)** — must be installed before building
 - **[Vcache](https://github.com/risc-framework/Vcache.git)** — must be installed before building
@@ -54,8 +55,8 @@ make rtl
 # use `make help` to see make options.
 make kconfig 
 
-# Opens a GUI for build configurations.
-make menuconfig 
+# Opens a GUI for build configurations. Or you can manually modify .config file.
+# make menuconfig 
 
 # `make sim` for building sim/ softwares including simulator/difftest/debugger etc. See `Using DEMU`
 ```
