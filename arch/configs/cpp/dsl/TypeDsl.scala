@@ -1,4 +1,4 @@
-package arch.cpp.dsl
+package arch.configs.cpp.dsl
 
 private[cpp] object CppTypeDsl {
   final case class CppType(value: String) {

@@ -1,12 +1,12 @@
-package arch.cpp.gen
+package arch.configs.cpp.gen
 
 import arch.system.device.DeviceDescriptor
 import arch.configs._
-import arch.cpp.CppCodegenOptions
-import arch.cpp.dsl.{ CppWriter, CppDecl, EnumDecl, StructDecl, CppValue }
-import arch.cpp.dsl.CppEnumMapping._
-import arch.cpp.dsl.CppLiteral._
-import arch.cpp.dsl.CppValueDsl._
+import arch.configs.cpp.CppCodegenOptions
+import arch.configs.cpp.dsl.{ CppWriter, CppDecl, EnumDecl, StructDecl, CppValue }
+import arch.configs.cpp.dsl.CppEnumMapping._
+import arch.configs.cpp.dsl.CppLiteral._
+import arch.configs.cpp.dsl.CppValueDsl._
 
 private[cpp] object CppSysSchema {
   private val typeDecls: Seq[CppDecl] = Seq(

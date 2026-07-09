@@ -1,5 +1,3 @@
-# demu
-
 add_library(demu
   ${DEMU_SOURCES}
   ${DEMU_HEADERS}
@@ -9,12 +7,7 @@ add_library(demu
 verilate(demu
   SOURCES ${RTL_SOURCE}
   VERILATOR_ARGS
-    -Wall
-    -Wno-WIDTH
-    -Wno-UNUSED
-    -Wno-UNOPTFLAT
-    -Wno-DECLFILENAME
-    -Wno-PINCONNECTEMPTY
+    ${DEMU_VERILATOR_ARGS}
     -j 0
     --top-module ${TOP_MODULE}
 
@@ -37,15 +30,26 @@ verilate(demu
 )
 
 target_include_directories(demu PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-  "${GEN_DIR}/include"
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:include>"
+  "${GENERATED_INCLUDE_DIR}"
+)
+
+target_compile_definitions(demu PUBLIC
+  NUM_THREADS=${NUM_THREADS}
+)
+
+if(ENABLE_TRACE)
+  target_compile_definitions(demu PUBLIC ENABLE_TRACE)
+endif()
+
+target_link_libraries(demu PUBLIC
+  spdlog::spdlog
+  Threads::Threads
+  ${READLINE_LIB}
 )
 
 set_target_properties(demu PROPERTIES
-  ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
-  LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 )
-
-# spdlog
-target_link_libraries(demu PUBLIC spdlog::spdlog)

@@ -1,9 +1,4 @@
-# Compiler setup
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release)
-endif()
-
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
   message(STATUS "No build type set — defaulting to Release")
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
@@ -45,6 +40,16 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     -funroll-loops
     -finline-functions
   )
+
+elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  add_compile_options(
+    -O0
+    -g
+    -fno-omit-frame-pointer
+    -Wall
+    -Wextra
+  )
+
 else()
   add_compile_options(
     -O0
@@ -59,8 +64,8 @@ if(USE_CCACHE)
   find_program(CCACHE_PROGRAM ccache)
 
   if(CCACHE_PROGRAM)
-    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}" CACHE FILEPATH "C compiler launcher" FORCE)
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}" CACHE FILEPATH "CXX compiler launcher" FORCE)
     message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
   else()
     message(STATUS "ccache requested but not found")

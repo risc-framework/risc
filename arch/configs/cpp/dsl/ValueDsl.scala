@@ -1,4 +1,4 @@
-package arch.cpp.dsl
+package arch.configs.cpp.dsl
 
 import arch.configs.{ Field, Parameters }
 import CppLiteral._

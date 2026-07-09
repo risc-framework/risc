@@ -6,6 +6,8 @@
 .cache/
 .sbt-local/
 .coursier-cache/
+.config
+.config.*
 
 project/project/
 build/

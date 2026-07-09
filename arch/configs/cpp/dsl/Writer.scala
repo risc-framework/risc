@@ -1,4 +1,4 @@
-package arch.cpp.dsl
+package arch.configs.cpp.dsl
 
 final private[cpp] class CppWriter {
   private val sb    = new StringBuilder

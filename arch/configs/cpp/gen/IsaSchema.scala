@@ -1,10 +1,10 @@
-package arch.cpp.gen
+package arch.configs.cpp.gen
 
 import arch.configs.{ ISA, TopModuleName, Parameters }
-import arch.cpp.CppCodegenOptions
-import arch.cpp.dsl.{ CppDecl, CppValue, CppWriter, StructDecl, TypeAliasValue }
-import arch.cpp.dsl.CppLiteral._
-import arch.cpp.dsl.CppValueDsl._
+import arch.configs.cpp.CppCodegenOptions
+import arch.configs.cpp.dsl.{ CppDecl, CppValue, CppWriter, StructDecl, TypeAliasValue }
+import arch.configs.cpp.dsl.CppLiteral._
+import arch.configs.cpp.dsl.CppValueDsl._
 import arch.isa._
 import arch.isa.instructions._
 

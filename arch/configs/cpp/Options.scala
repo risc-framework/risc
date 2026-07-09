@@ -1,4 +1,4 @@
-package arch.cpp
+package arch.configs.cpp
 
 import java.nio.file.Path
 

@@ -1,26 +1,32 @@
-# Collect source and header files
-
-file(GLOB_RECURSE DEMU_SOURCES 
-  ${CMAKE_CURRENT_SOURCE_DIR}/lib/*.c 
-  ${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cc 
-  ${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp
+file(GLOB_RECURSE DEMU_SOURCES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp"
 )
 
-file(GLOB_RECURSE DEMU_HEADERS 
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h 
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hh 
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
+file(GLOB_RECURSE DEMU_HEADERS CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hh"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
 )
 
-file(GLOB_RECURSE GEN_HEADERS
-  ${GEN_DIR}/include/*.h 
-  ${GEN_DIR}/include/*.hh 
-  ${GEN_DIR}/include/*.hpp
+file(GLOB_RECURSE GEN_HEADERS CONFIGURE_DEPENDS
+  "${GENERATED_INCLUDE_DIR}/*.h"
+  "${GENERATED_INCLUDE_DIR}/*.hh"
+  "${GENERATED_INCLUDE_DIR}/*.hpp"
 )
 
-# Use ISA-specific top RTL only to avoid duplicate module definitions
-# from multiple generated system variants in ../build.
 if(NOT EXISTS "${RTL_SOURCE}")
-  message(WARNING "RTL file not found: ${RTL_SOURCE}")
-  message(WARNING "Please make sure your Chisel design has been generated")
+  message(FATAL_ERROR
+    "RTL file not found: ${RTL_SOURCE}\n"
+    "Run `make run` from the repository root first."
+  )
 endif()
+
+list(LENGTH DEMU_SOURCES DEMU_SOURCES_COUNT)
+list(LENGTH DEMU_HEADERS DEMU_HEADERS_COUNT)
+list(LENGTH GEN_HEADERS GEN_HEADERS_COUNT)
+
+message(STATUS "Collected DEMU sources: ${DEMU_SOURCES_COUNT}")
+message(STATUS "Collected DEMU headers: ${DEMU_HEADERS_COUNT}")
+message(STATUS "Collected generated headers: ${GEN_HEADERS_COUNT}")

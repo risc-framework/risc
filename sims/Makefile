@@ -1,126 +1,129 @@
-PROJECT_DIR = $(shell pwd)
-CMAKE_DIR = $(PROJECT_DIR)/cmake
-BUILD_DIR ?= $(PROJECT_DIR)/build
-RUNTIME_DIR = $(BUILD_DIR)/runtime
+PROJECT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+RISC_DIR ?= $(abspath $(PROJECT_DIR)/..)
 
-# coremark benchmark
-COREMARK_DIR = $(PROJECT_DIR)/tests/coremark
+SCALA_CONFIG_MK := $(RISC_DIR)/build/generated/config.mk
+KCONFIG_MK := $(RISC_DIR)/build/generated/kconfig.mk
 
-# Build configuration
+-include $(SCALA_CONFIG_MK)
+-include $(KCONFIG_MK)
+
+CMAKE_DIR := $(PROJECT_DIR)/cmake
+BUILD_DIR ?= $(SIM_BUILD_DIR)
+BUILD_DIR ?= $(RISC_DIR)/build/sim
+
+COREMARK_DIR := $(PROJECT_DIR)/tests/coremark
+
 BUILD_TYPE ?= Release
-FAMILY ?= 
-ARCH ?= 
+GENERATOR ?= Ninja
 
-# configurations for coremark
+FAMILY ?= $(TARGET_FAMILY)
+ARCH ?= $(TARGET_ARCH)
+
 COREMARK_ENABLE_DEBUG ?= 0
-COREMARK_TOTAL_DATA_SIZE ?= 
-COREMARK_ITERATIONS ?= 
-COREMARK_EXECS ?= 
+COREMARK_TOTAL_DATA_SIZE ?=
+COREMARK_ITERATIONS ?=
+COREMARK_EXECS ?=
 
-# Auto-detect generator
 ifndef GENERATOR
   ifneq ($(wildcard $(BUILD_DIR)/build.ninja),)
-    # build.ninja exists, use Ninja
-    GENERATOR = Ninja
+    GENERATOR := Ninja
   else ifneq ($(wildcard $(BUILD_DIR)/Makefile),)
-    # Makefile exists, use Unix Makefiles
-    GENERATOR = Unix Makefiles
+    GENERATOR := Unix Makefiles
   else
-    # No build system configured yet, default to Ninja
-    GENERATOR = Ninja
+    GENERATOR := Ninja
   endif
 endif
 
-# Validate generator
-VALID_GENERATORS = Ninja Unix Makefiles
-ifeq ($(filter $(GENERATOR),$(VALID_GENERATORS)),)
-  $(error Invalid GENERATOR: $(GENERATOR). Supported generators: Ninja, Unix Makefiles)
-endif
-
-# Detect generator command
 ifeq ($(GENERATOR),Ninja)
-  BUILD_CMD = ninja -C $(BUILD_DIR)
-  TEST_CMD = ninja -C $(BUILD_DIR) check-difftest
+  BUILD_CMD := ninja -C $(BUILD_DIR)
+  TEST_CMD := ninja -C $(BUILD_DIR) check-difftest
 else ifeq ($(GENERATOR),Unix Makefiles)
-  BUILD_CMD = cmake --build $(BUILD_DIR)
-  TEST_CMD = cmake --build $(BUILD_DIR) --target check-difftest
+  BUILD_CMD := cmake --build $(BUILD_DIR)
+  TEST_CMD := cmake --build $(BUILD_DIR) --target check-difftest
 else
-  $(error Unsupported generator: $(GENERATOR))
+  $(error Unsupported GENERATOR: $(GENERATOR). Supported generators: Ninja, Unix Makefiles)
 endif
 
-.PHONY: all config build reconfigure clean difftest help
+.PHONY: all config build reconfigure clean difftest coremark check-generated check-targets help
 
 all: build
 
-# Configure CMake project
-config:
-	@echo "==> Configuring project..."
-	@mkdir -p $(BUILD_DIR)
-	@if [ ! -f $(BUILD_DIR)/config.cmake ]; then \
-		echo "Copying default config.cmake to build directory..."; \
-		cp $(CMAKE_DIR)/config.cmake $(BUILD_DIR)/config.cmake; \
-	else \
-		echo "Using existing config.cmake in build directory"; \
-	fi
+check-generated:
+	@test -f "$(SCALA_CONFIG_MK)" || (echo "missing $(SCALA_CONFIG_MK). Run make run from repo root."; exit 1)
+	@test -f "$(KCONFIG_MK)" || (echo "missing $(KCONFIG_MK). Run make kconfig from repo root."; exit 1)
+	@test -n "$(TARGET_FAMILY)" || (echo "TARGET_FAMILY is empty. Run make run from repo root."; exit 1)
+	@test -n "$(TARGET_ARCH)" || (echo "TARGET_ARCH is empty. Run make run from repo root."; exit 1)
+	@test -n "$(TOP_MODULE)" || (echo "TOP_MODULE is empty. Run make run from repo root."; exit 1)
+	@test -f "$(RTL_SOURCE)" || (echo "missing RTL source: $(RTL_SOURCE). Run make run from repo root."; exit 1)
+	@test -f "$(LINKER_SCRIPT)" || (echo "missing linker script: $(LINKER_SCRIPT). Run make run from repo root."; exit 1)
+	@test -f "$(STARTUP_SOURCE)" || (echo "missing startup source: $(STARTUP_SOURCE). Run make run from repo root."; exit 1)
 
-# Build the project
-build: config
+config: check-generated
+	@echo "==> Configuring simulator project..."
 	@mkdir -p $(BUILD_DIR)
+
+build: config
 	@if [ ! -f $(BUILD_DIR)/CMakeCache.txt ]; then \
 		echo "Running CMake with generator: $(GENERATOR)"; \
 		cd $(BUILD_DIR) && cmake $(PROJECT_DIR) \
-			-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+			-DCMAKE_BUILD_TYPE="$(BUILD_TYPE)" \
 			-G "$(GENERATOR)"; \
 	fi
-	@echo "==> Building project with $(GENERATOR)..."
+	@echo "==> Building simulator with $(GENERATOR)..."
 	@$(BUILD_CMD)
 
-# Force reconfigure
-reconfigure:
-	@echo "==> Forcing reconfiguration..."
+reconfigure: check-generated
+	@echo "==> Forcing simulator reconfiguration..."
 	@rm -f $(BUILD_DIR)/CMakeCache.txt
-	@$(MAKE) config
+	@$(MAKE) build
 
-# Clean build artifacts
 clean:
-	@echo "==> Cleaning build directory..."
+	@echo "==> Cleaning simulator build directory..."
 	@rm -rf $(BUILD_DIR)
 
-# Run tests
-difftest:
+check-targets: build
+	@if [ "$(GENERATOR)" = "Ninja" ]; then \
+		ninja -C $(BUILD_DIR) -t targets | grep -q '^check-difftest:' || \
+			(echo "CMake did not generate target check-difftest."; \
+			 echo "Check ENABLE_TESTING and ENABLE_DIFF in build/generated/kconfig.cmake."; \
+			 exit 1); \
+	fi
+
+difftest: check-targets
 	@echo "==> Running difftests..."
 	@$(TEST_CMD)
 
-# Run coremark benchmark
-coremark:
-	@echo "==> Running coremark..."
+coremark: check-generated
+	@echo "==> Running CoreMark..."
 	@mkdir -p $(BUILD_DIR)
 	@mkdir -p $(COREMARK_DIR)
 	@cd $(COREMARK_DIR) && make \
-    PORT_DIR=$(FAMILY) \
-    OPATH=$(BUILD_DIR)/tests/coremark/ \
-    RUNTIME_DIR=$(RUNTIME_DIR)/bare-metal/$(FAMILY) \
-    ITERATIONS=$(COREMARK_ITERATIONS) \
-    EXECS=$(COREMARK_EXECS) \
-    TOTAL_DATA_SIZE=$(COREMARK_TOTAL_DATA_SIZE) \
-    ENABLE_DEBUG=$(COREMARK_ENABLE_DEBUG)
-	@cd $(PROJECT_DIR)
+		PORT_DIR=$(FAMILY) \
+		OPATH=$(BUILD_DIR)/tests/coremark/ \
+		RUNTIME_DIR=$(RUNTIME_DIR) \
+		ITERATIONS=$(COREMARK_ITERATIONS) \
+		EXECS=$(COREMARK_EXECS) \
+		TOTAL_DATA_SIZE=$(COREMARK_TOTAL_DATA_SIZE) \
+		ENABLE_DEBUG=$(COREMARK_ENABLE_DEBUG)
 
-# Help message
 help:
 	@echo "Available targets:"
-	@echo "  all              - Configure and build (default)"
-	@echo "  config           - Configure the project with CMake"
-	@echo "  build            - Build the project"
-	@echo "  reconfigure      - Force reconfiguration of the project"
-	@echo "  clean            - Remove build directory"
-	@echo "  difftest         - Run difftests"
-	@echo "  coremark         - Run Coremark"
-	@echo "  help             - Show this help message"
+	@echo "  all          - Configure and build simulator"
+	@echo "  config       - Validate generated config and prepare CMake build dir"
+	@echo "  build        - Configure and build simulator"
+	@echo "  reconfigure  - Force CMake reconfiguration"
+	@echo "  clean        - Remove simulator build directory"
+	@echo "  difftest     - Run difftests"
+	@echo "  coremark     - Run CoreMark"
+	@echo "  help         - Show this help message"
 	@echo ""
-	@echo "Variables:"
-	@echo "  BUILD_TYPE       - Build type (Debug, Release, RelWithDebInfo, MinSizeRel)"
-	@echo "                     Current: $(BUILD_TYPE)"
-	@echo "  GENERATOR        - CMake generator (Ninja, Unix Makefiles)"
-	@echo "                     Current: $(GENERATOR)"
-	@echo ""
+	@echo "Loaded configuration:"
+	@echo "  TARGET_FAMILY = $(TARGET_FAMILY)"
+	@echo "  TARGET_ARCH   = $(TARGET_ARCH)"
+	@echo "  TOP_MODULE    = $(TOP_MODULE)"
+	@echo "  RTL_SOURCE    = $(RTL_SOURCE)"
+	@echo "  LINKER_SCRIPT = $(LINKER_SCRIPT)"
+	@echo "  STARTUP_SOURCE= $(STARTUP_SOURCE)"
+	@echo "  BUILD_DIR     = $(BUILD_DIR)"
+	@echo "  BUILD_TYPE    = $(BUILD_TYPE)"
+	@echo "  GENERATOR     = $(GENERATOR)"

@@ -18,9 +18,12 @@ import arch.system.bridge.BusBridgeInit
 import arch.system.crossbar.BusCrossbarInit
 import arch.system.device.{ DeviceDescriptor, DeviceType }
 import arch.core.fupool.{ FunctionalUnitDescriptor, FunctionalUnitType }
-import arch.configs._
 import arch.isa.variants.riscv32._
-import arch.cpp.CppCodegen
+import arch.configs._
+import arch.configs.cpp.CppCodegen
+import arch.configs.cmake.CMakeCodegen
+import arch.configs.mk.MakeCodegen
+import arch.configs.runtime.{ Riscv32BareMetalRuntimeInit, RuntimeCodegen }
 import vcache.repl.ReplPolicy
 import vutils._
 
@@ -165,4 +168,17 @@ object Rv32imOoO extends App {
     "build/include/demu/generated/bus_bindings.hh",
     "build/include/demu/generated/retire_bindings.hh"
   )
+
+  MakeCodegen.emit(
+    p,
+    "build/generated/config.mk"
+  )
+
+  CMakeCodegen.emit(
+    p,
+    "build/generated/config.cmake"
+  )
+
+  Riscv32BareMetalRuntimeInit
+  RuntimeCodegen.emit(p)
 }

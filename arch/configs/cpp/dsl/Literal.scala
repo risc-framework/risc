@@ -1,4 +1,4 @@
-package arch.cpp.dsl
+package arch.configs.cpp.dsl
 
 private[cpp] object CppLiteral {
   def braced(fields: Seq[String]): String =

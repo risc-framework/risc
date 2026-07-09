@@ -1,9 +1,9 @@
-package arch.cpp.gen
+package arch.configs.cpp.gen
 
 import arch.configs._
-import arch.cpp.dsl.CppWriter
-import arch.cpp.dsl.CppStructDsl._
-import arch.cpp.dsl.CppTypeDsl._
+import arch.configs.cpp.dsl.CppWriter
+import arch.configs.cpp.dsl.CppStructDsl._
+import arch.configs.cpp.dsl.CppTypeDsl._
 
 private[cpp] object CppBusBindingsSchema {
   private val axifSignals: Seq[StructField] = Seq(
