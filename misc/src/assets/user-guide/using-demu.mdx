@@ -10,7 +10,8 @@ This project is still under active development.
 
 ## Prerequisites
 
-- **Make(Ninja)/CMake**
+- **C/C++ Compiler(gcc/clang etc.)**
+- **Make(Ninja)/CMake( >= 3.24)**
 - **[spdlog](https://github.com/gabime/spdlog.git)**
 - **[Verilator](https://github.com/verilator/verilator.git)**
 - **lit(optional)**
@@ -20,16 +21,5 @@ This project is still under active development.
 ### Quick Build
 
 ```bash
-make config # generates a `config.cmake` under `build/` for user to customize
-make    # uses `Ninja` by default
-```
-
-### Manually Build
-
-```bash
-make config # You can edit `build/config.cmake` to customize the build, e.g. enable ccache, set the target architecture, etc.
-mkdir -p build
-cd build
-cmake .. -G Ninja
-ninja
+make sim # Use `make help` to see make options.
 ```

@@ -13,7 +13,7 @@ This project is still under active development.
 - **OS** - This project functions well on **Linux/MacOS**, but may encounter issues on Windows(we haven't tested it on it). It is recommended to use `WSL` if you are on Windows.
 - **sbt** - version defined in `project/build.properties` (currently `1.10.11`)
 - **Chisel / Scala** — versions defined in `build.sbt`
-- **Protobuf** 
+- **Kconfig** - Build system generator.
 - **[Vutils](https://github.com/risc-framework/Vutils.git)** — must be installed before building
 - **[Vamba](https://github.com/risc-framework/Vamba.git)** — must be installed before building
 - **[Vcache](https://github.com/risc-framework/Vcache.git)** — must be installed before building
@@ -41,12 +41,25 @@ make update
 Generate SystemVerilog from the Chisel source:
 
 ```bash
-make run
+make rtl 
 ```
 
-## Configurations
-The configuration file is at **arch/package.scala** where you can change the parameters of the generated design, such as the ISA, the cache size etc.
+## Build & Configurations
+The configuration file is at **.config**. And this build system depends on `Makefile` and `Kconfig`.
 
-```info
-By now we have only impled rv32i but we have a well-designed architecture for supporting other ISAs. We will add more ISAs in the future:)
+```bash
+# Generate SystemVerilog from the Chisel source and some derived configurations for build system. 
+make rtl 
+
+# use `make help` to see make options.
+make kconfig 
+
+# Opens a GUI for build configurations.
+make menuconfig 
+
+# `make sim` for building sim/ softwares including simulator/difftest/debugger etc. See `Using DEMU`
+```
+
+```tip
+This 3 steps are necessary for the build system and software productions around the generated cpu/soc.
 ```
