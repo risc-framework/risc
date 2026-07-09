@@ -52,7 +52,10 @@ The configuration file is at **.config**. And this build system depends on `Make
 # Generate SystemVerilog from the Chisel source and some derived configurations for build system. 
 make rtl 
 
-# use `make help` to see make options.
+# Generate default config template.
+make defconfig
+
+# Use `make help` to see make options.
 make kconfig 
 
 # Opens a GUI for build configurations. Or you can manually modify .config file.
