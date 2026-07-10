@@ -112,9 +112,6 @@ config BAREMETAL_CC
   string "Bare-metal C compiler command"
   default ""
   depends on ENABLE_BAREMETAL_RUNTIME
-  help
-    Full compiler command. Do not assume GCC prefix format.
-    Example for RISC-V: riscv64-unknown-elf-gcc
 
 config BAREMETAL_OBJCOPY
   string "Bare-metal objcopy command"
@@ -130,24 +127,16 @@ config BAREMETAL_CFLAGS
   string "Bare-metal C flags"
   default "-O3 -ffreestanding -fno-builtin -fno-common -ffunction-sections -fdata-sections -Wall"
   depends on ENABLE_BAREMETAL_RUNTIME
-  help
-    Generic freestanding flags only. Add ISA/ABI/toolchain-specific flags
-    explicitly here.
 
 config BAREMETAL_ASFLAGS
   string "Bare-metal assembler flags"
   default "-x assembler-with-cpp"
   depends on ENABLE_BAREMETAL_RUNTIME
-  help
-    Add target-specific assembler flags explicitly here.
 
 config BAREMETAL_LDFLAGS
   string "Bare-metal linker flags"
   default "-nostartfiles -nostdlib -Wl,--gc-sections"
   depends on ENABLE_BAREMETAL_RUNTIME
-  help
-    The linker script is added by the build system. Add target-specific linker
-    flags here.
 
 endmenu
 
@@ -178,9 +167,6 @@ choice RTTHREAD_LIBCPU_TARGET
   prompt "RT-Thread libcpu target"
   default RTTHREAD_LIBCPU_TARGET_MANUAL
   depends on ENABLE_RTTHREAD
-  help
-    Select the RT-Thread CPU port. This is explicit so the generic build system
-    does not assume RISC-V or any other architecture.
 
 config RTTHREAD_LIBCPU_TARGET_MANUAL
   bool "manual"
@@ -212,25 +198,16 @@ config RTTHREAD_EXTRA_INC_DIRS_REL
   string "Extra RT-Thread include dirs relative to RTTHREAD_ROOT"
   default ""
   depends on ENABLE_RTTHREAD
-  help
-    Space-separated extra include directories relative to RTTHREAD_ROOT.
-    The selected libcpu target may prepend its own required include dirs.
 
 config RTTHREAD_PORT_C_SRCS_REL
   string "Extra RT-Thread port C sources relative to RTTHREAD_ROOT"
   default ""
   depends on ENABLE_RTTHREAD
-  help
-    Space-separated extra target port C sources.
-    The selected libcpu target may prepend its own required C sources.
 
 config RTTHREAD_PORT_ASM_SRCS_REL
   string "Extra RT-Thread port assembly sources relative to RTTHREAD_ROOT"
   default ""
   depends on ENABLE_RTTHREAD
-  help
-    Space-separated extra target port assembly sources.
-    The selected libcpu target may prepend its own required assembly sources.
 
 config RTTHREAD_CC
   string "RT-Thread C compiler command"
@@ -256,16 +233,11 @@ config RTTHREAD_CFLAGS
   string "RT-Thread C flags"
   default "-Os -ffunction-sections -fdata-sections -fno-common -fno-builtin -ffreestanding -Wall"
   depends on ENABLE_RTTHREAD
-  help
-    Generic flags only. Add ISA/ABI/toolchain-specific flags explicitly here.
 
 config RTTHREAD_ASFLAGS
   string "RT-Thread assembler flags"
   default "-x assembler-with-cpp"
   depends on ENABLE_RTTHREAD
-  help
-    Generic assembler flags only. Add ISA/ABI/toolchain-specific flags
-    explicitly here.
 
 config RTTHREAD_LDFLAGS
   string "Extra RT-Thread linker flags"
@@ -273,7 +245,7 @@ config RTTHREAD_LDFLAGS
   depends on ENABLE_RTTHREAD
   help
     Extra RT-Thread linker flags appended after the bare-metal linker flags.
-    The linker script and startup object are reused from the bare-metal package.
+    The linker script is reused from the bare-metal package.
 
 endmenu
 
@@ -300,7 +272,7 @@ config COREMARK_ITERATIONS
 
 config COREMARK_EXECS
   string "CoreMark execs"
-  default "7"
+  default "1"
   depends on ENABLE_COREMARK
 
 endmenu

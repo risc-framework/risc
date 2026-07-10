@@ -184,14 +184,10 @@ def write_make_config(kconf, output: Path) -> None:
     runtime_root = string_value(kconf, "RUNTIME_ROOT", "build/runtime")
 
     rtthread_root = string_value(
-        kconf,
-        "RTTHREAD_ROOT",
-        "sims/runtime/rtthread-nano/rt-thread",
+        kconf, "RTTHREAD_ROOT", "sims/runtime/rtthread-nano/rt-thread"
     )
     rtthread_package_root = string_value(
-        kconf,
-        "RTTHREAD_PACKAGE_ROOT",
-        "build/runtime/rtthread-nano",
+        kconf, "RTTHREAD_PACKAGE_ROOT", "build/runtime/rtthread-nano"
     )
 
     lines = [
@@ -259,6 +255,7 @@ def write_make_config(kconf, output: Path) -> None:
         f"RTTHREAD_ASFLAGS ?= {make_escape(string_value(kconf, 'RTTHREAD_ASFLAGS', '-x assembler-with-cpp'))}",
         f"RTTHREAD_LDFLAGS ?= {make_escape(string_value(kconf, 'RTTHREAD_LDFLAGS', ''))}",
         "RTTHREAD_PACKAGE_DIR ?= $(RTTHREAD_PACKAGE_ROOT)/$(RTTHREAD_TARGET)",
+        "RTTHREAD_STARTUP_OBJ ?= $(RTTHREAD_PACKAGE_DIR)/obj/start-rtthread.o",
         "RTTHREAD_LIB ?= $(RTTHREAD_PACKAGE_DIR)/lib/librtthread-nano.a",
         "RTTHREAD_EXPORT_MK ?= $(RTTHREAD_PACKAGE_DIR)/rtthread-nano.mk",
         "",
@@ -284,14 +281,10 @@ def write_cmake_config(kconf, output: Path) -> None:
     runtime_root = string_value(kconf, "RUNTIME_ROOT", "build/runtime")
 
     rtthread_root = string_value(
-        kconf,
-        "RTTHREAD_ROOT",
-        "sims/runtime/rtthread-nano/rt-thread",
+        kconf, "RTTHREAD_ROOT", "sims/runtime/rtthread-nano/rt-thread"
     )
     rtthread_package_root = string_value(
-        kconf,
-        "RTTHREAD_PACKAGE_ROOT",
-        "build/runtime/rtthread-nano",
+        kconf, "RTTHREAD_PACKAGE_ROOT", "build/runtime/rtthread-nano"
     )
 
     lines = [
@@ -361,9 +354,9 @@ def write_cmake_config(kconf, output: Path) -> None:
         f'set(RTTHREAD_ASFLAGS "{cmake_escape(string_value(kconf, "RTTHREAD_ASFLAGS", "-x assembler-with-cpp"))}" CACHE STRING "RT-Thread assembler flags" FORCE)',
         f'set(RTTHREAD_LDFLAGS "{cmake_escape(string_value(kconf, "RTTHREAD_LDFLAGS", ""))}" CACHE STRING "Extra RT-Thread linker flags" FORCE)',
         'set(RTTHREAD_PACKAGE_DIR "${RTTHREAD_PACKAGE_ROOT}/${RTTHREAD_TARGET}" CACHE PATH "RT-Thread generated package directory" FORCE)',
+        'set(RTTHREAD_STARTUP_OBJ "${RTTHREAD_PACKAGE_DIR}/obj/start-rtthread.o" CACHE FILEPATH "RT-Thread startup object" FORCE)',
         'set(RTTHREAD_LIB "${RTTHREAD_PACKAGE_DIR}/lib/librtthread-nano.a" CACHE FILEPATH "RT-Thread static library" FORCE)',
         'set(RTTHREAD_EXPORT_MK "${RTTHREAD_PACKAGE_DIR}/rtthread-nano.mk" CACHE FILEPATH "RT-Thread exported Makefile fragment" FORCE)',
-        'set(RTTHREAD_STARTUP_OBJ "${BAREMETAL_STARTUP_OBJ}" CACHE FILEPATH "RT-Thread startup object reused from bare-metal package" FORCE)',
         'set(RTTHREAD_LINKER_SCRIPT "${BAREMETAL_LINKER_SCRIPT}" CACHE FILEPATH "RT-Thread linker script reused from bare-metal package" FORCE)',
         "",
         f'set(ENABLE_COREMARK {cmake_bool(bool_value(kconf, "ENABLE_COREMARK", False))} CACHE BOOL "Enable CoreMark" FORCE)',

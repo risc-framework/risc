@@ -1,6 +1,7 @@
-package arch.configs.runtime
+package arch.configs.runtime.impls.riscv32.baremetal
 
 import arch.configs.Parameters
+import arch.configs.runtime._
 import arch.isa.Isa
 import arch.system.device.DeviceDescriptor
 
@@ -109,8 +110,14 @@ object Riscv32BareMetalRuntimeBackend extends RuntimeBackend {
     dmem: DeviceDescriptor
   ): String =
     """# start.S - Minimal RISC-V startup code
+      |
+      |#ifndef START_ENTRY
+      |#define START_ENTRY main
+      |#endif
+      |
       |.section .text.entry, "ax"
       |.globl _start
+      |.type _start, @function
       |
       |_start:
       |    .option push
@@ -118,7 +125,7 @@ object Riscv32BareMetalRuntimeBackend extends RuntimeBackend {
       |    la gp, __global_pointer$
       |    .option pop
       |
-      |    la sp, __stack
+      |    la sp, __stack_top
       |    andi sp, sp, -16
       |
       |    mv fp, zero
@@ -133,17 +140,14 @@ object Riscv32BareMetalRuntimeBackend extends RuntimeBackend {
       |    bltu t0, t1, bss_clear_loop
       |
       |bss_clear_done:
-      |    jal ra, main
+      |    call START_ENTRY
       |
       |halt:
       |    j halt
+      |
+      |.size _start, . - _start
       |""".stripMargin
 
   private def hex(value: Long): String =
     "0x" + java.lang.Long.toUnsignedString(value, 16).toUpperCase
-}
-
-object Riscv32BareMetalRuntimeInit {
-  val backend: RuntimeBackend =
-    RuntimeBackendFactory.register(Riscv32BareMetalRuntimeBackend)
 }

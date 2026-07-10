@@ -4,12 +4,26 @@ import arch.configs.Parameters
 import arch.isa.Isa
 import arch.system.device.DeviceDescriptor
 
-trait RuntimeBackend {
+final case class RuntimeBackendKey(
+  family: String,
+  profile: String
+) {
+  require(family.nonEmpty, "runtime backend family must not be empty")
+  require(profile.nonEmpty, "runtime backend profile must not be empty")
+
+  def normalized: RuntimeBackendKey =
+    RuntimeBackendKey(
+      family = family.toLowerCase,
+      profile = profile.toLowerCase
+    )
+
+  override def toString: String =
+    s"$family/$profile"
+}
+
+abstract class RuntimeBackend {
   def family: String
   def profile: String
-
-  final def key: String =
-    RuntimeBackend.key(family, profile)
 
   def renderLinkerScript(
     p: Parameters,
@@ -24,9 +38,17 @@ trait RuntimeBackend {
     imem: DeviceDescriptor,
     dmem: DeviceDescriptor
   ): String
-}
 
-object RuntimeBackend {
-  def key(family: String, profile: String): String =
-    s"${family.toLowerCase}:${profile.toLowerCase}"
+  protected def validate(): Unit = {
+    require(family.nonEmpty, "runtime backend family must not be empty")
+    require(profile.nonEmpty, s"runtime backend '$family' profile must not be empty")
+  }
+
+  final def key: RuntimeBackendKey =
+    RuntimeBackendKey(family = family, profile = profile)
+
+  final lazy val registered: RuntimeBackend = {
+    validate()
+    RuntimeBackendFactory.register(this)
+  }
 }

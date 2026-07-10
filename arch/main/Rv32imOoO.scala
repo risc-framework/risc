@@ -23,7 +23,7 @@ import arch.configs._
 import arch.configs.cpp.CppCodegen
 import arch.configs.cmake.CMakeCodegen
 import arch.configs.mk.MakeCodegen
-import arch.configs.runtime.{ Riscv32BareMetalRuntimeInit, RuntimeCodegen }
+import arch.configs.runtime.{ RuntimeBackendInit, RuntimeCodegen }
 import vcache.repl.ReplPolicy
 import vutils._
 
@@ -179,6 +179,6 @@ object Rv32imOoO extends App {
     "build/generated/config.cmake"
   )
 
-  Riscv32BareMetalRuntimeInit
+  RuntimeBackendInit
   RuntimeCodegen.emit(p)
 }
