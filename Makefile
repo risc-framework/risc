@@ -49,6 +49,7 @@ BAREMETAL_EXPORT_MK ?= $(BAREMETAL_PACKAGE_DIR)/baremetal.mk
 
 ENABLE_RTTHREAD ?= 0
 RTTHREAD_PLATFORM ?= demu
+RTTHREAD_LIBCPU_TARGET ?= manual
 RTTHREAD_ROOT ?= $(RISC_DIR)/sims/runtime/rtthread-nano/rt-thread
 RTTHREAD_PACKAGE_ROOT ?= $(RUNTIME_ROOT)/rtthread-nano
 RTTHREAD_TARGET := $(RTTHREAD_PLATFORM)-$(TARGET_FAMILY)-$(TARGET_ARCH)
@@ -68,7 +69,7 @@ RTTHREAD_OBJCOPY ?=
 RTTHREAD_OBJDUMP ?=
 RTTHREAD_CFLAGS ?= -Os -ffunction-sections -fdata-sections -fno-common -fno-builtin -ffreestanding -Wall
 RTTHREAD_ASFLAGS ?= -x assembler-with-cpp
-RTTHREAD_LDFLAGS ?= -nostartfiles -nostdlib -Wl,--gc-sections
+RTTHREAD_LDFLAGS ?=
 RTTHREAD_PACKAGE_DIR ?= $(RTTHREAD_PACKAGE_ROOT)/$(RTTHREAD_TARGET)
 
 RTTHREAD_LIB_DIR := $(RTTHREAD_PACKAGE_DIR)/lib
@@ -313,6 +314,7 @@ __rtthread: rtthread-check rtthread-package
 	@echo ""
 	@echo "  RT-Thread Nano runtime package generated:"
 	@echo "    PLATFORM : $(RTTHREAD_PLATFORM)"
+	@echo "    LIBCPU   : $(RTTHREAD_LIBCPU_TARGET)"
 	@echo "    TARGET   : $(RTTHREAD_TARGET)"
 	@echo "    BSP      : $(RTTHREAD_BSP_DIR)"
 	@echo "    LIB      : $(RTTHREAD_LIB)"
@@ -327,6 +329,8 @@ rtthread-check: baremetal-check
 		(echo "RT-Thread package build is disabled. Enable ENABLE_RTTHREAD in make menuconfig."; exit 1)
 	@test -n "$(RTTHREAD_PLATFORM)" || \
 		(echo "RTTHREAD_PLATFORM is empty. Set it in make menuconfig."; exit 1)
+	@test -n "$(RTTHREAD_LIBCPU_TARGET)" || \
+		(echo "RTTHREAD_LIBCPU_TARGET is empty. Set it in make menuconfig."; exit 1)
 	@test -n "$(TARGET_FAMILY)" || \
 		(echo "TARGET_FAMILY is empty. Run: make rtl"; exit 1)
 	@test -n "$(TARGET_ARCH)" || \
@@ -347,6 +351,8 @@ rtthread-check: baremetal-check
 		(echo "missing RT-Thread BSP dir: $(RTTHREAD_BSP_DIR)"; exit 1)
 	@test -f "$(RTTHREAD_BSP_DIR)/board.c" || \
 		(echo "missing RT-Thread board source: $(RTTHREAD_BSP_DIR)/board.c"; exit 1)
+	@test -n "$(RTTHREAD_PORT_C_SRCS_REL)$(RTTHREAD_PORT_ASM_SRCS_REL)" || \
+		(echo "RT-Thread port sources are empty. Select RTTHREAD_LIBCPU_TARGET or set RTTHREAD_PORT_* in make menuconfig."; exit 1)
 	@for inc in $(RTTHREAD_EXTRA_INC_DIRS_REL); do \
 		test -d "$(RTTHREAD_ROOT)/$$inc" || \
 			(echo "missing RT-Thread extra include dir: $(RTTHREAD_ROOT)/$$inc"; exit 1); \
@@ -376,6 +382,7 @@ $(RTTHREAD_EXPORT_MK): $(RTTHREAD_LIB) $(BAREMETAL_EXPORT_MK)
 		'# Generated RT-Thread Nano package fragment. Do not edit.' \
 		'include $(BAREMETAL_EXPORT_MK)' \
 		'RTTHREAD_PLATFORM := $(RTTHREAD_PLATFORM)' \
+		'RTTHREAD_LIBCPU_TARGET := $(RTTHREAD_LIBCPU_TARGET)' \
 		'RTTHREAD_TARGET := $(RTTHREAD_TARGET)' \
 		'RTTHREAD_PACKAGE_DIR := $(RTTHREAD_PACKAGE_DIR)' \
 		'RTTHREAD_CC := $(RTTHREAD_CC)' \
@@ -388,7 +395,7 @@ $(RTTHREAD_EXPORT_MK): $(RTTHREAD_LIB) $(BAREMETAL_EXPORT_MK)
 		'RTTHREAD_LIB := $(RTTHREAD_LIB)' \
 		'RTTHREAD_STARTUP_OBJ := $$(BAREMETAL_STARTUP_OBJ)' \
 		'RTTHREAD_LINKER_SCRIPT := $$(BAREMETAL_LINKER_SCRIPT)' \
-		'RTTHREAD_LDFLAGS := $$(BAREMETAL_LDFLAGS)' \
+		'RTTHREAD_LDFLAGS := $$(BAREMETAL_LDFLAGS) $(RTTHREAD_LDFLAGS)' \
 		> $@
 
 rtthread-info: kconfig
@@ -397,6 +404,7 @@ rtthread-info: kconfig
 __rtthread_info:
 	@echo "ENABLE_RTTHREAD              = $(ENABLE_RTTHREAD)"
 	@echo "RTTHREAD_PLATFORM            = $(RTTHREAD_PLATFORM)"
+	@echo "RTTHREAD_LIBCPU_TARGET       = $(RTTHREAD_LIBCPU_TARGET)"
 	@echo "RTTHREAD_TARGET              = $(RTTHREAD_TARGET)"
 	@echo "RTTHREAD_ROOT                = $(RTTHREAD_ROOT)"
 	@echo "RTTHREAD_PACKAGE_ROOT        = $(RTTHREAD_PACKAGE_ROOT)"
@@ -503,6 +511,7 @@ help:
 	@echo "  STARTUP_SOURCE             = $(STARTUP_SOURCE)"
 	@echo "  BAREMETAL_EXPORT_MK        = $(BAREMETAL_EXPORT_MK)"
 	@echo "  RTTHREAD_PLATFORM          = $(RTTHREAD_PLATFORM)"
+	@echo "  RTTHREAD_LIBCPU_TARGET     = $(RTTHREAD_LIBCPU_TARGET)"
 	@echo "  RTTHREAD_TARGET            = $(RTTHREAD_TARGET)"
 	@echo "  RTTHREAD_EXPORT_MK         = $(RTTHREAD_EXPORT_MK)"
 	@echo "  BUILD_TYPE                 = $(BUILD_TYPE)"

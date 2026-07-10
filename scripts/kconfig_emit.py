@@ -67,6 +67,18 @@ def int_value(kconf, name: str, default: int) -> int:
     return int(value, 0)
 
 
+def join_words(lhs: str, rhs: str) -> str:
+    words: list[str] = []
+
+    for value in [lhs, rhs]:
+        value = value.strip()
+
+        if value != "":
+            words.extend(value.split())
+
+    return " ".join(words)
+
+
 def generator_value(kconf) -> str:
     if bool_value(kconf, "CMAKE_GENERATOR_MAKE", False):
         return "Unix Makefiles"
@@ -86,6 +98,43 @@ def rtthread_platform_value(kconf) -> str:
         return "qemu"
 
     return "demu"
+
+
+def rtthread_libcpu_target_value(kconf) -> str:
+    if bool_value(kconf, "RTTHREAD_LIBCPU_TARGET_RISCV_RV32M1", False):
+        return "risc-v/rv32m1"
+
+    return "manual"
+
+
+def rtthread_extra_inc_dirs(kconf) -> str:
+    extra = string_value(kconf, "RTTHREAD_EXTRA_INC_DIRS_REL", "")
+
+    if bool_value(kconf, "RTTHREAD_LIBCPU_TARGET_RISCV_RV32M1", False):
+        return join_words("libcpu/risc-v/common", extra)
+
+    return extra
+
+
+def rtthread_port_c_sources(kconf) -> str:
+    extra = string_value(kconf, "RTTHREAD_PORT_C_SRCS_REL", "")
+
+    if bool_value(kconf, "RTTHREAD_LIBCPU_TARGET_RISCV_RV32M1", False):
+        return join_words("libcpu/risc-v/common/cpuport.c", extra)
+
+    return extra
+
+
+def rtthread_port_asm_sources(kconf) -> str:
+    extra = string_value(kconf, "RTTHREAD_PORT_ASM_SRCS_REL", "")
+
+    if bool_value(kconf, "RTTHREAD_LIBCPU_TARGET_RISCV_RV32M1", False):
+        return join_words(
+            "libcpu/risc-v/common/context_gcc.S libcpu/risc-v/rv32m1/interrupt_gcc.S",
+            extra,
+        )
+
+    return extra
 
 
 def make_bool(value: bool) -> str:
@@ -194,20 +243,21 @@ def write_make_config(kconf, output: Path) -> None:
         "",
         f"ENABLE_RTTHREAD ?= {make_bool(bool_value(kconf, 'ENABLE_RTTHREAD', False))}",
         f"RTTHREAD_PLATFORM ?= {make_escape(rtthread_platform_value(kconf))}",
+        f"RTTHREAD_LIBCPU_TARGET ?= {make_escape(rtthread_libcpu_target_value(kconf))}",
         f"RTTHREAD_ROOT ?= {make_path(rtthread_root)}",
         f"RTTHREAD_PACKAGE_ROOT ?= {make_path(rtthread_package_root)}",
         "RTTHREAD_TARGET ?= $(RTTHREAD_PLATFORM)-$(TARGET_FAMILY)-$(TARGET_ARCH)",
         f"RTTHREAD_BSP_DIR_REL ?= {make_escape(string_value(kconf, 'RTTHREAD_BSP_DIR_REL', ''))}",
-        f"RTTHREAD_EXTRA_INC_DIRS_REL ?= {make_escape(string_value(kconf, 'RTTHREAD_EXTRA_INC_DIRS_REL', ''))}",
-        f"RTTHREAD_PORT_C_SRCS_REL ?= {make_escape(string_value(kconf, 'RTTHREAD_PORT_C_SRCS_REL', ''))}",
-        f"RTTHREAD_PORT_ASM_SRCS_REL ?= {make_escape(string_value(kconf, 'RTTHREAD_PORT_ASM_SRCS_REL', ''))}",
+        f"RTTHREAD_EXTRA_INC_DIRS_REL ?= {make_escape(rtthread_extra_inc_dirs(kconf))}",
+        f"RTTHREAD_PORT_C_SRCS_REL ?= {make_escape(rtthread_port_c_sources(kconf))}",
+        f"RTTHREAD_PORT_ASM_SRCS_REL ?= {make_escape(rtthread_port_asm_sources(kconf))}",
         f"RTTHREAD_CC ?= {make_escape(string_value(kconf, 'RTTHREAD_CC', ''))}",
         f"RTTHREAD_AR ?= {make_escape(string_value(kconf, 'RTTHREAD_AR', ''))}",
         f"RTTHREAD_OBJCOPY ?= {make_escape(string_value(kconf, 'RTTHREAD_OBJCOPY', ''))}",
         f"RTTHREAD_OBJDUMP ?= {make_escape(string_value(kconf, 'RTTHREAD_OBJDUMP', ''))}",
         f"RTTHREAD_CFLAGS ?= {make_escape(string_value(kconf, 'RTTHREAD_CFLAGS', '-Os -ffunction-sections -fdata-sections -fno-common -fno-builtin -ffreestanding -Wall'))}",
         f"RTTHREAD_ASFLAGS ?= {make_escape(string_value(kconf, 'RTTHREAD_ASFLAGS', '-x assembler-with-cpp'))}",
-        f"RTTHREAD_LDFLAGS ?= {make_escape(string_value(kconf, 'RTTHREAD_LDFLAGS', '-nostartfiles -nostdlib -Wl,--gc-sections'))}",
+        f"RTTHREAD_LDFLAGS ?= {make_escape(string_value(kconf, 'RTTHREAD_LDFLAGS', ''))}",
         "RTTHREAD_PACKAGE_DIR ?= $(RTTHREAD_PACKAGE_ROOT)/$(RTTHREAD_TARGET)",
         "RTTHREAD_LIB ?= $(RTTHREAD_PACKAGE_DIR)/lib/librtthread-nano.a",
         "RTTHREAD_EXPORT_MK ?= $(RTTHREAD_PACKAGE_DIR)/rtthread-nano.mk",
@@ -295,20 +345,21 @@ def write_cmake_config(kconf, output: Path) -> None:
         "",
         f'set(ENABLE_RTTHREAD {cmake_bool(bool_value(kconf, "ENABLE_RTTHREAD", False))} CACHE BOOL "Build RT-Thread Nano runtime package" FORCE)',
         f'set(RTTHREAD_PLATFORM "{cmake_escape(rtthread_platform_value(kconf))}" CACHE STRING "RT-Thread platform" FORCE)',
+        f'set(RTTHREAD_LIBCPU_TARGET "{cmake_escape(rtthread_libcpu_target_value(kconf))}" CACHE STRING "RT-Thread libcpu target" FORCE)',
         f'set(RTTHREAD_ROOT "{cmake_escape(cmake_path(rtthread_root))}" CACHE PATH "RT-Thread Nano source root" FORCE)',
         f'set(RTTHREAD_PACKAGE_ROOT "{cmake_escape(cmake_path(rtthread_package_root))}" CACHE PATH "RT-Thread Nano generated package root" FORCE)',
         'set(RTTHREAD_TARGET "${RTTHREAD_PLATFORM}-${TARGET_FAMILY}-${TARGET_ARCH}" CACHE STRING "RT-Thread target name" FORCE)',
         f'set(RTTHREAD_BSP_DIR_REL "{cmake_escape(string_value(kconf, "RTTHREAD_BSP_DIR_REL", ""))}" CACHE STRING "RT-Thread BSP directory relative to RTTHREAD_ROOT" FORCE)',
-        f'set(RTTHREAD_EXTRA_INC_DIRS_REL "{cmake_escape(string_value(kconf, "RTTHREAD_EXTRA_INC_DIRS_REL", ""))}" CACHE STRING "Extra RT-Thread include dirs relative to RTTHREAD_ROOT" FORCE)',
-        f'set(RTTHREAD_PORT_C_SRCS_REL "{cmake_escape(string_value(kconf, "RTTHREAD_PORT_C_SRCS_REL", ""))}" CACHE STRING "RT-Thread port C sources relative to RTTHREAD_ROOT" FORCE)',
-        f'set(RTTHREAD_PORT_ASM_SRCS_REL "{cmake_escape(string_value(kconf, "RTTHREAD_PORT_ASM_SRCS_REL", ""))}" CACHE STRING "RT-Thread port assembly sources relative to RTTHREAD_ROOT" FORCE)',
+        f'set(RTTHREAD_EXTRA_INC_DIRS_REL "{cmake_escape(rtthread_extra_inc_dirs(kconf))}" CACHE STRING "Extra RT-Thread include dirs relative to RTTHREAD_ROOT" FORCE)',
+        f'set(RTTHREAD_PORT_C_SRCS_REL "{cmake_escape(rtthread_port_c_sources(kconf))}" CACHE STRING "RT-Thread port C sources relative to RTTHREAD_ROOT" FORCE)',
+        f'set(RTTHREAD_PORT_ASM_SRCS_REL "{cmake_escape(rtthread_port_asm_sources(kconf))}" CACHE STRING "RT-Thread port assembly sources relative to RTTHREAD_ROOT" FORCE)',
         f'set(RTTHREAD_CC "{cmake_escape(string_value(kconf, "RTTHREAD_CC", ""))}" CACHE STRING "RT-Thread C compiler command" FORCE)',
         f'set(RTTHREAD_AR "{cmake_escape(string_value(kconf, "RTTHREAD_AR", ""))}" CACHE STRING "RT-Thread archiver command" FORCE)',
         f'set(RTTHREAD_OBJCOPY "{cmake_escape(string_value(kconf, "RTTHREAD_OBJCOPY", ""))}" CACHE STRING "RT-Thread objcopy command" FORCE)',
         f'set(RTTHREAD_OBJDUMP "{cmake_escape(string_value(kconf, "RTTHREAD_OBJDUMP", ""))}" CACHE STRING "RT-Thread objdump command" FORCE)',
         f'set(RTTHREAD_CFLAGS "{cmake_escape(string_value(kconf, "RTTHREAD_CFLAGS", "-Os -ffunction-sections -fdata-sections -fno-common -fno-builtin -ffreestanding -Wall"))}" CACHE STRING "RT-Thread C flags" FORCE)',
         f'set(RTTHREAD_ASFLAGS "{cmake_escape(string_value(kconf, "RTTHREAD_ASFLAGS", "-x assembler-with-cpp"))}" CACHE STRING "RT-Thread assembler flags" FORCE)',
-        f'set(RTTHREAD_LDFLAGS "{cmake_escape(string_value(kconf, "RTTHREAD_LDFLAGS", "-nostartfiles -nostdlib -Wl,--gc-sections"))}" CACHE STRING "RT-Thread linker flags" FORCE)',
+        f'set(RTTHREAD_LDFLAGS "{cmake_escape(string_value(kconf, "RTTHREAD_LDFLAGS", ""))}" CACHE STRING "Extra RT-Thread linker flags" FORCE)',
         'set(RTTHREAD_PACKAGE_DIR "${RTTHREAD_PACKAGE_ROOT}/${RTTHREAD_TARGET}" CACHE PATH "RT-Thread generated package directory" FORCE)',
         'set(RTTHREAD_LIB "${RTTHREAD_PACKAGE_DIR}/lib/librtthread-nano.a" CACHE FILEPATH "RT-Thread static library" FORCE)',
         'set(RTTHREAD_EXPORT_MK "${RTTHREAD_PACKAGE_DIR}/rtthread-nano.mk" CACHE FILEPATH "RT-Thread exported Makefile fragment" FORCE)',

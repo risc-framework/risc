@@ -158,8 +158,8 @@ config ENABLE_RTTHREAD
   default n
   help
     Disabled by default because the bundled RT-Thread tree is target-specific.
-    Enable only when the selected platform and configured toolchain match the
-    generated hardware ISA.
+    Enable only when the selected platform, libcpu target, and configured
+    toolchain match the generated hardware ISA.
 
 choice RTTHREAD_PLATFORM
   prompt "RT-Thread platform"
@@ -171,6 +171,22 @@ config RTTHREAD_PLATFORM_DEMU
 
 config RTTHREAD_PLATFORM_QEMU
   bool "qemu"
+
+endchoice
+
+choice RTTHREAD_LIBCPU_TARGET
+  prompt "RT-Thread libcpu target"
+  default RTTHREAD_LIBCPU_TARGET_MANUAL
+  depends on ENABLE_RTTHREAD
+  help
+    Select the RT-Thread CPU port. This is explicit so the generic build system
+    does not assume RISC-V or any other architecture.
+
+config RTTHREAD_LIBCPU_TARGET_MANUAL
+  bool "manual"
+
+config RTTHREAD_LIBCPU_TARGET_RISCV_RV32M1
+  bool "risc-v/rv32m1"
 
 endchoice
 
@@ -192,36 +208,29 @@ config RTTHREAD_BSP_DIR_REL
     Leave empty to use:
       bsp/<platform>-<TARGET_FAMILY>-<TARGET_ARCH>
 
-    Example:
-      bsp/demu-riscv32-rv32im
-      bsp/qemu-riscv32-rv32im
-
 config RTTHREAD_EXTRA_INC_DIRS_REL
   string "Extra RT-Thread include dirs relative to RTTHREAD_ROOT"
   default ""
   depends on ENABLE_RTTHREAD
   help
-    Space-separated include directories relative to RTTHREAD_ROOT.
-    Example:
-      libcpu/risc-v/common
+    Space-separated extra include directories relative to RTTHREAD_ROOT.
+    The selected libcpu target may prepend its own required include dirs.
 
 config RTTHREAD_PORT_C_SRCS_REL
-  string "RT-Thread port C sources relative to RTTHREAD_ROOT"
+  string "Extra RT-Thread port C sources relative to RTTHREAD_ROOT"
   default ""
   depends on ENABLE_RTTHREAD
   help
-    Space-separated target port C sources.
-    Example:
-      libcpu/risc-v/common/cpuport.c
+    Space-separated extra target port C sources.
+    The selected libcpu target may prepend its own required C sources.
 
 config RTTHREAD_PORT_ASM_SRCS_REL
-  string "RT-Thread port assembly sources relative to RTTHREAD_ROOT"
+  string "Extra RT-Thread port assembly sources relative to RTTHREAD_ROOT"
   default ""
   depends on ENABLE_RTTHREAD
   help
-    Space-separated target port assembly sources.
-    Example:
-      libcpu/risc-v/common/context_gcc.S libcpu/risc-v/rv32m1/interrupt_gcc.S
+    Space-separated extra target port assembly sources.
+    The selected libcpu target may prepend its own required assembly sources.
 
 config RTTHREAD_CC
   string "RT-Thread C compiler command"
@@ -254,12 +263,16 @@ config RTTHREAD_ASFLAGS
   string "RT-Thread assembler flags"
   default "-x assembler-with-cpp"
   depends on ENABLE_RTTHREAD
+  help
+    Generic assembler flags only. Add ISA/ABI/toolchain-specific flags
+    explicitly here.
 
 config RTTHREAD_LDFLAGS
-  string "RT-Thread linker flags"
-  default "-nostartfiles -nostdlib -Wl,--gc-sections"
+  string "Extra RT-Thread linker flags"
+  default ""
   depends on ENABLE_RTTHREAD
   help
+    Extra RT-Thread linker flags appended after the bare-metal linker flags.
     The linker script and startup object are reused from the bare-metal package.
 
 endmenu
