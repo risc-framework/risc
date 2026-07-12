@@ -1,4 +1,4 @@
-package arch.main
+package examples
 
 import arch.core.alu.AluInit
 import arch.core.bpu.BpuInit
