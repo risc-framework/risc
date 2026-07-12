@@ -46,6 +46,18 @@ config BUILD_TYPE
   string "CMake build type"
   default "Release"
 
+config BUILD_JOBS
+  int "Parallel build jobs"
+  range 0 1024
+  default 0
+  help
+    Number of jobs passed to Make/Ninja/CMake build commands.
+
+    0 means do not pass an explicit -j/--parallel option.
+    Example:
+      8  -> make -j8 / cmake --build ... --parallel 8
+      16 -> make -j16 / cmake --build ... --parallel 16
+
 config USE_CCACHE
   bool "Use ccache"
   default y

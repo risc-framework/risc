@@ -34,6 +34,15 @@ FZF ?= $(shell [ -x "$$(command -v fzf)" ] && echo true || echo false)
 STA_TOOL ?= yosys
 GENERATOR ?= Ninja
 BUILD_TYPE ?= Release
+BUILD_JOBS ?= 0
+
+ifeq ($(strip $(BUILD_JOBS)),0)
+  CMAKE_BUILD_JOBS_ARG :=
+  MAKE_BUILD_JOBS_ARG :=
+else
+  CMAKE_BUILD_JOBS_ARG := --parallel $(BUILD_JOBS)
+  MAKE_BUILD_JOBS_ARG := -j$(BUILD_JOBS)
+endif
 
 ENABLE_BAREMETAL_RUNTIME ?= 1
 BAREMETAL_CC ?=
@@ -207,27 +216,27 @@ __sim_config: generated-check
 		-DCMAKE_BUILD_TYPE="$(BUILD_TYPE)"
 
 sim: kconfig
-	@$(MAKE) __sim
+	@$(MAKE) $(MAKE_BUILD_JOBS_ARG) __sim
 
 __sim: __sim_config
 	@echo "==> Building simulator..."
-	@cmake --build $(SIM_BUILD_DIR)
+	@cmake --build $(SIM_BUILD_DIR) $(CMAKE_BUILD_JOBS_ARG)
 
 difftest: kconfig
-	@$(MAKE) __difftest
+	@$(MAKE) $(MAKE_BUILD_JOBS_ARG) __difftest
 
 __difftest: __sim_config
 	@echo "==> Running difftests..."
-	@cmake --build $(SIM_BUILD_DIR) --target check-difftest
+	@cmake --build $(SIM_BUILD_DIR) --target check-difftest $(CMAKE_BUILD_JOBS_ARG)
 
 coremark: kconfig
-	@$(MAKE) __coremark
+	@$(MAKE) $(MAKE_BUILD_JOBS_ARG) __coremark
 
 __coremark: generated-check
 	@echo "==> Running CoreMark..."
 	@mkdir -p $(SIM_BUILD_DIR)
 	@mkdir -p $(SIM_BUILD_DIR)/tests/coremark
-	@cd $(SIM_DIR)/tests/coremark && $(MAKE) \
+	@cd $(SIM_DIR)/tests/coremark && $(MAKE) $(MAKE_BUILD_JOBS_ARG) \
 		PORT_DIR=$(FAMILY) \
 		ARCH=$(ARCH) \
 		OPATH=$(SIM_BUILD_DIR)/tests/coremark/ \
@@ -238,7 +247,7 @@ __coremark: generated-check
 		ENABLE_DEBUG=$(COREMARK_ENABLE_DEBUG)
 
 baremetal: kconfig
-	@$(MAKE) __baremetal
+	@$(MAKE) $(MAKE_BUILD_JOBS_ARG) __baremetal
 
 __baremetal: baremetal-check baremetal-package
 	@echo ""
@@ -307,7 +316,7 @@ baremetal-clean:
 	@rm -f $(BAREMETAL_EXPORT_MK)
 
 rtthread: kconfig
-	@$(MAKE) __rtthread
+	@$(MAKE) $(MAKE_BUILD_JOBS_ARG) __rtthread
 
 __rtthread: rtthread-check rtthread-package
 	@echo ""
@@ -517,6 +526,7 @@ help:
 	@echo "  RTTHREAD_TARGET            = $(RTTHREAD_TARGET)"
 	@echo "  RTTHREAD_EXPORT_MK         = $(RTTHREAD_EXPORT_MK)"
 	@echo "  BUILD_TYPE                 = $(BUILD_TYPE)"
+	@echo "  BUILD_JOBS                 = $(BUILD_JOBS)"
 	@echo "  GENERATOR                  = $(GENERATOR)"
 	@echo "  STA_TOOL                   = $(STA_TOOL)"
 	@echo "  SIM_BUILD_DIR              = $(SIM_BUILD_DIR)"
