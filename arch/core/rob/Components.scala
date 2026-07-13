@@ -86,8 +86,6 @@ class RobCommitInfo(implicit p: Parameters) extends Bundle {
   private val cfg = NodeConfig(selector = NodeSelector(ExceptionDims.ISA -> p(ISA).name))
   private val isa = ExceptionIsaFactory.select(cfg)
 
-  val valid          = Bool()
-  val pop            = Bool()
   val pc             = UInt(p(XLen).W)
   val instr          = UInt(p(ILen).W)
   val rd             = UInt(log2Ceil(p(NumArchRegs)).W)

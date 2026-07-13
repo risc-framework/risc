@@ -130,25 +130,20 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       }
     }
 
-  private val commitCanContinue = Wire(Vec(p(CommitWidth) + 1, Bool()))
-  private val commitBlocked     = Wire(Vec(p(CommitWidth) + 1, Bool()))
-  private val commitSelect      = Wire(Vec(p(CommitWidth), UInt(p(RobSize).W)))
-  private val commitInfo        = Wire(Vec(p(CommitWidth), new RobCommitInfo))
-  private val commitPops        = Wire(Vec(p(CommitWidth), Bool()))
+  private val commitPrefix = Wire(Vec(p(CommitWidth) + 1, Bool()))
+  private val commitSelect = Wire(Vec(p(CommitWidth), UInt(p(RobSize).W)))
+  private val commitInfo   = Wire(Vec(p(CommitWidth), new RobCommitInfo))
+  private val commitPops   = Wire(Vec(p(CommitWidth), Bool()))
 
-  commitCanContinue(0) := true.B
-  commitBlocked(0)     := false.B
+  commitPrefix(0) := true.B
 
   for (w <- 0 until p(CommitWidth)) {
     commitSelect(w) := rotateHeadSelect(headSelect, w)
 
     val entry       = Mux1H(commitSelect(w), buffer)
     val hasEntry    = count > w.U
-    val committable =
-      hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
+    val committable = hasEntry && entry.valid && entry.ready && commitPrefix(w)
 
-    commitInfo(w).valid             := committable
-    commitInfo(w).pop               := committable
     commitInfo(w).pc                := entry.pc
     commitInfo(w).instr             := entry.instr
     commitInfo(w).rd                := entry.rd
@@ -170,12 +165,11 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     commitInfo(w).sync_valid        := entry.sync_valid
     commitInfo(w).sync_kind         := entry.sync_kind
 
-    commitPops(w) := commitInfo(w).pop
+    commitPops(w) := committable
 
     val stopYoungerCommit = entry.flush_pipeline || entry.commit_barrier
 
-    commitCanContinue(w + 1) := committable
-    commitBlocked(w + 1)     := commitBlocked(w) || (committable && stopYoungerCommit)
+    commitPrefix(w + 1) := committable && !stopYoungerCommit
   }
 
   private val commitCount               = PopCount(commitPops)
@@ -309,11 +303,11 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   for (w <- 0 until p(CommitWidth)) {
     val lane = commitInfo(w)
 
-    rdWrite.out.lanes(w).valid     := lane.pop && lane.rd_write && !lane.sync_valid
+    rdWrite.out.lanes(w).valid     := commitPops(w) && lane.rd_write && !lane.sync_valid
     rdWrite.out.lanes(w).bits.addr := lane.rd
     rdWrite.out.lanes(w).bits.data := lane.data
 
-    sbCommit.out.lanes(w).valid         := lane.pop && !lane.sync_valid
+    sbCommit.out.lanes(w).valid         := commitPops(w) && !lane.sync_valid
     sbCommit.out.lanes(w).bits.is_store := lane.is_store
     sbCommit.out.lanes(w).bits.sq_idx   := lane.sq_idx
   }
@@ -323,7 +317,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   for (w <- 0 until p(CommitWidth)) {
     val lane               = commitInfo(w)
     val predTakenNonBranch = !lane.is_branch && lane.bpu_pred_taken
-    val shouldUpdateBranch = lane.pop && !lane.sync_valid && (lane.is_branch || predTakenNonBranch)
+    val shouldUpdateBranch = commitPops(w) && !lane.sync_valid && (lane.is_branch || predTakenNonBranch)
 
     when(shouldUpdateBranch) {
       bpuUpdateWire.valid        := true.B
@@ -342,10 +336,10 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   for (w <- 0 until p(CommitWidth)) {
     val lane = commitInfo(w)
 
-    committedRedirect.out.lanes(w).valid  := lane.pop && lane.flush_pipeline && !lane.sync_valid
+    committedRedirect.out.lanes(w).valid  := commitPops(w) && lane.flush_pipeline && !lane.sync_valid
     committedRedirect.out.lanes(w).target := lane.flush_target
 
-    committedSync.out.lanes(w).valid  := lane.pop && lane.sync_valid
+    committedSync.out.lanes(w).valid  := commitPops(w) && lane.sync_valid
     committedSync.out.lanes(w).kind   := lane.sync_kind
     committedSync.out.lanes(w).target := lane.flush_target
     committedSync.out.lanes(w).pc     := lane.pc
@@ -353,12 +347,13 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
 
   debug.out.commit_count   := commitCount
   debug.out.branch_commit  := PopCount(
-    commitInfo.map(lane => lane.pop && lane.is_branch && !lane.sync_valid)
+    (0 until p(CommitWidth)).map(w => commitPops(w) && commitInfo(w).is_branch && !commitInfo(w).sync_valid)
   )
-  debug.out.bpu_mispredict := commitInfo
-    .map(lane =>
-      lane.pop && !lane.sync_valid && (lane.is_branch || (!lane.is_branch && lane.bpu_pred_taken)) && lane.flush_pipeline
-    )
+  debug.out.bpu_mispredict := (0 until p(CommitWidth))
+    .map(w => {
+      val lane = commitInfo(w)
+      commitPops(w) && !lane.sync_valid && (lane.is_branch || (!lane.is_branch && lane.bpu_pred_taken)) && lane.flush_pipeline
+    })
     .reduce(_ || _)
   debug.out.empty          := count === 0.U
 
@@ -369,7 +364,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   debug.out.head_fu_type   := Mux(headValid, headEntry.fu_type, 0.U)
 
   for (w <- 0 until p(CommitWidth)) {
-    debug.out.instret(w)  := commitInfo(w).pop && !commitInfo(w).sync_valid
+    debug.out.instret(w)  := commitPops(w) && !commitInfo(w).sync_valid
     debug.out.pc(w)       := commitInfo(w).pc
     debug.out.instr(w)    := commitInfo(w).instr
     debug.out.reg_we(w)   := rdWrite.out.lanes(w).valid

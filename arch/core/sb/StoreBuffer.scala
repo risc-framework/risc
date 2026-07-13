@@ -142,17 +142,10 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
         byteHitVec(logical)(b) := sameLine && e.mask(b) && req.mask(b)
     }
 
-    val sameCycleAllocOlder = Wire(Vec(p(IssueWidth), Bool()))
-
-    for (a <- 0 until p(IssueWidth))
-      sameCycleAllocOlder(a) := allocValid(a) && StoreBufferSequence.isOlder(
-        sqSeqForLane(a),
-        req.sq_seq
-      )
-
-    val sameCycleUnknownOlder = sameCycleAllocOlder.asUInt.orR
-    val finalMaskVec          = Wire(Vec(p(BytesPerWord), Bool()))
-    val finalDataVec          = Wire(Vec(p(BytesPerWord), UInt(8.W)))
+    // A forwarding request comes from a registered RS entry, so stores allocated
+    // in this cycle are necessarily younger than the requesting load.
+    val finalMaskVec = Wire(Vec(p(BytesPerWord), Bool()))
+    val finalDataVec = Wire(Vec(p(BytesPerWord), UInt(8.W)))
 
     for (b <- 0 until p(BytesPerWord)) {
       val (hit, data) = mergeForwardBytes(
@@ -168,10 +161,10 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     val reqMaskNonZero = reqMask.orR
     val nextResp       = Wire(new StoreForwardResp)
 
-    nextResp.block     := blockVec.asUInt.orR || sameCycleUnknownOlder
-    nextResp.has_older := olderVec.asUInt.orR || sameCycleUnknownOlder
-    nextResp.valid     := reqMaskNonZero && !sameCycleUnknownOlder && hitMask.orR
-    nextResp.full      := reqMaskNonZero && !sameCycleUnknownOlder && hitMask === reqMask
+    nextResp.block     := blockVec.asUInt.orR
+    nextResp.has_older := olderVec.asUInt.orR
+    nextResp.valid     := reqMaskNonZero && hitMask.orR
+    nextResp.full      := reqMaskNonZero && hitMask === reqMask
     nextResp.data      := Cat((p(BytesPerWord) - 1 to 0 by -1).map(i => finalDataVec(i)))
     nextResp.mask      := hitMask
 

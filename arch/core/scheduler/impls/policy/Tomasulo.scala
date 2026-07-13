@@ -97,27 +97,28 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         older(i)(i) := false.B
 
         for (j <- i + 1 until rsSize) {
-          val bothValid = entries(i).valid && entries(j).valid
-          val distinct  = entries(i).sequence =/= entries(j).sequence
-          val iOlder    = sequenceOlder(entries(i).sequence, entries(j).sequence)
+          // Valid RS entries have unique sequence numbers, making pair order complementary.
+          val iOlder = sequenceOlder(entries(i).sequence, entries(j).sequence)
 
-          older(i)(j) := bothValid && iOlder
-          older(j)(i) := bothValid && distinct && !iOlder
+          older(i)(j) := iOlder
+          older(j)(i) := !iOlder
         }
       }
 
       for (i <- 0 until rsSize) {
         val entry = entries(i)
-        val olderEntries = (0 until rsSize).filter(_ != i).map(j => older(j)(i))
+        val olderEntries = (0 until rsSize)
+          .filter(_ != i)
+          .map(j => entries(j).valid && older(j)(i))
         val olderEntry = olderEntries.reduce(_ || _)
         val olderStore = (0 until rsSize)
           .filter(_ != i)
-          .map(j => older(j)(i) &&
+          .map(j => entries(j).valid && older(j)(i) &&
             entries(j).op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U)
           .reduce(_ || _)
         val olderSerializing = (0 until rsSize)
           .filter(_ != i)
-          .map(j => older(j)(i) &&
+          .map(j => entries(j).valid && older(j)(i) &&
             entries(j).op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR.index.U)
           .reduce(_ || _)
 
@@ -145,7 +146,7 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
           val entry = entries(i)
           candidates(i) := entry.valid && operandsReady(i) && loadReady(i) && serializingReady(i) &&
             entry.op.fu_type === p(FunctionalUnits)(f).`type`.index.U &&
-            !priorSameTypeIssued(i) && fuReq(f).ready
+            !priorSameTypeIssued(i)
         }
 
         for (i <- 0 until rsSize) {
@@ -164,9 +165,9 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         issueOp       := Mux1H(selectOH, issueEntries)
         issueOp.fu_id := f.U
 
-        fuReq(f).valid := selected
+        fuReq(f).valid := selected && fuReq(f).ready
         fuReq(f).bits  := issueOp
-        issuedMask(f)  := Mux(selected, selectOH, 0.U)
+        issuedMask(f)  := Mux(fuReq(f).fire, selectOH, 0.U)
       }
 
       val allIssued = issuedMask.reduce(_ | _)
