@@ -53,10 +53,11 @@ package object configs {
   object NumPhyRegs         extends Field[Int]
 
   // Scheduler Parameters
-  object ScheduleType    extends Field[String]
-  object IssueWidth      extends Field[Int]
-  object CommitWidth     extends Field[Int]
-  object FunctionalUnits extends Field[Seq[FunctionalUnitDescriptor]]
+  object ScheduleType             extends Field[String]
+  object ReservationStationSize extends Field[Int]
+  object IssueWidth               extends Field[Int]
+  object CommitWidth              extends Field[Int]
+  object FunctionalUnits          extends Field[Seq[FunctionalUnitDescriptor]]
 
   // Decoder Parameters
   object DecodeKind extends Field[String]
@@ -179,6 +180,11 @@ package object configs {
 
   object RobTagWidth extends Field[Int](p => widthForCount("RobSize", p(RobSize)))
 
+  object StoreSeqWidth
+      extends Field[Int](p =>
+        widthForCount("Store sequence space", 2 * (p(StoreBufferSize) + p(IssueWidth)))
+      )
+
   // --------------------------------------------
   // Derived cache parameters.
 
@@ -226,6 +232,7 @@ package object configs {
       IsRegfileUseBypass,
       NumPhyRegs,
       ScheduleType,
+      ReservationStationSize,
       IssueWidth,
       CommitWidth,
       FunctionalUnits,
@@ -273,6 +280,7 @@ package object configs {
       NumBRUs,
       NumCSRs,
       RobTagWidth,
+      StoreSeqWidth,
       L1ICacheParams,
       L1DCacheParams
     )

@@ -33,13 +33,17 @@ class FuReq(implicit p: Parameters) extends Bundle {
   val rs2_read = Bool()
   val rd_write = Bool()
 
-  val rs1_data = UInt(p(XLen).W)
-  val rs2_data = UInt(p(XLen).W)
+  val rs1_data    = UInt(p(XLen).W)
+  val rs2_data    = UInt(p(XLen).W)
+  val rs1_pending = Bool()
+  val rs2_pending = Bool()
+  val rs1_tag     = UInt(p(RobTagWidth).W)
+  val rs2_tag     = UInt(p(RobTagWidth).W)
 
   val rob_tag = UInt(p(RobTagWidth).W)
 
   val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
-  val sq_seq = UInt(64.W)
+  val sq_seq = UInt(p(StoreSeqWidth).W)
 }
 
 class FuResp(implicit p: Parameters) extends Bundle {

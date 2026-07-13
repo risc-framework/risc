@@ -13,13 +13,25 @@ trait PmaModeImpl extends PmaDims.MODE.Impl {
   def check(addr: UInt)(implicit p: Parameters): PmaCheckResult = {
     val result = Wire(new PmaCheckResult)
 
-    val hits = p(BusAddressMap).map { d =>
-      val hit = (addr >= d.base.U(p(XLen).W)) && (addr < (d.base + d.size).U(p(XLen).W))
-      (d.`type`, hit)
+    def mergedRanges(deviceType: DeviceType): Seq[(Long, Long)] = {
+      p(BusAddressMap)
+        .filter(_.`type` == deviceType)
+        .map(d => d.base -> (d.base + d.size))
+        .sortBy(_._1)
+        .foldLeft(Vector.empty[(Long, Long)]) { case (ranges, (base, end)) =>
+          ranges.lastOption match {
+            case Some((lastBase, lastEnd)) if base <= lastEnd =>
+              ranges.init :+ (lastBase -> math.max(lastEnd, end))
+            case _ =>
+              ranges :+ (base -> end)
+          }
+        }
     }
 
     def anyHit(deviceType: DeviceType): Bool = {
-      val xs = hits.filter(_._1 == deviceType).map(_._2)
+      val xs = mergedRanges(deviceType).map { case (base, end) =>
+        (addr >= base.U(p(XLen).W)) && (addr < end.U(p(XLen).W))
+      }
       if (xs.isEmpty) false.B else xs.reduce(_ || _)
     }
 

@@ -41,9 +41,6 @@ object LdRv32iIsa extends RegisteredNodeUtils[LdIsaImpl] with Rv32iLdUopConsts {
     private def ea(uop: FuReq): UInt =
       uop.rs1_data + uop.imm
 
-    private def rawMask(bytes: UInt)(implicit p: Parameters): UInt =
-      ((1.U((p(BytesPerWord) + 1).W) << bytes) - 1.U)(p(BytesPerWord) - 1, 0)
-
     private def packData(accessBytes: Int, data: UInt)(implicit p: Parameters): UInt = {
       val bits = accessBytes * 8
       val raw  = Cat((0 until accessBytes).reverse.map { lane =>
@@ -93,10 +90,16 @@ object LdRv32iIsa extends RegisteredNodeUtils[LdIsaImpl] with Rv32iLdUopConsts {
 
     override def mask(uop: FuReq)(implicit p: Parameters): UInt = {
       val addr = ea(uop)
-      val b    = bytes(uop)
-      val off  = p(ISA).laneOffset(addr, b, p(BytesPerWord))
+      val off  = p(ISA).byteOffsetInBeat(addr, p(BytesPerWord))
+      val base = MuxLookup(uop.uop(1, 0), 0.U(p(BytesPerWord).W))(
+        Seq(
+          LMEM(LMEM_B) -> 1.U(p(BytesPerWord).W),
+          LMEM(LMEM_H) -> 3.U(p(BytesPerWord).W),
+          LMEM(LMEM_W) -> 15.U(p(BytesPerWord).W)
+        )
+      )
 
-      (rawMask(b) << off)(p(BytesPerWord) - 1, 0)
+      (base << off)(p(BytesPerWord) - 1, 0)
     }
   }
 

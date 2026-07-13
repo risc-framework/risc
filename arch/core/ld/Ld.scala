@@ -4,7 +4,7 @@ import arch.configs._
 import arch.core.fupool.{ FuReq, FuResp }
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.pma.PmaModeFactory
-import arch.core.sb.{ StoreBufferStatus, StoreForwardReq, StoreForwardResp }
+import arch.core.sb.{ StoreBufferSequence, StoreBufferStatus, StoreForwardReq, StoreForwardResp }
 import vcache.CacheCommand
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
@@ -69,7 +69,10 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val acceptLoadMask      = isaImpl.mask(fuReq.in.bits)
   private val acceptPmaResult     = pma.check(acceptAddr)
   private val acceptHasOlderStore =
-    sbStatus.in.oldest_valid && sbStatus.in.oldest_seq < fuReq.in.bits.sq_seq
+    sbStatus.in.oldest_valid && StoreBufferSequence.isOlder(
+      sbStatus.in.oldest_seq,
+      fuReq.in.bits.sq_seq
+    )
 
   private val fwdRespBits    = fwdResp.in.bits
   private val fwdRespFire    = fwdResp.in.fire
@@ -110,7 +113,6 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
 
   fwdReq.out.valid       := fwdReqFromAccept || fwdReqFromRetry
   fwdReq.out.bits        := 0.U.asTypeOf(new StoreForwardReq)
-  fwdReq.out.bits.valid  := true.B
   fwdReq.out.bits.sq_seq := Mux(fwdReqUsingAccept, fuReq.in.bits.sq_seq, uopReg.sq_seq)
   fwdReq.out.bits.addr   := Mux(fwdReqUsingAccept, acceptAddr, addrReg)
   fwdReq.out.bits.mask   := Mux(fwdReqUsingAccept, acceptLoadMask, loadMaskReg)

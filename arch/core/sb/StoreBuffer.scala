@@ -40,11 +40,47 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
 
   private def zeroEntry: StoreBufferEntry = 0.U.asTypeOf(new StoreBufferEntry)
 
+  private def balancedAnd(terms: Seq[Bool]): Bool = {
+    require(terms.nonEmpty)
+
+    if (terms.size == 1) {
+      terms.head
+    } else {
+      val split = (terms.size + 1) / 2
+      balancedAnd(terms.take(split)) && balancedAnd(terms.drop(split))
+    }
+  }
+
+  private def equalByChunks(lhs: UInt, rhs: UInt, chunkWidth: Int = 3): Bool = {
+    require(lhs.getWidth == rhs.getWidth)
+    require(chunkWidth > 0)
+
+    balancedAnd((0 until lhs.getWidth by chunkWidth).map { lo =>
+      val hi = math.min(lo + chunkWidth, lhs.getWidth) - 1
+      lhs(hi, lo) === rhs(hi, lo)
+    })
+  }
+
+  private def mergeForwardBytes(candidates: Seq[(Bool, UInt)]): (Bool, UInt) = {
+    require(candidates.nonEmpty)
+
+    if (candidates.size == 1) {
+      candidates.head
+    } else {
+      val split                 = (candidates.size + 1) / 2
+      val (olderHit, olderData) = mergeForwardBytes(candidates.take(split))
+      val (newerHit, newerData) = mergeForwardBytes(candidates.drop(split))
+
+      (olderHit || newerHit, Mux(newerHit, newerData, olderData))
+    }
+  }
+
   private val entries          = RegInit(VecInit(Seq.fill(p(StoreBufferSize))(zeroEntry)))
   private val head             = RegInit(0.U(idxW.W))
   private val tail             = RegInit(0.U(idxW.W))
   private val count            = RegInit(0.U(cntW.W))
-  private val tailSeq          = RegInit(0.U(64.W))
+  private val committedCount   = RegInit(0.U(cntW.W))
+  private val tailSeq          = RegInit(0.U(p(StoreSeqWidth).W))
   private val drainOutstanding = RegInit(false.B)
   private val drainIsCacheable = RegInit(false.B)
 
@@ -61,7 +97,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     storeWrite.in.lanes(s).ready := !flush.in
 
   private val sqIdxForLane = Wire(Vec(p(IssueWidth), UInt(idxW.W)))
-  private val sqSeqForLane = Wire(Vec(p(IssueWidth), UInt(64.W)))
+  private val sqSeqForLane = Wire(Vec(p(IssueWidth), UInt(p(StoreSeqWidth).W)))
   private val allocValid   = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
@@ -72,69 +108,75 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
 
   for (q <- 0 until numLoadPorts) {
     val fwdRespValid = RegInit(false.B)
-    val fwdRespBits  = RegInit(0.U.asTypeOf(new StoreForwardResp))
+    val fwdRespBits  = Reg(new StoreForwardResp)
 
     fwdReq.in.lanes(q).ready   := (!fwdRespValid || fwdResp.out.lanes(q).ready) && !flush.in
     fwdResp.out.lanes(q).valid := fwdRespValid && !flush.in
     fwdResp.out.lanes(q).bits  := fwdRespBits
 
-    val req       = fwdReq.in.lanes(q).bits
-    val reqFire   = fwdReq.in.lanes(q).fire
-    val dataStage = Wire(Vec(p(StoreBufferSize) + 1, Vec(p(BytesPerWord), UInt(8.W))))
-    val maskStage = Wire(Vec(p(StoreBufferSize) + 1, Vec(p(BytesPerWord), Bool())))
-    val olderVec  = Wire(Vec(p(StoreBufferSize), Bool()))
-    val blockVec  = Wire(Vec(p(StoreBufferSize), Bool()))
-
-    for (b <- 0 until p(BytesPerWord)) {
-      dataStage(0)(b) := 0.U
-      maskStage(0)(b) := false.B
-    }
+    val req        = fwdReq.in.lanes(q).bits
+    val reqFire    = fwdReq.in.lanes(q).fire
+    val entryData  = Wire(Vec(p(StoreBufferSize), UInt(p(XLen).W)))
+    val byteHitVec = Wire(Vec(p(StoreBufferSize), Vec(p(BytesPerWord), Bool())))
+    val olderVec   = Wire(Vec(p(StoreBufferSize), Bool()))
+    val blockVec   = Wire(Vec(p(StoreBufferSize), Bool()))
 
     for (logical <- 0 until p(StoreBufferSize)) {
       val idx         = wrapAdd(head, logical.U)
       val e           = entries(idx)
       val inRange     = logical.U < count
-      val olderLive   = reqFire && req.valid && inRange && e.valid && e.seq < req.sq_seq
+      val olderLive   = inRange && e.valid && StoreBufferSequence.isOlder(e.seq, req.sq_seq)
       val liveUnknown = olderLive && !e.addrValid
       val forwardable = olderLive && e.addrValid
-      val sameLine    = forwardable && e.addr === req.addr
+      val lineLo      = log2Ceil(p(BytesPerWord))
+      val sameLine    = forwardable && equalByChunks(
+        e.addr(p(XLen) - 1, lineLo),
+        req.addr(p(XLen) - 1, lineLo)
+      )
 
       olderVec(logical) := olderLive
       blockVec(logical) := liveUnknown
+      entryData(logical) := e.data
 
-      for (b <- 0 until p(BytesPerWord)) {
-        val byteHit = sameLine && e.mask(b) && req.mask(b)
-        dataStage(logical + 1)(b) := Mux(byteHit, e.data(8 * b + 7, 8 * b), dataStage(logical)(b))
-        maskStage(logical + 1)(b) := Mux(byteHit, true.B, maskStage(logical)(b))
-      }
+      for (b <- 0 until p(BytesPerWord))
+        byteHitVec(logical)(b) := sameLine && e.mask(b) && req.mask(b)
     }
 
     val sameCycleAllocOlder = Wire(Vec(p(IssueWidth), Bool()))
 
     for (a <- 0 until p(IssueWidth))
-      sameCycleAllocOlder(a) := reqFire && req.valid && allocValid(a) && sqSeqForLane(
-        a
-      ) < req.sq_seq
+      sameCycleAllocOlder(a) := allocValid(a) && StoreBufferSequence.isOlder(
+        sqSeqForLane(a),
+        req.sq_seq
+      )
 
     val sameCycleUnknownOlder = sameCycleAllocOlder.asUInt.orR
-    val finalMaskVec          = maskStage(p(StoreBufferSize))
-    val finalDataVec          = dataStage(p(StoreBufferSize))
-    val finalMaskUInt         = finalMaskVec.asUInt
-    val reqMask               = req.mask
-    val hitMask               = finalMaskUInt & reqMask
-    val reqMaskNonZero        = reqMask.orR
-    val nextResp              = Wire(new StoreForwardResp)
+    val finalMaskVec          = Wire(Vec(p(BytesPerWord), Bool()))
+    val finalDataVec          = Wire(Vec(p(BytesPerWord), UInt(8.W)))
+
+    for (b <- 0 until p(BytesPerWord)) {
+      val (hit, data) = mergeForwardBytes(
+        (0 until p(StoreBufferSize)).map(i => byteHitVec(i)(b) -> entryData(i)(8 * b + 7, 8 * b))
+      )
+
+      finalMaskVec(b) := hit
+      finalDataVec(b) := data
+    }
+
+    val hitMask        = finalMaskVec.asUInt
+    val reqMask        = req.mask
+    val reqMaskNonZero = reqMask.orR
+    val nextResp       = Wire(new StoreForwardResp)
 
     nextResp.block     := blockVec.asUInt.orR || sameCycleUnknownOlder
     nextResp.has_older := olderVec.asUInt.orR || sameCycleUnknownOlder
-    nextResp.valid     := reqFire && req.valid && reqMaskNonZero && !sameCycleUnknownOlder && hitMask.orR
-    nextResp.full      := reqFire && req.valid && reqMaskNonZero && !sameCycleUnknownOlder && hitMask === reqMask
+    nextResp.valid     := reqMaskNonZero && !sameCycleUnknownOlder && hitMask.orR
+    nextResp.full      := reqMaskNonZero && !sameCycleUnknownOlder && hitMask === reqMask
     nextResp.data      := Cat((p(BytesPerWord) - 1 to 0 by -1).map(i => finalDataVec(i)))
-    nextResp.mask      := finalMaskUInt
+    nextResp.mask      := hitMask
 
     when(flush.in) {
       fwdRespValid := false.B
-      fwdRespBits  := 0.U.asTypeOf(new StoreForwardResp)
     }.otherwise {
       when(reqFire) {
         fwdRespValid := true.B
@@ -170,12 +212,20 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   debug.out.busy       := count =/= 0.U || drainOutstanding
   debug.out.wait_drain := drainOutstanding || (canDrain && !drainReqFire)
 
-  private val allocCount      = PopCount(allocValid)
-  private val afterDrainHead  = Mux(drainRespFire, wrapAdd(head, 1.U), head)
-  private val normalTail      = wrapAdd(tail, allocCount)
-  private val normalCountWide = count +& allocCount - drainRespFire.asUInt
-  private val normalCount     = normalCountWide(cntW - 1, 0)
-  private val normalSeq       = tailSeq + allocCount
+  private val allocCount       = PopCount(allocValid)
+  private val commitStoreCount = PopCount(
+    Seq.tabulate(p(CommitWidth))(c =>
+      robCommit.in.lanes(c).valid && robCommit.in.lanes(c).bits.is_store
+    )
+  )
+  private val afterDrainHead     = Mux(drainRespFire, wrapAdd(head, 1.U), head)
+  private val normalTail         = wrapAdd(tail, allocCount)
+  private val normalCountWide    = count +& allocCount - drainRespFire.asUInt
+  private val normalCount        = normalCountWide(cntW - 1, 0)
+  private val committedCountWide = committedCount +& commitStoreCount - drainRespFire.asUInt
+  private val nextCommittedCount = committedCountWide(cntW - 1, 0)
+  private val flushTail           = wrapAdd(afterDrainHead, nextCommittedCount)
+  private val normalSeq           = tailSeq + allocCount
 
   private val afterOpsEntries = Wire(Vec(p(StoreBufferSize), new StoreBufferEntry))
 
@@ -249,47 +299,18 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     afterOpsEntries(i) := e
   }
 
-  private val keepPrefix  = Wire(Vec(p(StoreBufferSize), Bool()))
-  private val prefixAlive = Wire(Vec(p(StoreBufferSize) + 1, Bool()))
-
-  prefixAlive(0) := true.B
-
-  for (logical <- 0 until p(StoreBufferSize)) {
-    val idx     = wrapAdd(afterDrainHead, logical.U)
-    val e       = afterOpsEntries(idx)
-    val inRange = logical.U < normalCount
-
-    keepPrefix(logical)      := prefixAlive(logical) && inRange && e.valid && e.committed
-    prefixAlive(logical + 1) := keepPrefix(logical)
-  }
-
-  private val flushCount   = PopCount(keepPrefix)
-  private val flushTail    = wrapAdd(afterDrainHead, flushCount)
-  private val flushTailRaw = afterDrainHead +& flushCount
-  private val flushWrap    = flushTailRaw >= p(StoreBufferSize).U
-  private val keepPhysical = Wire(Vec(p(StoreBufferSize), Bool()))
-
-  for (i <- 0 until p(StoreBufferSize)) {
-    val idx = i.U(idxW.W)
-
-    keepPhysical(i) := Mux(
-      flushWrap,
-      idx >= afterDrainHead || idx < flushTail,
-      idx >= afterDrainHead && idx < flushTail
-    )
-  }
-
   for (i <- 0 until p(StoreBufferSize))
-    when(flush.in && !keepPhysical(i)) {
+    when(flush.in && !(afterOpsEntries(i).valid && afterOpsEntries(i).committed)) {
       entries(i) := zeroEntry
     }.otherwise {
       entries(i) := afterOpsEntries(i)
     }
 
-  head    := afterDrainHead
-  tail    := Mux(flush.in, flushTail, normalTail)
-  count   := Mux(flush.in, flushCount, normalCount)
-  tailSeq := normalSeq
+  head           := afterDrainHead
+  tail           := Mux(flush.in, flushTail, normalTail)
+  count          := Mux(flush.in, nextCommittedCount, normalCount)
+  committedCount := nextCommittedCount
+  tailSeq        := normalSeq
 
   when(drainReqFire) {
     drainOutstanding := true.B

@@ -73,10 +73,12 @@ class Btb(implicit p: Parameters) extends Node[Parameters]("btb") with BHTConsts
     for (w <- 0 until p(BTBWays))
       uHitBits(w) := uValid(w) && uTags(w) === uTag
 
-    val uAnyHit   = uHitBits.asUInt.orR
-    val uHitWay   = PriorityEncoder(uHitBits)
-    val victimWay = victimWayReg(uIndex)
-    val writeWay  = Mux(uAnyHit, uHitWay, victimWay)
+    val uAnyHit    = uHitBits.asUInt.orR
+    val uHitWay    = PriorityEncoder(uHitBits)
+    val hasInvalid = !uValid.andR
+    val invalidWay = PriorityEncoder(~uValid)
+    val victimWay  = victimWayReg(uIndex)
+    val writeWay   = Mux(uAnyHit, uHitWay, Mux(hasInvalid, invalidWay, victimWay))
     val oldCtrl   = Mux(uAnyHit, uCtrls(writeWay), BHT_WNT.value.U(SZ_BHT.W))
     val nextCtrl  = Mux(oldCtrl === BHT_ST.value.U, BHT_ST.value.U, oldCtrl + 1.U)
 

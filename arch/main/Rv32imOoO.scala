@@ -51,7 +51,8 @@ object Rv32imOoO extends App {
       ResetVector                   -> 0x80000000L,
       IsRegfileUseBypass            -> true,
       NumPhyRegs                    -> 64,
-      ScheduleType                  -> "scoreboard",
+      ScheduleType                  -> "tomasulo",
+      ReservationStationSize        -> 8,
       IssueWidth                    -> 2,
       CommitWidth                   -> 2,
       FunctionalUnits               -> Seq(

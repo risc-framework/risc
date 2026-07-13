@@ -32,4 +32,5 @@ object SchedulerPolicyFactory extends SchedulerDims.POLICY.Registry[SchedulerPol
 
 object SchedulerInit {
   val scoreboard = impls.policy.scoreboard.ScoreboardSchedulerPolicy.registered
+  val tomasulo   = impls.policy.tomasulo.TomasuloSchedulerPolicy.registered
 }

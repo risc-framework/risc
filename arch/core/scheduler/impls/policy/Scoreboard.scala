@@ -5,7 +5,7 @@ import arch.core.fupool.{ FuReq, FuResp }
 import arch.core.scheduler._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder }
+import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder, UIntToOH }
 
 object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
   override def utils: SchedulerPolicyImpl = new SchedulerPolicyImpl {
@@ -56,36 +56,48 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       def olderLaneAccepted(w: Int, accepted: Vec[Bool]): Bool =
         if (w == 0) true.B else !dispatched(w - 1).valid || accepted(w - 1)
 
-      val regPending = RegInit(VecInit(Seq.fill(p(NumArchRegs))(false.B)))
+      def cdbForward(rs: UInt): (Bool, UInt) = {
+        val hits = Wire(Vec(p(NumFUs), Bool()))
+
+        for (f <- 0 until p(NumFUs))
+          hits(f) := fuDone(f).fire && rs =/= 0.U && fuDone(f).bits.rd === rs
+
+        val valid = hits.asUInt.orR
+        val data  = Mux(
+          valid,
+          Mux1H(hits, (0 until p(NumFUs)).map(f => fuDone(f).bits.result)),
+          0.U
+        )
+
+        (valid, data)
+      }
+
+      val regPending = RegInit(0.U(p(NumArchRegs).W))
 
       defaultFuReqs()
       defaultDispatchReady()
       defaultFuDoneReady()
 
-      val cdbHit   = Wire(Vec(p(NumArchRegs), Vec(p(NumFUs), Bool())))
-      val cdbValid = Wire(Vec(p(NumArchRegs), Bool()))
-      val cdbData  = Wire(Vec(p(NumArchRegs), UInt(p(XLen).W)))
+      val cdbWriteMasks = Wire(Vec(p(NumFUs), UInt(p(NumArchRegs).W)))
 
-      for (r <- 0 until p(NumArchRegs)) {
-        for (f <- 0 until p(NumFUs))
-          if (r == 0) cdbHit(r)(f) := false.B
-          else cdbHit(r)(f)        := fuDone(f).fire && fuDone(f).bits.rd === r.U
+      for (f <- 0 until p(NumFUs))
+        cdbWriteMasks(f) := Mux(
+          fuDone(f).fire && fuDone(f).bits.rd =/= 0.U,
+          UIntToOH(fuDone(f).bits.rd, p(NumArchRegs)),
+          0.U
+        )
 
-        cdbValid(r) := cdbHit(r).asUInt.orR
-        cdbData(r)  := Mux1H(cdbHit(r), (0 until p(NumFUs)).map(f => fuDone(f).bits.result))
-      }
+      val cdbWriteMask = cdbWriteMasks.reduce(_ | _)
 
-      val tempPending = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumArchRegs), Bool())))
-      val tempFuUsed  = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumFUs), Bool())))
-      val accepted    = Wire(Vec(p(IssueWidth), Bool()))
-      val rawWait     = Wire(Vec(p(IssueWidth), Bool()))
-      val wawWait     = Wire(Vec(p(IssueWidth), Bool()))
-      val fuBusy      = Wire(Vec(p(IssueWidth), Bool()))
-      val olderBlock  = Wire(Vec(p(IssueWidth), Bool()))
-      val noMatch     = Wire(Vec(p(IssueWidth), Bool()))
-
-      for (r <- 0 until p(NumArchRegs))
-        tempPending(0)(r) := regPending(r) && !cdbValid(r)
+      val basePending       = regPending & ~cdbWriteMask
+      val tempFuUsed        = Wire(Vec(p(IssueWidth) + 1, Vec(p(NumFUs), Bool())))
+      val accepted          = Wire(Vec(p(IssueWidth), Bool()))
+      val acceptedWriteMask = Wire(Vec(p(IssueWidth), UInt(p(NumArchRegs).W)))
+      val rawWait           = Wire(Vec(p(IssueWidth), Bool()))
+      val wawWait           = Wire(Vec(p(IssueWidth), Bool()))
+      val fuBusy            = Wire(Vec(p(IssueWidth), Bool()))
+      val olderBlock        = Wire(Vec(p(IssueWidth), Bool()))
+      val noMatch           = Wire(Vec(p(IssueWidth), Bool()))
 
       for (f <- 0 until p(NumFUs))
         tempFuUsed(0)(f) := false.B
@@ -98,14 +110,32 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         val rs2Used  = op.rs2_read
         val writesRd = op.rd_write
 
-        val rs1Haz = rs1Used && tempPending(w)(op.rs1)
-        val rs2Haz = rs2Used && tempPending(w)(op.rs2)
-        val wawHaz = writesRd && tempPending(w)(op.rd)
+        val olderRs1Haz = if (w == 0) false.B
+        else
+          (0 until w)
+            .map(i => accepted(i) && dispatched(i).bits.rd_write && dispatched(i).bits.rd === op.rs1)
+            .reduce(_ || _)
+        val olderRs2Haz = if (w == 0) false.B
+        else
+          (0 until w)
+            .map(i => accepted(i) && dispatched(i).bits.rd_write && dispatched(i).bits.rd === op.rs2)
+            .reduce(_ || _)
+        val olderWawHaz = if (w == 0) false.B
+        else
+          (0 until w)
+            .map(i => accepted(i) && dispatched(i).bits.rd_write && dispatched(i).bits.rd === op.rd)
+            .reduce(_ || _)
 
-        val rs1FromCdb = rs1Used && cdbValid(op.rs1)
-        val rs2FromCdb = rs2Used && cdbValid(op.rs2)
-        val rs1Value   = Mux(rs1FromCdb, cdbData(op.rs1), op.rs1_data)
-        val rs2Value   = Mux(rs2FromCdb, cdbData(op.rs2), op.rs2_data)
+        val rs1Haz = rs1Used && (basePending(op.rs1) || olderRs1Haz)
+        val rs2Haz = rs2Used && (basePending(op.rs2) || olderRs2Haz)
+        val wawHaz = writesRd && (basePending(op.rd) || olderWawHaz)
+
+        val (rs1CdbValid, rs1CdbData) = cdbForward(op.rs1)
+        val (rs2CdbValid, rs2CdbData) = cdbForward(op.rs2)
+        val rs1FromCdb                = rs1Used && rs1CdbValid
+        val rs2FromCdb                = rs2Used && rs2CdbValid
+        val rs1Value                  = Mux(rs1FromCdb, rs1CdbData, op.rs1_data)
+        val rs2Value                  = Mux(rs2FromCdb, rs2CdbData, op.rs2_data)
 
         val (target, fuOk) = selectFu(op, tempFuUsed(w))
         val prevOk         = olderLaneAccepted(w, accepted)
@@ -121,8 +151,12 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
         olderBlock(w) := dis.valid && !flush && !prevOk
         noMatch(w)    := dis.valid && !flush && prevOk && !hasFuType
 
-        tempPending(w + 1) := tempPending(w)
-        tempFuUsed(w + 1)  := tempFuUsed(w)
+        acceptedWriteMask(w) := Mux(
+          accepted(w) && writesRd,
+          UIntToOH(op.rd, p(NumArchRegs)),
+          0.U
+        )
+        tempFuUsed(w + 1) := tempFuUsed(w)
 
         when(accepted(w)) {
           val issueOp = Wire(new FuReq)
@@ -138,17 +172,13 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
             }
 
           tempFuUsed(w + 1)(target) := true.B
-
-          when(writesRd) {
-            tempPending(w + 1)(op.rd) := true.B
-          }
         }
       }
 
       when(flush) {
-        regPending.foreach(_ := false.B)
+        regPending := 0.U
       }.otherwise {
-        regPending := tempPending(p(IssueWidth))
+        regPending := basePending | acceptedWriteMask.reduce(_ | _)
       }
 
       debug.raw_wait         := rawWait.asUInt.orR

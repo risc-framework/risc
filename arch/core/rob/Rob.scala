@@ -11,7 +11,7 @@ import arch.core.regfile.RegfileWrite
 import arch.core.sb.{ StoreBufferAllocReq, StoreBufferAllocStatus }
 import vutils.graph.Node
 import chisel3._
-import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
+import chisel3.util.{ Cat, Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 
 class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val dispatchReq       = inDVec[DispatchRobPacket](p => p(IssueWidth))
@@ -32,10 +32,10 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   private val SqIdxW = log2Ceil(p(StoreBufferSize))
   private val SqCntW = log2Ceil(p(StoreBufferSize) + 1)
 
-  private val buffer = RegInit(VecInit(Seq.fill(p(RobSize))(0.U.asTypeOf(new RobEntry))))
-  private val head   = RegInit(0.U(p(RobTagWidth).W))
-  private val tail   = RegInit(0.U(p(RobTagWidth).W))
-  private val count  = RegInit(0.U(CntW.W))
+  private val buffer     = RegInit(VecInit(Seq.fill(p(RobSize))(0.U.asTypeOf(new RobEntry))))
+  private val headSelect = RegInit(1.U(p(RobSize).W))
+  private val tail       = RegInit(0.U(p(RobTagWidth).W))
+  private val count      = RegInit(0.U(CntW.W))
 
   for (i <- 0 until p(NumFUs))
     fuDone.in.lanes(i).ready := true.B
@@ -50,15 +50,20 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     Mux(sum >= p(StoreBufferSize).U, sum - p(StoreBufferSize).U, sum)(SqIdxW - 1, 0)
   }
 
+  private def rotateHeadSelect(x: UInt, distance: Int): UInt =
+    if (distance == 0) x
+    else Cat(x(p(RobSize) - distance - 1, 0), x(p(RobSize) - 1, p(RobSize) - distance))
+
   private def indexFromNewest(distance: Int): UInt = {
     val sub = distance + 1
     Mux(tail >= sub.U, tail - sub.U, tail + p(RobSize).U - sub.U)(p(RobTagWidth) - 1, 0)
   }
 
-  private def bypassNewest(rs: UInt): (Bool, UInt, Bool) = {
+  private def bypassNewest(rs: UInt): (Bool, UInt, Bool, UInt) = {
     val matchVec = Wire(Vec(p(RobSize), Bool()))
     val readyVec = Wire(Vec(p(RobSize), Bool()))
     val dataVec  = Wire(Vec(p(RobSize), UInt(p(XLen).W)))
+    val tagVec   = Wire(Vec(p(RobSize), UInt(p(RobTagWidth).W)))
 
     for (d <- 0 until p(RobSize)) {
       val idx   = indexFromNewest(d)
@@ -67,6 +72,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       matchVec(d) := entry.valid && entry.rd_write && entry.rd === rs
       readyVec(d) := matchVec(d) && entry.ready
       dataVec(d)  := entry.data
+      tagVec(d)   := idx
     }
 
     val anyMatch    = matchVec.asUInt.orR
@@ -74,9 +80,10 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     val newestOH    = UIntToOH(newest, p(RobSize))
     val newestReady = anyMatch && Mux1H(newestOH, readyVec)
     val newestData  = Mux(anyMatch, Mux1H(newestOH, dataVec), 0.U(p(XLen).W))
+    val newestTag   = Mux(anyMatch, Mux1H(newestOH, tagVec), 0.U(p(RobTagWidth).W))
     val pending     = anyMatch && !newestReady
 
-    (newestReady, newestData, pending)
+    (newestReady, newestData, pending, newestTag)
   }
 
   for (i <- 0 until p(NumFUs))
@@ -125,7 +132,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
 
   private val commitCanContinue = Wire(Vec(p(CommitWidth) + 1, Bool()))
   private val commitBlocked     = Wire(Vec(p(CommitWidth) + 1, Bool()))
-  private val commitIdx         = Wire(Vec(p(CommitWidth), UInt(p(RobTagWidth).W)))
+  private val commitSelect      = Wire(Vec(p(CommitWidth), UInt(p(RobSize).W)))
   private val commitInfo        = Wire(Vec(p(CommitWidth), new RobCommitInfo))
   private val commitPops        = Wire(Vec(p(CommitWidth), Bool()))
 
@@ -133,9 +140,9 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   commitBlocked(0)     := false.B
 
   for (w <- 0 until p(CommitWidth)) {
-    commitIdx(w) := wrapAdd(head, w.U)
+    commitSelect(w) := rotateHeadSelect(headSelect, w)
 
-    val entry       = buffer(commitIdx(w))
+    val entry       = Mux1H(commitSelect(w), buffer)
     val hasEntry    = count > w.U
     val committable =
       hasEntry && entry.valid && entry.ready && commitCanContinue(w) && !commitBlocked(w)
@@ -183,7 +190,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   private val enqOffset                 = Wire(Vec(p(IssueWidth), UInt(p(RobTagWidth).W)))
   private val enqIdx                    = Wire(Vec(p(IssueWidth), UInt(p(RobTagWidth).W)))
   private val enqSqIdx                  = Wire(Vec(p(IssueWidth), UInt(SqIdxW.W)))
-  private val enqSqSeq                  = Wire(Vec(p(IssueWidth), UInt(64.W)))
+  private val enqSqSeq                  = Wire(Vec(p(IssueWidth), UInt(p(StoreSeqWidth).W)))
 
   robUsed(0) := 0.U
   sqUsed(0)  := 0.U
@@ -224,10 +231,15 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
 
   private val enqCount = PopCount(enqFire)
 
-  for (w <- 0 until p(CommitWidth))
-    when(commitPops(w)) {
-      buffer(commitIdx(w)).valid := false.B
+  for (i <- 0 until p(RobSize)) {
+    val retireEntry = (0 until p(CommitWidth))
+      .map(w => commitPops(w) && commitSelect(w)(i))
+      .reduce(_ || _)
+
+    when(retireEntry) {
+      buffer(i).valid := false.B
     }
+  }
 
   for (w <- 0 until p(IssueWidth))
     when(enqFire(w)) {
@@ -260,14 +272,18 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       buffer(idx).sync_kind      := 0.U
     }
 
-  head  := wrapAdd(head, commitCount)
-  tail  := wrapAdd(tail, enqCount)
-  count := count + enqCount - commitCount
+  private val nextHeadSelect = (1 to p(CommitWidth)).foldLeft(headSelect) { (next, distance) =>
+    Mux(commitCount === distance.U, rotateHeadSelect(headSelect, distance), next)
+  }
+
+  headSelect := nextHeadSelect
+  tail       := wrapAdd(tail, enqCount)
+  count      := count + enqCount - commitCount
 
   when(flush.in) {
-    head  := 0.U
-    tail  := 0.U
-    count := 0.U
+    headSelect := 1.U
+    tail       := 0.U
+    count      := 0.U
 
     for (i <- 0 until p(RobSize))
       buffer(i).valid := false.B
@@ -276,16 +292,18 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   for (w <- 0 until p(IssueWidth)) {
     val dec = dispatchReq.in.lanes(w).bits.decoded
 
-    val (rs1Valid, rs1Data, rs1Pending) = bypassNewest(dec.rs1)
-    val (rs2Valid, rs2Data, rs2Pending) = bypassNewest(dec.rs2)
+    val (rs1Valid, rs1Data, rs1Pending, rs1Tag) = bypassNewest(dec.rs1)
+    val (rs2Valid, rs2Data, rs2Pending, rs2Tag) = bypassNewest(dec.rs2)
 
     dispatchResp.out.lanes(w).rs1_bypass_valid   := rs1Valid
     dispatchResp.out.lanes(w).rs1_bypass_data    := rs1Data
     dispatchResp.out.lanes(w).rs1_bypass_pending := rs1Pending
+    dispatchResp.out.lanes(w).rs1_bypass_tag     := rs1Tag
 
     dispatchResp.out.lanes(w).rs2_bypass_valid   := rs2Valid
     dispatchResp.out.lanes(w).rs2_bypass_data    := rs2Data
     dispatchResp.out.lanes(w).rs2_bypass_pending := rs2Pending
+    dispatchResp.out.lanes(w).rs2_bypass_tag     := rs2Tag
   }
 
   for (w <- 0 until p(CommitWidth)) {
@@ -344,7 +362,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     .reduce(_ || _)
   debug.out.empty          := count === 0.U
 
-  private val headEntry = buffer(head)
+  private val headEntry = Mux1H(headSelect, buffer)
   private val headValid = count =/= 0.U && headEntry.valid
 
   debug.out.head_not_ready := headValid && !headEntry.ready

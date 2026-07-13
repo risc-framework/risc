@@ -60,6 +60,25 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
       Mux(robResp.in.lanes(w).rs1_bypass_valid, robResp.in.lanes(w).rs1_bypass_data, rs1Raw)
     val rs2Bypassed =
       Mux(robResp.in.lanes(w).rs2_bypass_valid, robResp.in.lanes(w).rs2_bypass_data, rs2Raw)
+    val rs1Pending = WireDefault(robResp.in.lanes(w).rs1_bypass_pending)
+    val rs2Pending = WireDefault(robResp.in.lanes(w).rs2_bypass_pending)
+    val rs1Tag     = WireDefault(robResp.in.lanes(w).rs1_bypass_tag)
+    val rs2Tag     = WireDefault(robResp.in.lanes(w).rs2_bypass_tag)
+
+    for (i <- 0 until w) {
+      val olderDec    = decoded.in.lanes(i).bits
+      val olderWrites = dispatched.out.lanes(i).fire && olderDec.rd_write && olderDec.rd =/= 0.U
+
+      when(olderWrites && dec.rs1_read && olderDec.rd === dec.rs1) {
+        rs1Pending := true.B
+        rs1Tag     := robResp.in.lanes(i).rob_tag
+      }
+
+      when(olderWrites && dec.rs2_read && olderDec.rd === dec.rs2) {
+        rs2Pending := true.B
+        rs2Tag     := robResp.in.lanes(i).rob_tag
+      }
+    }
 
     val dis     = dispatched.out.lanes(w)
     val issueOp = Wire(new FuReq)
@@ -78,6 +97,10 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
     issueOp.rs2_read := dec.rs2_read
     issueOp.rs1_data := rs1Bypassed
     issueOp.rs2_data := rs2Bypassed
+    issueOp.rs1_pending := dec.rs1_read && rs1Pending
+    issueOp.rs2_pending := dec.rs2_read && rs2Pending
+    issueOp.rs1_tag     := rs1Tag
+    issueOp.rs2_tag     := rs2Tag
     issueOp.rob_tag  := robResp.in.lanes(w).rob_tag
     issueOp.sq_idx   := robResp.in.lanes(w).sq_idx
     issueOp.sq_seq   := robResp.in.lanes(w).sq_seq
