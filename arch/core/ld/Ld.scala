@@ -107,15 +107,15 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
 
   private val acceptFire = fuReq.in.fire && !flush.in
 
-  private val fwdReqFromAccept  = acceptFire && acceptHasOlderStore
-  private val fwdReqFromRetry   = state === LdState.FWD_REQ && !flush.in
-  private val fwdReqUsingAccept = fwdReqFromAccept
+  // Forwarding requests use the registered load address. This breaks the
+  // completion -> scheduler wakeup -> load address -> store buffer path.
+  private val fwdReqActive = state === LdState.FWD_REQ && !flush.in
 
-  fwdReq.out.valid       := fwdReqFromAccept || fwdReqFromRetry
+  fwdReq.out.valid       := fwdReqActive
   fwdReq.out.bits        := 0.U.asTypeOf(new StoreForwardReq)
-  fwdReq.out.bits.sq_seq := Mux(fwdReqUsingAccept, fuReq.in.bits.sq_seq, uopReg.sq_seq)
-  fwdReq.out.bits.addr   := Mux(fwdReqUsingAccept, acceptAddr, addrReg)
-  fwdReq.out.bits.mask   := Mux(fwdReqUsingAccept, acceptLoadMask, loadMaskReg)
+  fwdReq.out.bits.sq_seq := uopReg.sq_seq
+  fwdReq.out.bits.addr   := addrReg
+  fwdReq.out.bits.mask   := loadMaskReg
 
   fwdResp.in.ready := state === LdState.FWD_RESP && !flush.in
 
@@ -251,7 +251,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
       fwdMaskReg      := 0.U
 
       when(acceptHasOlderStore) {
-        state := Mux(fwdReq.out.fire, LdState.FWD_RESP, LdState.FWD_REQ)
+        state := LdState.FWD_REQ
       }.otherwise {
         state := Mux(memReqFire, LdState.WAIT_MEM, LdState.MEM_REQ)
       }
