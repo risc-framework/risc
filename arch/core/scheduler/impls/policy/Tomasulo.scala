@@ -165,6 +165,7 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
       }
 
       for (f <- 0 until p(NumFUs)) {
+        val baseCandidates      = Wire(Vec(rsSize, Bool()))
         val candidates          = Wire(Vec(rsSize, Bool()))
         val oldest              = Wire(Vec(rsSize, Bool()))
         val isLoadUnit =
@@ -191,9 +192,10 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
             else
               operandsReady(i)
 
-          candidates(i) := entry.valid && issueOperandsReady && loadReady(i) && serializingReady(i) &&
-            entry.op.fu_type === p(FunctionalUnits)(f).`type`.index.U &&
-            !priorSameTypeIssued(i)
+          baseCandidates(i) := entry.valid && issueOperandsReady && loadReady(i) &&
+            serializingReady(i) &&
+            entry.op.fu_type === p(FunctionalUnits)(f).`type`.index.U
+          candidates(i) := baseCandidates(i) && !priorSameTypeIssued(i)
         }
 
         for (i <- 0 until rsSize) {
@@ -206,7 +208,16 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         }
 
         val selectOH = oldest.asUInt
-        val selected = candidates.asUInt.orR
+        val priorSameTypeAccepted = (0 until f)
+          .filter(prev => p(FunctionalUnits)(prev).`type` == p(FunctionalUnits)(f).`type`)
+          .map(prev => fuReq(prev).fire)
+        // A later same-type FU only needs to know whether enough candidates
+        // remain. Keep its valid path independent of the earlier FU's
+        // oldest-one-hot selection; the one-hot is still used to select bits.
+        val selected = if (priorSameTypeAccepted.nonEmpty)
+          PopCount(baseCandidates) > PopCount(VecInit(priorSameTypeAccepted))
+        else
+          baseCandidates.asUInt.orR
         val issueOp  = Wire(new FuReq)
 
         if (useRegisteredOperands)
