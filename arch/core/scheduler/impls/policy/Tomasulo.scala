@@ -234,7 +234,9 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
 
         issueOp.fu_id := f.U
 
-        fuReq(f).valid := selected && fuReq(f).ready
+        // Keep Decoupled valid independent of downstream ready. The actual
+        // issue and RS removal remain guarded by fire below.
+        fuReq(f).valid := selected
         fuReq(f).bits  := issueOp
         issuedMask(f)  := Mux(fuReq(f).fire, selectOH, 0.U)
       }
