@@ -263,17 +263,15 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     e := entries(i)
 
     when(drainedThis) {
-      e := zeroEntry
+      // Once valid is clear, the payload is unreachable and can remain stale.
+      // Avoid driving every payload register with the drain condition.
+      e.valid := false.B
     }.elsewhen(anyAlloc) {
       e.valid     := true.B
       e.committed := false.B
       e.addrValid := false.B
       e.fwdValid  := false.B
       e.seq       := allocSeq
-      e.addr      := 0.U
-      e.data      := 0.U
-      e.mask      := 0.U
-      e.cacheable := false.B
     }.otherwise {
       when(anyWrite) {
         e.addrValid := true.B
@@ -292,12 +290,15 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     afterOpsEntries(i) := e
   }
 
-  for (i <- 0 until p(StoreBufferSize))
+  for (i <- 0 until p(StoreBufferSize)) {
+    entries(i) := afterOpsEntries(i)
+
     when(flush.in && !(afterOpsEntries(i).valid && afterOpsEntries(i).committed)) {
-      entries(i) := zeroEntry
-    }.otherwise {
-      entries(i) := afterOpsEntries(i)
+      // A flushed speculative entry only needs to become unreachable. Keeping
+      // its payload removes globalFlush from every entry payload reset path.
+      entries(i).valid := false.B
     }
+  }
 
   head           := afterDrainHead
   tail           := Mux(flush.in, flushTail, normalTail)
