@@ -5,7 +5,7 @@ import arch.core.fupool.{ FuReq, FuResp, FunctionalUnitType }
 import arch.core.scheduler._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ Cat, DecoupledIO, Fill, Mux1H, PopCount, PriorityEncoderOH, log2Ceil }
+import chisel3.util.{ DecoupledIO, Mux1H, PopCount, PriorityEncoderOH, log2Ceil }
 
 private class ReservationStationEntry(implicit p: Parameters) extends Bundle {
   val valid        = Bool()
@@ -53,16 +53,9 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         (hit, data)
       }
 
-      def isMemory(op: FuReq): Bool = {
-        val opcode = op.instr(6, 0)
-        opcode === "b0000011".U || opcode === "b0100011".U
-      }
-
-      def memoryImmediate(op: FuReq): UInt = {
-        val loadImm  = Cat(Fill(p(XLen) - 12, op.instr(31)), op.instr(31, 20))
-        val storeImm = Cat(Fill(p(XLen) - 12, op.instr(31)), op.instr(31, 25), op.instr(11, 7))
-        Mux(op.instr(6, 0) === "b0100011".U, storeImm, loadImm)
-      }
+      def isMemory(op: FuReq): Bool =
+        op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD.index.U ||
+          op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U
 
       val entries         = RegInit(VecInit(Seq.fill(rsSize)(0.U.asTypeOf(new ReservationStationEntry))))
       val sequenceCounter = RegInit(0.U(seqW.W))
@@ -88,10 +81,10 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
           nextEntries(i).rs1Ready := true.B
           // Memory operations issue only after registered wakeup, so fold the
           // effective address while capturing the CDB value.
-          val memory = isMemory(entries(i).op)
+          val memory = !entries(i).addrPrepared
           nextEntries(i).op.rs1_data := Mux(
             memory,
-            rs1Data + memoryImmediate(entries(i).op),
+            rs1Data + entries(i).op.imm,
             rs1Data
           )
           nextEntries(i).op.imm      := Mux(memory, 0.U, entries(i).op.imm)
@@ -106,7 +99,7 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         // Ready memory operations spend one local RS cycle preparing their
         // address. This removes the adder from both dispatch and issue paths.
         when(entries(i).valid && entries(i).rs1Ready && !entries(i).addrPrepared) {
-          nextEntries(i).op.rs1_data := entries(i).op.rs1_data + memoryImmediate(entries(i).op)
+          nextEntries(i).op.rs1_data := entries(i).op.rs1_data + entries(i).op.imm
           nextEntries(i).op.imm      := 0.U
           nextEntries(i).addrPrepared := true.B
         }
