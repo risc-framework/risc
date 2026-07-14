@@ -11,7 +11,7 @@ import arch.core.regfile.RegfileWrite
 import arch.core.sb.{ StoreBufferAllocReq, StoreBufferAllocStatus }
 import vutils.graph.Node
 import chisel3._
-import chisel3.util.{ Cat, Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
+import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
 
 class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val dispatchReq       = inDVec[DispatchRobPacket](p => p(IssueWidth))
@@ -32,17 +32,20 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   private val SqIdxW = log2Ceil(p(StoreBufferSize))
   private val SqCntW = log2Ceil(p(StoreBufferSize) + 1)
 
-  private val buffer     = RegInit(VecInit(Seq.fill(p(RobSize))(0.U.asTypeOf(new RobEntry))))
-  private val headSelect = RegInit(1.U(p(RobSize).W))
-  private val tail       = RegInit(0.U(p(RobTagWidth).W))
-  private val count      = RegInit(0.U(CntW.W))
+  private val buffer = RegInit(VecInit(Seq.fill(p(RobSize))(0.U.asTypeOf(new RobEntry))))
+  private val head   = RegInit(0.U(p(RobTagWidth).W))
+  private val tail   = RegInit(0.U(p(RobTagWidth).W))
+  private val count  = RegInit(0.U(CntW.W))
 
   for (i <- 0 until p(NumFUs))
     fuDone.in.lanes(i).ready := true.B
 
   private def wrapAdd(x: UInt, y: UInt): UInt = {
     val sum = x +& y
-    Mux(sum >= p(RobSize).U, sum - p(RobSize).U, sum)(p(RobTagWidth) - 1, 0)
+    if ((p(RobSize) & (p(RobSize) - 1)) == 0)
+      sum(p(RobTagWidth) - 1, 0)
+    else
+      Mux(sum >= p(RobSize).U, sum - p(RobSize).U, sum)(p(RobTagWidth) - 1, 0)
   }
 
   private def wrapSqAdd(x: UInt, y: UInt): UInt = {
@@ -50,13 +53,12 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     Mux(sum >= p(StoreBufferSize).U, sum - p(StoreBufferSize).U, sum)(SqIdxW - 1, 0)
   }
 
-  private def rotateHeadSelect(x: UInt, distance: Int): UInt =
-    if (distance == 0) x
-    else Cat(x(p(RobSize) - distance - 1, 0), x(p(RobSize) - 1, p(RobSize) - distance))
-
   private def indexFromNewest(distance: Int): UInt = {
     val sub = distance + 1
-    Mux(tail >= sub.U, tail - sub.U, tail + p(RobSize).U - sub.U)(p(RobTagWidth) - 1, 0)
+    if ((p(RobSize) & (p(RobSize) - 1)) == 0)
+      (tail - sub.U)(p(RobTagWidth) - 1, 0)
+    else
+      Mux(tail >= sub.U, tail - sub.U, tail + p(RobSize).U - sub.U)(p(RobTagWidth) - 1, 0)
   }
 
   private def bypassNewest(rs: UInt): (Bool, UInt, Bool, UInt) = {
@@ -131,16 +133,16 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     }
 
   private val commitPrefix = Wire(Vec(p(CommitWidth) + 1, Bool()))
-  private val commitSelect = Wire(Vec(p(CommitWidth), UInt(p(RobSize).W)))
+  private val commitIndex  = Wire(Vec(p(CommitWidth), UInt(p(RobTagWidth).W)))
   private val commitInfo   = Wire(Vec(p(CommitWidth), new RobCommitInfo))
   private val commitPops   = Wire(Vec(p(CommitWidth), Bool()))
 
   commitPrefix(0) := true.B
 
   for (w <- 0 until p(CommitWidth)) {
-    commitSelect(w) := rotateHeadSelect(headSelect, w)
+    commitIndex(w) := wrapAdd(head, w.U)
 
-    val entry       = Mux1H(commitSelect(w), buffer)
+    val entry       = buffer(commitIndex(w))
     val hasEntry    = count > w.U
     val committable = hasEntry && entry.valid && entry.ready && commitPrefix(w)
 
@@ -227,7 +229,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
 
   for (i <- 0 until p(RobSize)) {
     val retireEntry = (0 until p(CommitWidth))
-      .map(w => commitPops(w) && commitSelect(w)(i))
+      .map(w => commitPops(w) && commitIndex(w) === i.U)
       .reduce(_ || _)
 
     when(retireEntry) {
@@ -266,18 +268,14 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       buffer(idx).sync_kind      := 0.U
     }
 
-  private val nextHeadSelect = (1 to p(CommitWidth)).foldLeft(headSelect) { (next, distance) =>
-    Mux(commitCount === distance.U, rotateHeadSelect(headSelect, distance), next)
-  }
-
-  headSelect := nextHeadSelect
-  tail       := wrapAdd(tail, enqCount)
-  count      := count + enqCount - commitCount
+  head  := wrapAdd(head, commitCount)
+  tail  := wrapAdd(tail, enqCount)
+  count := count + enqCount - commitCount
 
   when(flush.in) {
-    headSelect := 1.U
-    tail       := 0.U
-    count      := 0.U
+    head  := 0.U
+    tail  := 0.U
+    count := 0.U
 
     for (i <- 0 until p(RobSize))
       buffer(i).valid := false.B
@@ -357,7 +355,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     .reduce(_ || _)
   debug.out.empty          := count === 0.U
 
-  private val headEntry = Mux1H(headSelect, buffer)
+  private val headEntry = buffer(head)
   private val headValid = count =/= 0.U && headEntry.valid
 
   debug.out.head_not_ready := headValid && !headEntry.ready

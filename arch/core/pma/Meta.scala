@@ -28,9 +28,26 @@ trait PmaModeImpl extends PmaDims.MODE.Impl {
         }
     }
 
+    def rangeHit(base: Long, end: Long): Bool = {
+      val size       = end - base
+      val powerOfTwo = size > 0 && (size & (size - 1)) == 0
+      val aligned    = powerOfTwo && (base & (size - 1)) == 0
+
+      if (aligned) {
+        val offsetBits = java.lang.Long.numberOfTrailingZeros(size)
+        if (offsetBits >= p(XLen))
+          true.B
+        else
+          addr(p(XLen) - 1, offsetBits) ===
+            (base >>> offsetBits).U((p(XLen) - offsetBits).W)
+      } else {
+        addr >= base.U(p(XLen).W) && addr < end.U(p(XLen).W)
+      }
+    }
+
     def anyHit(deviceType: DeviceType): Bool = {
       val xs = mergedRanges(deviceType).map { case (base, end) =>
-        (addr >= base.U(p(XLen).W)) && (addr < end.U(p(XLen).W))
+        rangeHit(base, end)
       }
       if (xs.isEmpty) false.B else xs.reduce(_ || _)
     }

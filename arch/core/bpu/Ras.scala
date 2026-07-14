@@ -2,7 +2,7 @@ package arch.core.bpu
 
 import arch.configs._
 import chisel3._
-import chisel3.util.{ isPow2, log2Ceil }
+import chisel3.util.{ UIntToOH, isPow2, log2Ceil }
 import vutils.graph.Node
 
 class RasReq(implicit p: Parameters) extends Bundle {
@@ -28,16 +28,29 @@ class Ras(implicit p: Parameters) extends Node[Parameters]("ras") {
 
   private val commitStack = RegInit(VecInit(Seq.fill(p(RasSize))(0.U(p(XLen).W))))
   private val specStack   = RegInit(VecInit(Seq.fill(p(RasSize))(0.U(p(XLen).W))))
+  // An unmarked entry is read directly from the committed stack. Recovery can
+  // then discard speculative contents by clearing this bitmap, without copying
+  // the complete committed stack into specStack on the recovery path.
+  private val specDirty   = RegInit(0.U(p(RasSize).W))
   private val commitSp    = RegInit(0.U(ptrW.W))
   private val specSp      = RegInit(0.U(ptrW.W))
   private val commitCount = RegInit(0.U(log2Ceil(p(RasSize) + 1).W))
   private val specCount   = RegInit(0.U(log2Ceil(p(RasSize) + 1).W))
 
-  private def inc(ptr: UInt): UInt =
-    Mux(ptr === (p(RasSize) - 1).U, 0.U, ptr + 1.U)(ptrW - 1, 0)
+  private def inc(ptr: UInt): UInt = {
+    if (p(RasSize) == 1) 0.U(ptrW.W)
+    else (ptr + 1.U)(ptrW - 1, 0)
+  }
 
-  private def dec(ptr: UInt): UInt =
-    Mux(ptr === 0.U, (p(RasSize) - 1).U, ptr - 1.U)(ptrW - 1, 0)
+  private def dec(ptr: UInt): UInt = {
+    if (p(RasSize) == 1) 0.U(ptrW.W)
+    else (ptr - 1.U)(ptrW - 1, 0)
+  }
+
+  private def changesRas(kind: UInt): Bool =
+    kind === BpuBranchKind.CALL ||
+      kind === BpuBranchKind.RET ||
+      kind === BpuBranchKind.CALL_RET
 
   private def applyOp(
     stackNext: Vec[UInt],
@@ -54,12 +67,14 @@ class Ras(implicit p: Parameters) extends Node[Parameters]("ras") {
       nextSp     := inc(sp)
       nextCount  := Mux(count === p(RasSize).U, count, count + 1.U)
     }.elsewhen(kind === BpuBranchKind.CALL_RET) {
-      val popSp    = Mux(count =/= 0.U, dec(sp), sp)
-      val popCount = Mux(count =/= 0.U, count - 1.U, count)
-
-      stackNext(popSp) := pushAddr
-      nextSp     := inc(popSp)
-      nextCount  := Mux(popCount === p(RasSize).U, popCount, popCount + 1.U)
+      when(count === 0.U) {
+        stackNext(sp) := pushAddr
+        nextSp        := inc(sp)
+        nextCount     := 1.U
+      }.otherwise {
+        // Replacing the popped top immediately pushes back to the same depth.
+        stackNext(dec(sp)) := pushAddr
+      }
     }.elsewhen(kind === BpuBranchKind.RET) {
       when(count =/= 0.U) {
         nextSp    := dec(sp)
@@ -73,14 +88,13 @@ class Ras(implicit p: Parameters) extends Node[Parameters]("ras") {
   private val topPtr = dec(specSp)
 
   resp.out.valid  := specCount =/= 0.U
-  resp.out.target := Mux(resp.out.valid, specStack(topPtr), 0.U)
+  private val topTarget = Mux(specDirty(topPtr), specStack(topPtr), commitStack(topPtr))
+  resp.out.target := Mux(resp.out.valid, topTarget, 0.U)
 
   private val commitPushAddr = req.in.update.pc + p(PCStep).U(p(XLen).W)
-  private val doCommitOp     = req.in.update.valid && req.in.update.taken
-  private val doSpecOp       = req.in.accept &&
-    (req.in.predictKind === BpuBranchKind.CALL ||
-      req.in.predictKind === BpuBranchKind.RET ||
-      req.in.predictKind === BpuBranchKind.CALL_RET)
+  private val doCommitOp = req.in.update.valid && req.in.update.taken &&
+    changesRas(req.in.update.branch_kind)
+  private val doSpecOp = req.in.accept && changesRas(req.in.predictKind)
 
   private val commitStackNext = WireDefault(commitStack)
   private val commitNextSp    = WireDefault(commitSp)
@@ -100,17 +114,10 @@ class Ras(implicit p: Parameters) extends Node[Parameters]("ras") {
   }
 
   private val restoreSpec = req.in.flush || (req.in.update.valid && req.in.update.mispredict)
-  private val specBaseStack = WireDefault(specStack)
-  private val specBaseSp    = WireDefault(specSp)
-  private val specBaseCount = WireDefault(specCount)
+  private val specBaseSp    = Mux(restoreSpec, commitNextSp, specSp)
+  private val specBaseCount = Mux(restoreSpec, commitNextCount, specCount)
 
-  when(restoreSpec) {
-    specBaseStack := commitStackNext
-    specBaseSp    := commitNextSp
-    specBaseCount := commitNextCount
-  }
-
-  private val specStackNext = WireDefault(specBaseStack)
+  private val specStackNext = WireDefault(specStack)
   private val specNextSp    = WireDefault(specBaseSp)
   private val specNextCount = WireDefault(specBaseCount)
 
@@ -121,11 +128,26 @@ class Ras(implicit p: Parameters) extends Node[Parameters]("ras") {
     specNextCount := next._2
   }
 
+  private val specWritesEntry = doSpecOp &&
+    (req.in.predictKind === BpuBranchKind.CALL || req.in.predictKind === BpuBranchKind.CALL_RET)
+  private val specWriteIndex = Mux(
+    req.in.predictKind === BpuBranchKind.CALL_RET && specBaseCount =/= 0.U,
+    dec(specBaseSp),
+    specBaseSp
+  )
+  private val specDirtyBase = Mux(restoreSpec, 0.U(p(RasSize).W), specDirty)
+  private val specDirtyNext = Mux(
+    specWritesEntry,
+    specDirtyBase | UIntToOH(specWriteIndex, p(RasSize)),
+    specDirtyBase
+  )
+
   commitStack := commitStackNext
   commitSp    := commitNextSp
   commitCount := commitNextCount
 
   specStack := specStackNext
+  specDirty := specDirtyNext
   specSp    := specNextSp
   specCount := specNextCount
 }

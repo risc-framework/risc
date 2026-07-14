@@ -5,14 +5,15 @@ import arch.core.fupool.{ FuReq, FuResp, FunctionalUnitType }
 import arch.core.scheduler._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ DecoupledIO, Mux1H, PopCount, PriorityEncoderOH, log2Ceil }
+import chisel3.util.{ Cat, DecoupledIO, Fill, Mux1H, PopCount, PriorityEncoderOH, log2Ceil }
 
 private class ReservationStationEntry(implicit p: Parameters) extends Bundle {
-  val valid    = Bool()
-  val sequence = UInt(log2Ceil(2 * p(RobSize)).W)
-  val op       = new FuReq
-  val rs1Ready = Bool()
-  val rs2Ready = Bool()
+  val valid        = Bool()
+  val sequence     = UInt(log2Ceil(2 * p(RobSize)).W)
+  val op           = new FuReq
+  val rs1Ready     = Bool()
+  val rs2Ready     = Bool()
+  val addrPrepared = Bool()
 }
 
 object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
@@ -52,6 +53,17 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         (hit, data)
       }
 
+      def isMemory(op: FuReq): Bool = {
+        val opcode = op.instr(6, 0)
+        opcode === "b0000011".U || opcode === "b0100011".U
+      }
+
+      def memoryImmediate(op: FuReq): UInt = {
+        val loadImm  = Cat(Fill(p(XLen) - 12, op.instr(31)), op.instr(31, 20))
+        val storeImm = Cat(Fill(p(XLen) - 12, op.instr(31)), op.instr(31, 25), op.instr(11, 7))
+        Mux(op.instr(6, 0) === "b0100011".U, storeImm, loadImm)
+      }
+
       val entries         = RegInit(VecInit(Seq.fill(rsSize)(0.U.asTypeOf(new ReservationStationEntry))))
       val sequenceCounter = RegInit(0.U(seqW.W))
       val nextEntries     = WireDefault(entries)
@@ -73,13 +85,30 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         rs2Wake(i)     := entries(i).valid && !entries(i).rs2Ready && rs2Hit
 
         when(rs1Wake(i)) {
-          nextEntries(i).rs1Ready   := true.B
-          nextEntries(i).op.rs1_data := rs1Data
+          nextEntries(i).rs1Ready := true.B
+          // Memory operations issue only after registered wakeup, so fold the
+          // effective address while capturing the CDB value.
+          val memory = isMemory(entries(i).op)
+          nextEntries(i).op.rs1_data := Mux(
+            memory,
+            rs1Data + memoryImmediate(entries(i).op),
+            rs1Data
+          )
+          nextEntries(i).op.imm      := Mux(memory, 0.U, entries(i).op.imm)
+          nextEntries(i).addrPrepared := true.B
         }
 
         when(rs2Wake(i)) {
           nextEntries(i).rs2Ready   := true.B
           nextEntries(i).op.rs2_data := rs2Data
+        }
+
+        // Ready memory operations spend one local RS cycle preparing their
+        // address. This removes the adder from both dispatch and issue paths.
+        when(entries(i).valid && entries(i).rs1Ready && !entries(i).addrPrepared) {
+          nextEntries(i).op.rs1_data := entries(i).op.rs1_data + memoryImmediate(entries(i).op)
+          nextEntries(i).op.imm      := 0.U
+          nextEntries(i).addrPrepared := true.B
         }
 
         issueEntries(i)             := entries(i).op
@@ -89,6 +118,7 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
 
       val issuedMask       = Wire(Vec(p(NumFUs), UInt(rsSize.W)))
       val older            = Wire(Vec(rsSize, Vec(rsSize, Bool())))
+      val registeredReady  = Wire(Vec(rsSize, Bool()))
       val operandsReady    = Wire(Vec(rsSize, Bool()))
       val loadReady        = Wire(Vec(rsSize, Bool()))
       val serializingReady = Wire(Vec(rsSize, Bool()))
@@ -122,6 +152,7 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
             entries(j).op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR.index.U)
           .reduce(_ || _)
 
+        registeredReady(i) := entry.rs1Ready && entry.rs2Ready
         operandsReady(i) := (entry.rs1Ready || rs1Wake(i)) &&
           (entry.rs2Ready || rs2Wake(i))
         loadReady(i) := entry.op.fu_type =/= FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD.index.U ||
@@ -136,6 +167,14 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
       for (f <- 0 until p(NumFUs)) {
         val candidates          = Wire(Vec(rsSize, Bool()))
         val oldest              = Wire(Vec(rsSize, Bool()))
+        val isLoadUnit =
+          p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD
+        val isStoreUnit =
+          p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST
+        val isMemoryUnit = isLoadUnit || isStoreUnit
+        val useRegisteredOperands =
+          isMemoryUnit ||
+            p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV
         val priorSameTypeIssued = (0 until f)
           .filter(prev => p(FunctionalUnits)(prev).`type` == p(FunctionalUnits)(f).`type`)
           .map(prev => issuedMask(prev))
@@ -144,7 +183,15 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
 
         for (i <- 0 until rsSize) {
           val entry = entries(i)
-          candidates(i) := entry.valid && operandsReady(i) && loadReady(i) && serializingReady(i) &&
+          // Loads and divides issue only from operands captured in the RS on a
+          // previous cycle, cutting their same-cycle CDB paths.
+          val issueOperandsReady =
+            if (useRegisteredOperands)
+              registeredReady(i) && (if (isMemoryUnit) entry.addrPrepared else true.B)
+            else
+              operandsReady(i)
+
+          candidates(i) := entry.valid && issueOperandsReady && loadReady(i) && serializingReady(i) &&
             entry.op.fu_type === p(FunctionalUnits)(f).`type`.index.U &&
             !priorSameTypeIssued(i)
         }
@@ -162,7 +209,14 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         val selected = candidates.asUInt.orR
         val issueOp  = Wire(new FuReq)
 
-        issueOp       := Mux1H(selectOH, issueEntries)
+        if (useRegisteredOperands)
+          issueOp := Mux1H(selectOH, entries.map(_.op))
+        else
+          issueOp := Mux1H(selectOH, issueEntries)
+
+        if (isMemoryUnit)
+          issueOp.imm := 0.U
+
         issueOp.fu_id := f.U
 
         fuReq(f).valid := selected && fuReq(f).ready
@@ -201,14 +255,19 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
 
         for (i <- 0 until rsSize)
           when(consumed(w) && allocOH(w)(i)) {
+            val dispatchRs1 = Mux(rs1Wake, rs1Data, dispatched(w).bits.rs1_data)
+            val memory = isMemory(dispatched(w).bits)
+            val rs1Ready = !dispatched(w).bits.rs1_pending || rs1Wake
+
             nextEntries(i)             := 0.U.asTypeOf(new ReservationStationEntry)
             nextEntries(i).valid       := true.B
             nextEntries(i).sequence    := sequenceCounter +
               (if (w == 0) 0.U else PopCount(consumed.take(w)))
             nextEntries(i).op          := dispatched(w).bits
-            nextEntries(i).rs1Ready    := !dispatched(w).bits.rs1_pending || rs1Wake
+            nextEntries(i).rs1Ready    := rs1Ready
             nextEntries(i).rs2Ready    := !dispatched(w).bits.rs2_pending || rs2Wake
-            nextEntries(i).op.rs1_data := Mux(rs1Wake, rs1Data, dispatched(w).bits.rs1_data)
+            nextEntries(i).addrPrepared := !memory
+            nextEntries(i).op.rs1_data := dispatchRs1
             nextEntries(i).op.rs2_data := Mux(rs2Wake, rs2Data, dispatched(w).bits.rs2_data)
           }
       }

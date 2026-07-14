@@ -4,6 +4,7 @@ import arch.configs._
 import arch.core.bpu.BpuBranchKind
 import arch.core.decode._
 import chisel3._
+import chisel3.util.log2Ceil
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 
 object DecodeTableKind extends RegisteredNodeUtils[DecodeKindImpl] {
@@ -16,9 +17,12 @@ object DecodeTableKind extends RegisteredNodeUtils[DecodeKindImpl] {
       val out     = WireDefault(0.U.asTypeOf(new DecodedPacket))
       val decoded = DecodeLogic(in.instr, isa.default, isa.table)
 
-      val rs1 = isa.reg(decoded(8), in.instr)
-      val rs2 = isa.reg(decoded(9), in.instr)
-      val rd  = isa.reg(decoded(10), in.instr)
+      val regW = log2Ceil(p(NumArchRegs))
+      // RISC-V register fields are fixed. Their decoded read/write enables
+      // already suppress unused operands, so selectors only add mux depth.
+      val rs1 = in.instr(15 + regW - 1, 15)
+      val rs2 = in.instr(20 + regW - 1, 20)
+      val rd  = in.instr(7 + regW - 1, 7)
       val imm = isa.imm(decoded(11), in.instr)
 
       val opcode = in.instr(6, 0)
