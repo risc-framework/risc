@@ -13,7 +13,6 @@ private class ReservationStationEntry(implicit p: Parameters) extends Bundle {
   val op           = new FuReq
   val rs1Ready     = Bool()
   val rs2Ready     = Bool()
-  val addrPrepared = Bool()
 }
 
 object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
@@ -53,10 +52,6 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         (hit, data)
       }
 
-      def isMemory(op: FuReq): Bool =
-        op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD.index.U ||
-          op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U
-
       val entries         = RegInit(VecInit(Seq.fill(rsSize)(0.U.asTypeOf(new ReservationStationEntry))))
       val sequenceCounter = RegInit(0.U(seqW.W))
       val nextEntries     = WireDefault(entries)
@@ -78,30 +73,13 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         rs2Wake(i)     := entries(i).valid && !entries(i).rs2Ready && rs2Hit
 
         when(rs1Wake(i)) {
-          nextEntries(i).rs1Ready := true.B
-          // Memory operations issue only after registered wakeup, so fold the
-          // effective address while capturing the CDB value.
-          val memory = !entries(i).addrPrepared
-          nextEntries(i).op.rs1_data := Mux(
-            memory,
-            rs1Data + entries(i).op.imm,
-            rs1Data
-          )
-          nextEntries(i).op.imm      := Mux(memory, 0.U, entries(i).op.imm)
-          nextEntries(i).addrPrepared := true.B
+          nextEntries(i).rs1Ready    := true.B
+          nextEntries(i).op.rs1_data := rs1Data
         }
 
         when(rs2Wake(i)) {
           nextEntries(i).rs2Ready   := true.B
           nextEntries(i).op.rs2_data := rs2Data
-        }
-
-        // Ready memory operations spend one local RS cycle preparing their
-        // address. This removes the adder from both dispatch and issue paths.
-        when(entries(i).valid && entries(i).rs1Ready && !entries(i).addrPrepared) {
-          nextEntries(i).op.rs1_data := entries(i).op.rs1_data + entries(i).op.imm
-          nextEntries(i).op.imm      := 0.U
-          nextEntries(i).addrPrepared := true.B
         }
 
         issueEntries(i)             := entries(i).op
@@ -173,11 +151,11 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
 
         for (i <- 0 until rsSize) {
           val entry = entries(i)
-          // Loads and divides issue only from operands captured in the RS on a
-          // previous cycle, cutting their same-cycle CDB paths.
+          // Memory operations and divides issue only from operands captured in
+          // the RS on a previous cycle, cutting their same-cycle CDB paths.
           val issueOperandsReady =
             if (useRegisteredOperands)
-              registeredReady(i) && (if (isMemoryUnit) entry.addrPrepared else true.B)
+              registeredReady(i)
             else
               operandsReady(i)
 
@@ -229,9 +207,6 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         else
           issueOp := Mux1H(selectOH, issueEntries)
 
-        if (isMemoryUnit)
-          issueOp.imm := 0.U
-
         issueOp.fu_id := f.U
 
         // Keep Decoupled valid independent of downstream ready. The actual
@@ -273,7 +248,6 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         for (i <- 0 until rsSize)
           when(consumed(w) && allocOH(w)(i)) {
             val dispatchRs1 = Mux(rs1Wake, rs1Data, dispatched(w).bits.rs1_data)
-            val memory = isMemory(dispatched(w).bits)
             val rs1Ready = !dispatched(w).bits.rs1_pending || rs1Wake
 
             nextEntries(i)             := 0.U.asTypeOf(new ReservationStationEntry)
@@ -283,7 +257,6 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
             nextEntries(i).op          := dispatched(w).bits
             nextEntries(i).rs1Ready    := rs1Ready
             nextEntries(i).rs2Ready    := !dispatched(w).bits.rs2_pending || rs2Wake
-            nextEntries(i).addrPrepared := !memory
             nextEntries(i).op.rs1_data := dispatchRs1
             nextEntries(i).op.rs2_data := Mux(rs2Wake, rs2Data, dispatched(w).bits.rs2_data)
           }
