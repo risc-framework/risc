@@ -52,7 +52,8 @@ class Bpu(implicit p: Parameters) extends Node[Parameters]("bpu") {
     val rasTarget =
       (kind === BpuBranchKind.RET || kind === BpuBranchKind.CALL_RET) && ras.resp.out.valid
 
-    ifuResp.out.taken(w) := rawTaken(w) && !killedByOlderTaken(w)
+    ifuResp.out.btb_hit(w) := btb.queryResp.out.hit(w) && !killedByOlderTaken(w)
+    ifuResp.out.taken(w)   := rawTaken(w) && !killedByOlderTaken(w)
 
     ifuResp.out.target(w) := Mux(
       ifuResp.out.taken(w),

@@ -79,6 +79,11 @@ public:
                      static_cast<double>(_bpu_mispredicts) / _branches_committed
                : 0.0;
   }
+  [[nodiscard]] auto bpu_miss_share(uint64_t misses) const noexcept -> double {
+    return _bpu_mispredicts > 0
+               ? static_cast<double>(misses) / _bpu_mispredicts
+               : 0.0;
+  }
   [[nodiscard]] auto issue_rate() const noexcept -> double {
     return dut_->debug_cycle_count > 0
                ? static_cast<double>(_issue_count) / dut_->debug_cycle_count
@@ -138,6 +143,12 @@ protected:
   // Advanced Pipeline Profiling
   uint64_t _bpu_mispredicts{0};
   uint64_t _branches_committed{0};
+  uint64_t _bpu_miss_btb{0};
+  uint64_t _bpu_miss_direction{0};
+  uint64_t _bpu_miss_btb_target{0};
+  uint64_t _bpu_miss_ras_target{0};
+  uint64_t _bpu_miss_false_hit{0};
+  uint64_t _bpu_miss_other{0};
   uint64_t _flush_cycles{0};
   uint64_t _rob_empty_cycles{0};
   uint64_t _issue_count{0};

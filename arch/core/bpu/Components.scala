@@ -63,6 +63,7 @@ class BpuIfuReq(implicit p: Parameters) extends Bundle {
 }
 
 class BpuIfuResp(implicit p: Parameters) extends Bundle {
+  val btb_hit      = Vec(p(IssueWidth), Bool())
   val taken        = Vec(p(IssueWidth), Bool())
   val target       = Vec(p(IssueWidth), UInt(p(XLen).W))
   val pht_index    = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))

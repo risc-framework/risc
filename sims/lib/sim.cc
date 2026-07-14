@@ -154,6 +154,12 @@ void DemuSimulator::reset() {
 
   _bpu_mispredicts = 0;
   _branches_committed = 0;
+  _bpu_miss_btb = 0;
+  _bpu_miss_direction = 0;
+  _bpu_miss_btb_target = 0;
+  _bpu_miss_ras_target = 0;
+  _bpu_miss_false_hit = 0;
+  _bpu_miss_other = 0;
   _flush_cycles = 0;
   _rob_empty_cycles = 0;
   _issue_count = 0;
@@ -233,6 +239,18 @@ void DemuSimulator::run(uint64_t max_cycles) {
   DEMU_INFO("--- Pipeline Profiling ---");
   DEMU_INFO("  BPU Hit Rate:       {:.2f} % ({} misses / {} branches)",
             bpu_hit_rate() * 100, _bpu_mispredicts, _branches_committed);
+  DEMU_INFO("    BTB miss:          {:6} ({:.2f} % of misses)",
+            _bpu_miss_btb, bpu_miss_share(_bpu_miss_btb) * 100);
+  DEMU_INFO("    direction miss:    {:6} ({:.2f} % of misses)",
+            _bpu_miss_direction, bpu_miss_share(_bpu_miss_direction) * 100);
+  DEMU_INFO("    BTB target miss:   {:6} ({:.2f} % of misses)",
+            _bpu_miss_btb_target, bpu_miss_share(_bpu_miss_btb_target) * 100);
+  DEMU_INFO("    RAS target miss:   {:6} ({:.2f} % of misses)",
+            _bpu_miss_ras_target, bpu_miss_share(_bpu_miss_ras_target) * 100);
+  DEMU_INFO("    BTB false hit:     {:6} ({:.2f} % of misses)",
+            _bpu_miss_false_hit, bpu_miss_share(_bpu_miss_false_hit) * 100);
+  DEMU_INFO("    other:             {:6} ({:.2f} % of misses)",
+            _bpu_miss_other, bpu_miss_share(_bpu_miss_other) * 100);
   DEMU_INFO("  Issue Rate:         {:.3f} uOps/cycle", issue_rate());
   DEMU_INFO("  Frontend Starved:   {:.2f} % of cycles (ROB Empty)",
             frontend_starvation_rate() * 100);
@@ -385,6 +403,16 @@ void DemuSimulator::handle_cache_profiling() {
 void DemuSimulator::handle_performance_profiling() {
   _bpu_mispredicts += static_cast<uint64_t>(dut_->debug_bpu_mispredict);
   _branches_committed += static_cast<uint64_t>(dut_->debug_branch_commit);
+  _bpu_miss_btb += static_cast<uint64_t>(dut_->debug_bpu_miss_btb);
+  _bpu_miss_direction +=
+      static_cast<uint64_t>(dut_->debug_bpu_miss_direction);
+  _bpu_miss_btb_target +=
+      static_cast<uint64_t>(dut_->debug_bpu_miss_btb_target);
+  _bpu_miss_ras_target +=
+      static_cast<uint64_t>(dut_->debug_bpu_miss_ras_target);
+  _bpu_miss_false_hit +=
+      static_cast<uint64_t>(dut_->debug_bpu_miss_false_hit);
+  _bpu_miss_other += static_cast<uint64_t>(dut_->debug_bpu_miss_other);
   _flush_cycles += static_cast<uint64_t>(dut_->debug_flush_cycle);
   _rob_empty_cycles += static_cast<uint64_t>(dut_->debug_rob_empty);
   _issue_count += static_cast<uint64_t>(dut_->debug_issue_count);

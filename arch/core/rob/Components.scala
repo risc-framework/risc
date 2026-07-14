@@ -37,6 +37,12 @@ class RobDebugInfo(implicit p: Parameters) extends Bundle {
   val commit_count   = UInt(log2Ceil(p(CommitWidth) + 1).W)
   val branch_commit  = UInt(log2Ceil(p(CommitWidth) + 1).W)
   val bpu_mispredict = Bool()
+  val bpu_miss_btb        = Bool()
+  val bpu_miss_direction  = Bool()
+  val bpu_miss_btb_target = Bool()
+  val bpu_miss_ras_target = Bool()
+  val bpu_miss_false_hit  = Bool()
+  val bpu_miss_other      = Bool()
   val empty          = Bool()
   val head_not_ready = Bool()
   val head_fu_type   = UInt(p(FuTypeWidth).W)
@@ -65,6 +71,7 @@ class RobEntry(implicit p: Parameters) extends Bundle {
   val is_store       = Bool()
   val commit_barrier = Bool()
 
+  val btb_hit       = Bool()
   val pred_taken    = Bool()
   val pred_target   = UInt(p(XLen).W)
   val pht_index     = UInt(p(GShareGhrWidth).W)
@@ -97,6 +104,7 @@ class RobCommitInfo(implicit p: Parameters) extends Bundle {
   val is_store       = Bool()
   val commit_barrier = Bool()
 
+  val bpu_btb_hit       = Bool()
   val bpu_pred_taken    = Bool()
   val bpu_pred_target   = UInt(p(XLen).W)
   val bpu_actual_taken  = Bool()

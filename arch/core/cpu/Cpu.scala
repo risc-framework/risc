@@ -152,6 +152,12 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   debug.out.flush_cycle    := flush.globalFlush.out
   debug.out.bpu_mispredict := rob.debug.out.bpu_mispredict
   debug.out.branch_commit  := rob.debug.out.branch_commit
+  debug.out.bpu_miss_btb        := rob.debug.out.bpu_miss_btb
+  debug.out.bpu_miss_direction  := rob.debug.out.bpu_miss_direction
+  debug.out.bpu_miss_btb_target := rob.debug.out.bpu_miss_btb_target
+  debug.out.bpu_miss_ras_target := rob.debug.out.bpu_miss_ras_target
+  debug.out.bpu_miss_false_hit  := rob.debug.out.bpu_miss_false_hit
+  debug.out.bpu_miss_other      := rob.debug.out.bpu_miss_other
   debug.out.rob_empty      := rob.debug.out.empty
   debug.out.issue_count    := PopCount(
     Seq.tabulate(p(IssueWidth))(w => dispatch.dispatched.out.lanes(w).fire)

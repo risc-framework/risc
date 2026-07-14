@@ -1,7 +1,7 @@
 package arch.core.rob
 
 import arch.configs._
-import arch.core.bpu.BpuUpdate
+import arch.core.bpu.{ BpuBranchKind, BpuUpdate }
 import arch.core.ifu.RedirectInfo
 import arch.core.bru.BruResolveBundle
 import arch.core.dispatch.{ DispatchRobPacket, DispatchRobResp }
@@ -156,6 +156,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     commitInfo(w).is_branch         := entry.is_branch
     commitInfo(w).is_store          := entry.is_store
     commitInfo(w).commit_barrier    := entry.commit_barrier
+    commitInfo(w).bpu_btb_hit       := entry.btb_hit
     commitInfo(w).bpu_pred_taken    := entry.pred_taken
     commitInfo(w).bpu_pred_target   := entry.pred_target
     commitInfo(w).bpu_actual_taken  := entry.actual_taken
@@ -254,6 +255,7 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       buffer(idx).is_branch      := dec.isBru
       buffer(idx).is_store       := dec.isStore
       buffer(idx).commit_barrier := dec.commit_barrier
+      buffer(idx).btb_hit        := dec.bpu_btb_hit
       buffer(idx).pred_taken     := dec.bpu_pred_taken
       buffer(idx).pred_target    := dec.bpu_pred_target
       buffer(idx).pht_index      := dec.bpu_pht_index
@@ -353,6 +355,50 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       commitPops(w) && !lane.sync_valid && (lane.is_branch || (!lane.is_branch && lane.bpu_pred_taken)) && lane.flush_pipeline
     })
     .reduce(_ || _)
+
+  private val bpuMissBtb = (0 until p(CommitWidth)).map { w =>
+    val lane = commitInfo(w)
+    commitPops(w) && !lane.sync_valid && lane.flush_pipeline && lane.is_branch &&
+      lane.bpu_actual_taken && !lane.bpu_btb_hit
+  }
+  private val bpuMissDirection = (0 until p(CommitWidth)).map { w =>
+    val lane = commitInfo(w)
+    commitPops(w) && !lane.sync_valid && lane.flush_pipeline && lane.is_branch &&
+      lane.bpu_btb_hit && lane.bpu_branch_kind === BpuBranchKind.BRANCH &&
+      lane.bpu_pred_taken =/= lane.bpu_actual_taken
+  }
+  private val bpuMissTarget = (0 until p(CommitWidth)).map { w =>
+    val lane = commitInfo(w)
+    commitPops(w) && !lane.sync_valid && lane.flush_pipeline && lane.is_branch &&
+      lane.bpu_btb_hit && lane.bpu_pred_taken && lane.bpu_actual_taken &&
+      lane.bpu_pred_target =/= lane.bpu_actual_target
+  }
+  private val bpuMissRasTarget = (0 until p(CommitWidth)).map { w =>
+    val lane = commitInfo(w)
+    bpuMissTarget(w) &&
+      (lane.bpu_branch_kind === BpuBranchKind.RET || lane.bpu_branch_kind === BpuBranchKind.CALL_RET)
+  }
+  private val bpuMissBtbTarget = (0 until p(CommitWidth)).map { w =>
+    bpuMissTarget(w) && !bpuMissRasTarget(w)
+  }
+  private val bpuMissFalseHit = (0 until p(CommitWidth)).map { w =>
+    val lane = commitInfo(w)
+    commitPops(w) && !lane.sync_valid && lane.flush_pipeline && !lane.is_branch && lane.bpu_pred_taken
+  }
+  private val bpuMissOther = (0 until p(CommitWidth)).map { w =>
+    val classified = bpuMissBtb(w) || bpuMissDirection(w) || bpuMissBtbTarget(w) ||
+      bpuMissRasTarget(w) || bpuMissFalseHit(w)
+    val lane = commitInfo(w)
+    commitPops(w) && !lane.sync_valid && lane.flush_pipeline &&
+      (lane.is_branch || lane.bpu_pred_taken) && !classified
+  }
+
+  debug.out.bpu_miss_btb        := bpuMissBtb.reduce(_ || _)
+  debug.out.bpu_miss_direction  := bpuMissDirection.reduce(_ || _)
+  debug.out.bpu_miss_btb_target := bpuMissBtbTarget.reduce(_ || _)
+  debug.out.bpu_miss_ras_target := bpuMissRasTarget.reduce(_ || _)
+  debug.out.bpu_miss_false_hit  := bpuMissFalseHit.reduce(_ || _)
+  debug.out.bpu_miss_other      := bpuMissOther.reduce(_ || _)
   debug.out.empty          := count === 0.U
 
   private val headEntry = buffer(head)

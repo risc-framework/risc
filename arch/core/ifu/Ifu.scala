@@ -28,6 +28,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
 
   class FetchMeta extends Bundle {
     val pc               = UInt(p(XLen).W)
+    val bpu_btb_hit      = Vec(p(IssueWidth), Bool())
     val bpu_pred_taken   = Vec(p(IssueWidth), Bool())
     val bpu_pred_target  = Vec(p(IssueWidth), UInt(p(XLen).W))
     val bpu_pht_index    = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
@@ -107,6 +108,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
 
   metaQ.io.enq.valid                 := reqFire
   metaQ.io.enq.bits.pc               := pc
+  metaQ.io.enq.bits.bpu_btb_hit      := bpuResp.in.btb_hit
   metaQ.io.enq.bits.bpu_pred_taken   := bpuResp.in.taken
   metaQ.io.enq.bits.bpu_pred_target  := bpuResp.in.target
   metaQ.io.enq.bits.bpu_pht_index    := bpuResp.in.pht_index
@@ -141,6 +143,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
     issued.out.lanes(w).valid                 := respFire && isValidResp && metaQ.io.deq.valid && respLive(w)
     issued.out.lanes(w).bits.pc               := (respPc & alignMask) + (w * p(PCStep)).U
     issued.out.lanes(w).bits.instr            := icacheResp.in.bits.data(w)
+    issued.out.lanes(w).bits.bpu_btb_hit      := metaQ.io.deq.bits.bpu_btb_hit(w)
     issued.out.lanes(w).bits.bpu_pred_taken   := metaQ.io.deq.bits.bpu_pred_taken(w)
     issued.out.lanes(w).bits.bpu_pred_target  := metaQ.io.deq.bits.bpu_pred_target(w)
     issued.out.lanes(w).bits.bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)

@@ -39,6 +39,7 @@ object DecodeTableKind extends RegisteredNodeUtils[DecodeKindImpl] {
 
       out.pc               := in.pc
       out.instr            := in.instr
+      out.bpu_btb_hit      := in.bpu_btb_hit
       out.bpu_pred_taken   := in.bpu_pred_taken
       out.bpu_pred_target  := in.bpu_pred_target
       out.bpu_pht_index    := in.bpu_pht_index
