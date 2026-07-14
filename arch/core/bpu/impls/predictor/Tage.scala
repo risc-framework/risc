@@ -4,14 +4,7 @@ import arch.core.bpu._
 import arch.configs._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ Cat, isPow2, log2Ceil }
-
-private class TageEntry(tagWidth: Int, counterWidth: Int, usefulWidth: Int) extends Bundle {
-  val valid  = Bool()
-  val tag    = UInt(tagWidth.W)
-  val counter = UInt(counterWidth.W)
-  val useful = UInt(usefulWidth.W)
-}
+import chisel3.util.{ Cat, UIntToOH, isPow2, log2Ceil }
 
 object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTConsts {
   override def utils: PredictorKindImpl = new PredictorKindImpl with BHTConsts {
@@ -29,6 +22,7 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       val historyWidth  = p(BpuHistoryWidth)
       val providerWidth = p(TageProviderWidth)
       val baseEntries   = 1 << p(GShareGhrWidth)
+      val numReadPorts  = p(IssueWidth) + 1
 
       require(tableCount > 0, "TAGE requires at least one tagged table")
       require(tableEntries.length == tableCount, "TAGE entry/history table counts must match")
@@ -44,11 +38,25 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       val commitGhr = RegInit(0.U(historyWidth.W))
       val specGhr   = RegInit(0.U(historyWidth.W))
       val basePht   = RegInit(VecInit(Seq.fill(baseEntries)(BHT_WT.value.U(SZ_BHT.W))))
+      val tableValid = tableEntries.map(entries => RegInit(0.U(entries.W)))
       val tables = tableEntries.zip(tagWidths).map { case (entries, tagWidth) =>
-        RegInit(
-          VecInit(Seq.fill(entries)(0.U.asTypeOf(new TageEntry(tagWidth, counterWidth, usefulWidth))))
-        )
+        val dataWidth = tagWidth + counterWidth + usefulWidth
+        Seq.fill(numReadPorts)(Mem(entries, UInt(dataWidth.W)))
       }
+
+      def entryTag(data: UInt, table: Int): UInt = {
+        val dataWidth = tagWidths(table) + counterWidth + usefulWidth
+        data(dataWidth - 1, counterWidth + usefulWidth)
+      }
+
+      def entryCounter(data: UInt): UInt =
+        data(counterWidth + usefulWidth - 1, usefulWidth)
+
+      def entryUseful(data: UInt): UInt =
+        data(usefulWidth - 1, 0)
+
+      def packEntry(tag: UInt, counter: UInt, useful: UInt): UInt =
+        Cat(tag, counter, useful)
 
       def zeroExtend(bits: UInt, width: Int): UInt = {
         val bitWidth = bits.getWidth
@@ -114,9 +122,9 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
 
         for (i <- 0 until tableCount) {
           val index = tableIndex(req.pc(w), queryGhr(w), i)
-          val entry = tables(i)(index)
-          hits(i)        := entry.valid && entry.tag === tableTag(req.pc(w), queryGhr(w), i)
-          predictions(i) := entry.counter(counterWidth - 1)
+          val data  = tables(i)(w).read(index)
+          hits(i)        := tableValid(i)(index) && entryTag(data, i) === tableTag(req.pc(w), queryGhr(w), i)
+          predictions(i) := entryCounter(data)(counterWidth - 1)
         }
 
         var selected: Bool = baseTaken
@@ -139,9 +147,10 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
 
       val updateIndices = (0 until tableCount).map(i => tableIndex(update.pc, update.ghr_snapshot, i))
       val updateTags    = (0 until tableCount).map(i => tableTag(update.pc, update.ghr_snapshot, i))
-      val updateEntries = (0 until tableCount).map(i => tables(i)(updateIndices(i)))
+      val updateData = (0 until tableCount).map(i => tables(i)(p(IssueWidth)).read(updateIndices(i)))
       val providerMatch = (0 until tableCount).map { i =>
-        update.provider === (i + 1).U && updateEntries(i).valid && updateEntries(i).tag === updateTags(i)
+        update.provider === (i + 1).U && tableValid(i)(updateIndices(i)) &&
+          entryTag(updateData(i), i) === updateTags(i)
       }
       val directionMiss = update.valid && update.pred_taken =/= update.taken
 
@@ -149,7 +158,7 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       var foundCandidate: Bool = false.B
       for (i <- 0 until tableCount) {
         val isLonger    = update.provider < (i + 1).U
-        val replaceable = !updateEntries(i).valid || updateEntries(i).useful === 0.U
+        val replaceable = !tableValid(i)(updateIndices(i)) || entryUseful(updateData(i)) === 0.U
         val candidate   = isLonger && replaceable
         allocate(i)    := directionMiss && candidate && !foundCandidate
         foundCandidate  = foundCandidate || candidate
@@ -157,26 +166,40 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       val allocationFailed = directionMiss && !foundCandidate
 
       for (i <- 0 until tableCount) {
-        val entry = updateEntries(i)
+        val oldTag     = entryTag(updateData(i), i)
+        val oldCounter = entryCounter(updateData(i))
+        val oldUseful  = entryUseful(updateData(i))
+        val writeEnable = WireDefault(false.B)
+        val writeData   = WireDefault(updateData(i))
 
         when(update.valid && providerMatch(i)) {
-          tables(i)(updateIndices(i)).counter := satUpdate(entry.counter, update.taken, counterWidth)
-          when(update.pred_taken =/= update.alt_taken) {
-            tables(i)(updateIndices(i)).useful := updateUseful(entry.useful, update.pred_taken === update.taken)
-          }
+          val nextUseful = Mux(
+            update.pred_taken =/= update.alt_taken,
+            updateUseful(oldUseful, update.pred_taken === update.taken),
+            oldUseful
+          )
+          writeEnable := true.B
+          writeData := packEntry(oldTag, satUpdate(oldCounter, update.taken, counterWidth), nextUseful)
         }.elsewhen(allocate(i)) {
-          tables(i)(updateIndices(i)).valid   := true.B
-          tables(i)(updateIndices(i)).tag     := updateTags(i)
-          tables(i)(updateIndices(i)).counter := Mux(
+          val initialCounter = Mux(
             update.taken,
             (BigInt(1) << (counterWidth - 1)).U(counterWidth.W),
             ((BigInt(1) << (counterWidth - 1)) - 1).U(counterWidth.W)
           )
-          tables(i)(updateIndices(i)).useful := 0.U
+          writeEnable := true.B
+          writeData   := packEntry(updateTags(i), initialCounter, 0.U(usefulWidth.W))
+          tableValid(i) := tableValid(i) | UIntToOH(updateIndices(i), tableEntries(i))
         }.elsewhen(
-          allocationFailed && update.provider < (i + 1).U && entry.valid && entry.useful =/= 0.U
+          allocationFailed && update.provider < (i + 1).U && tableValid(i)(updateIndices(i)) &&
+            oldUseful =/= 0.U
         ) {
-          tables(i)(updateIndices(i)).useful := entry.useful - 1.U
+          writeEnable := true.B
+          writeData   := packEntry(oldTag, oldCounter, oldUseful - 1.U)
+        }
+
+        when(writeEnable) {
+          for (r <- 0 until numReadPorts)
+            tables(i)(r).write(updateIndices(i), writeData)
         }
       }
 
