@@ -58,13 +58,15 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
 
   memChosenBits.target := Mux(memLdSelected, memLdArb.io.out.bits.target, storeTarget.U(targetW.W))
   memChosenBits.req    := Mux(memLdSelected, memLdArb.io.out.bits.req, sbMemReq.in.bits)
+  // Read data is unused.  Do not let the load-valid arbitration result become
+  // a reset/select input on all 32 registered request-data bits.
+  memChosenBits.req.data := sbMemReq.in.bits.data
 
   dcacheReq.out.valid := memReqValid && memRespQ.io.enq.ready
   dcacheReq.out.bits  := memReqBits.req
 
   private val memIssueFire  = memReqValid && dcacheReq.out.ready && memRespQ.io.enq.ready
   private val memStageReady = !memReqValid || memIssueFire
-  private val memTakeFire   = memChosenValid && memStageReady
 
   memLdArb.io.out.ready := memStageReady
   sbMemReq.in.ready     := memStageReady && !memLdSelected
@@ -72,11 +74,14 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   memRespQ.io.enq.valid := memIssueFire
   memRespQ.io.enq.bits  := memReqBits.target
 
-  when(memTakeFire) {
-    memReqValid := true.B
+  // Keep the stage payload enable independent of upstream request validity.
+  // Otherwise synthesis can fold a long upstream request-valid path into the
+  // reset/enable pins of every payload register.  Payload contents are don't
+  // care while valid is low, so loading them whenever the stage advances is
+  // equivalent while leaving validity on the narrow control register only.
+  when(memStageReady) {
+    memReqValid := memChosenValid
     memReqBits  := memChosenBits
-  }.elsewhen(memIssueFire) {
-    memReqValid := false.B
   }
 
   private val memTarget       = memRespQ.io.deq.bits
@@ -108,14 +113,14 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
     mmioLdArb.io.out.bits.target,
     storeTarget.U(targetW.W)
   )
-  mmioChosenBits.req    := Mux(mmioLdSelected, mmioLdArb.io.out.bits.req, sbMmioReq.in.bits)
+  mmioChosenBits.req      := Mux(mmioLdSelected, mmioLdArb.io.out.bits.req, sbMmioReq.in.bits)
+  mmioChosenBits.req.data := sbMmioReq.in.bits.data
 
   mmioReq.out.valid := mmioReqValid && mmioRespQ.io.enq.ready
   mmioReq.out.bits  := mmioReqBits.req
 
   private val mmioIssueFire  = mmioReqValid && mmioReq.out.ready && mmioRespQ.io.enq.ready
   private val mmioStageReady = !mmioReqValid || mmioIssueFire
-  private val mmioTakeFire   = mmioChosenValid && mmioStageReady
 
   mmioLdArb.io.out.ready := mmioStageReady
   sbMmioReq.in.ready     := mmioStageReady && !mmioLdSelected
@@ -123,11 +128,9 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   mmioRespQ.io.enq.valid := mmioIssueFire
   mmioRespQ.io.enq.bits  := mmioReqBits.target
 
-  when(mmioTakeFire) {
-    mmioReqValid := true.B
+  when(mmioStageReady) {
+    mmioReqValid := mmioChosenValid
     mmioReqBits  := mmioChosenBits
-  }.elsewhen(mmioIssueFire) {
-    mmioReqValid := false.B
   }
 
   private val mmioTarget       = mmioRespQ.io.deq.bits
