@@ -82,7 +82,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val partialForward = pmaCacheableReg && fwdRespBits.valid && !fwdRespBits.full
 
   private val fwdCompleteNow    =
-    state === LdState.FWD_RESP && fwdResp.in.valid && !shouldBlock && fullForward && !flush.in
+    state === LdState.FWD_RESP && fwdResp.in.valid && !shouldBlock && fullForward
   private val canSendMemFromFwd =
     state === LdState.FWD_RESP && fwdResp.in.valid && !shouldBlock && !fullForward && !flush.in
 
@@ -100,8 +100,12 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val fwdResult       = loadResult(uopReg, fwdRespBits.data)
   private val memResult       = loadResult(uopReg, mergedBusData)
 
-  private val memCompleteNow   = state === LdState.MEM && memRespFire && !flush.in
-  private val doneCompleteNow  = state === LdState.DONE && !flush.in
+  // Scheduler and ROB both discard completion updates on the same flush edge.
+  // Let an already-present response remain visible during that edge to keep
+  // globalFlush out of the completion/wakeup datapath; state and requests are
+  // still killed or blocked by flush below.
+  private val memCompleteNow   = state === LdState.MEM && memRespFire
+  private val doneCompleteNow  = state === LdState.DONE
   private val currentRespValid = fwdCompleteNow || memCompleteNow || doneCompleteNow
   private val currentRespFire  = currentRespValid && fuResp.out.ready
 

@@ -111,7 +111,10 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     val fwdRespBits  = Reg(new StoreForwardResp)
 
     fwdReq.in.lanes(q).ready   := (!fwdRespValid || fwdResp.out.lanes(q).ready) && !flush.in
-    fwdResp.out.lanes(q).valid := fwdRespValid && !flush.in
+    // Both forwarding consumers discard their state on flush. Keep valid
+    // independent of the flush broadcast so it does not feed their result
+    // and wakeup datapaths; ready still prevents consuming the response.
+    fwdResp.out.lanes(q).valid := fwdRespValid
     fwdResp.out.lanes(q).bits  := fwdRespBits
 
     val req        = fwdReq.in.lanes(q).bits
