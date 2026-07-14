@@ -165,9 +165,7 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
       }
 
       for (f <- 0 until p(NumFUs)) {
-        val baseCandidates      = Wire(Vec(rsSize, Bool()))
-        val candidates          = Wire(Vec(rsSize, Bool()))
-        val oldest              = Wire(Vec(rsSize, Bool()))
+        val baseCandidates = Wire(Vec(rsSize, Bool()))
         val isLoadUnit =
           p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD
         val isStoreUnit =
@@ -176,11 +174,9 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         val useRegisteredOperands =
           isMemoryUnit ||
             p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV
-        val priorSameTypeIssued = (0 until f)
+        val priorSameTypeAccepted = (0 until f)
           .filter(prev => p(FunctionalUnits)(prev).`type` == p(FunctionalUnits)(f).`type`)
-          .map(prev => issuedMask(prev))
-          .reduceOption(_ | _)
-          .getOrElse(0.U(rsSize.W))
+          .map(prev => fuReq(prev).fire)
 
         for (i <- 0 until rsSize) {
           val entry = entries(i)
@@ -195,25 +191,40 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
           baseCandidates(i) := entry.valid && issueOperandsReady && loadReady(i) &&
             serializingReady(i) &&
             entry.op.fu_type === p(FunctionalUnits)(f).`type`.index.U
-          candidates(i) := baseCandidates(i) && !priorSameTypeIssued(i)
         }
 
-        for (i <- 0 until rsSize) {
-          val olderCandidate = (0 until rsSize)
-            .filter(_ != i)
-            .map(j => candidates(j) && older(j)(i))
-            .reduce(_ || _)
+        val selectOH = if (priorSameTypeAccepted.nonEmpty) {
+          // Select the candidate whose age rank equals the number of earlier
+          // same-type FUs that accepted a request. This is equivalent to
+          // repeatedly masking each earlier oldest entry, but computes later
+          // FU data selection in parallel with the earlier one-hot selectors.
+          val acceptedRank = PopCount(VecInit(priorSameTypeAccepted))
+          VecInit((0 until rsSize).map { i =>
+            val olderCandidateCount = PopCount(VecInit(
+              (0 until rsSize)
+                .filter(_ != i)
+                .map(j => baseCandidates(j) && older(j)(i))
+            ))
+            baseCandidates(i) && olderCandidateCount === acceptedRank
+          }).asUInt
+        } else {
+          val oldest = Wire(Vec(rsSize, Bool()))
 
-          oldest(i) := candidates(i) && !olderCandidate
+          for (i <- 0 until rsSize) {
+            val olderCandidate = (0 until rsSize)
+              .filter(_ != i)
+              .map(j => baseCandidates(j) && older(j)(i))
+              .reduce(_ || _)
+
+            oldest(i) := baseCandidates(i) && !olderCandidate
+          }
+
+          oldest.asUInt
         }
 
-        val selectOH = oldest.asUInt
-        val priorSameTypeAccepted = (0 until f)
-          .filter(prev => p(FunctionalUnits)(prev).`type` == p(FunctionalUnits)(f).`type`)
-          .map(prev => fuReq(prev).fire)
         // A later same-type FU only needs to know whether enough candidates
         // remain. Keep its valid path independent of the earlier FU's
-        // oldest-one-hot selection; the one-hot is still used to select bits.
+        // one-hot selection.
         val selected = if (priorSameTypeAccepted.nonEmpty)
           PopCount(baseCandidates) > PopCount(VecInit(priorSameTypeAccepted))
         else
