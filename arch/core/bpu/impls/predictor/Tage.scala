@@ -101,11 +101,12 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       val baseNewCounter = satUpdate(baseOldCounter, update.taken, SZ_BHT)
       val updateNextGhr  = shiftHist(update.ghr_snapshot, update.taken)
 
-      val queryGhr = Wire(Vec(p(IssueWidth) + 1, UInt(historyWidth.W)))
-      queryGhr(0) := specGhr
+      // Keep tagged-table lookups for all fetch lanes parallel. Their predicted
+      // outcomes are folded into the speculative history only for the next cycle.
+      val queryTaken = Wire(Vec(p(IssueWidth), Bool()))
 
       for (w <- 0 until p(IssueWidth)) {
-        val baseIdx     = baseIndex(req.pc(w), queryGhr(w))
+        val baseIdx     = baseIndex(req.pc(w), specGhr)
         val baseBypass  = update.valid && update.pht_index === baseIdx
         val baseCounter = Mux(baseBypass, baseNewCounter, basePht(baseIdx))
         val baseTaken   = baseCounter(SZ_BHT - 1)
@@ -113,9 +114,9 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
         val predictions = Wire(Vec(tableCount, Bool()))
 
         for (i <- 0 until tableCount) {
-          val index = tableIndex(req.pc(w), queryGhr(w), i)
+          val index = tableIndex(req.pc(w), specGhr, i)
           val entry = tables(i)(index)
-          hits(i)        := entry.valid && entry.tag === tableTag(req.pc(w), queryGhr(w), i)
+          hits(i)        := entry.valid && entry.tag === tableTag(req.pc(w), specGhr, i)
           predictions(i) := entry.counter(counterWidth - 1)
         }
 
@@ -129,13 +130,22 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
           provider  = Mux(hits(i), (i + 1).U(providerWidth.W), provider)
         }
 
+        queryTaken(w)        := selected
         resp.taken(w)        := selected
         resp.pht_index(w)    := baseIdx
-        resp.ghr_snapshot(w) := queryGhr(w)
+        resp.ghr_snapshot(w) := specGhr
         resp.provider(w)     := provider
         resp.alt_taken(w)    := alternate
-        queryGhr(w + 1)      := Mux(req.is_branch(w), shiftHist(queryGhr(w), selected), queryGhr(w))
       }
+
+      val nextSpecGhr = Wire(Vec(p(IssueWidth) + 1, UInt(historyWidth.W)))
+      nextSpecGhr(0) := specGhr
+      for (w <- 0 until p(IssueWidth))
+        nextSpecGhr(w + 1) := Mux(
+          req.is_branch(w),
+          shiftHist(nextSpecGhr(w), queryTaken(w)),
+          nextSpecGhr(w)
+        )
 
       val updateIndices = (0 until tableCount).map(i => tableIndex(update.pc, update.ghr_snapshot, i))
       val updateTags    = (0 until tableCount).map(i => tableTag(update.pc, update.ghr_snapshot, i))
@@ -186,7 +196,7 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       }
 
       when(req.accept) {
-        specGhr := queryGhr(p(IssueWidth))
+        specGhr := nextSpecGhr(p(IssueWidth))
       }
 
       when(req.flush) {
