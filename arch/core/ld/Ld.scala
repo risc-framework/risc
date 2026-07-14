@@ -11,7 +11,7 @@ import chisel3._
 import chisel3.util.{ Cat, Fill, is, switch }
 
 object LdState extends ChiselEnum {
-  val IDLE, FWD_REQ, FWD_RESP, MEM_REQ, WAIT_MEM, DONE, FLUSH_DRAIN = Value
+  val IDLE, FWD_REQ, FWD_RESP, MEM, DONE, FLUSH_DRAIN = Value
 }
 
 class LdDebugInfo extends Bundle {
@@ -86,8 +86,10 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val canSendMemFromFwd =
     state === LdState.FWD_RESP && fwdResp.in.valid && !shouldBlock && !fullForward && !flush.in
 
-  memResp.in.ready  := (state === LdState.WAIT_MEM || state === LdState.FLUSH_DRAIN) && reqWasCache
-  mmioResp.in.ready := (state === LdState.WAIT_MEM || state === LdState.FLUSH_DRAIN) && !reqWasCache
+  private val waitingForMemResp = state === LdState.MEM && reqOutstanding
+
+  memResp.in.ready  := (waitingForMemResp || state === LdState.FLUSH_DRAIN) && reqWasCache
+  mmioResp.in.ready := (waitingForMemResp || state === LdState.FLUSH_DRAIN) && !reqWasCache
 
   private val memReqFire  = memReq.out.fire || mmioReq.out.fire
   private val memRespFire = memResp.in.fire || mmioResp.in.fire
@@ -98,7 +100,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val fwdResult       = loadResult(uopReg, fwdRespBits.data)
   private val memResult       = loadResult(uopReg, mergedBusData)
 
-  private val memCompleteNow   = state === LdState.WAIT_MEM && memRespFire && !flush.in
+  private val memCompleteNow   = state === LdState.MEM && memRespFire && !flush.in
   private val doneCompleteNow  = state === LdState.DONE && !flush.in
   private val currentRespValid = fwdCompleteNow || memCompleteNow || doneCompleteNow
   private val currentRespFire  = currentRespValid && fuResp.out.ready
@@ -120,7 +122,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   fwdResp.in.ready := state === LdState.FWD_RESP && !flush.in
 
   private val memReqFromAccept = acceptFire && !acceptHasOlderStore
-  private val memReqFromRetry  = state === LdState.MEM_REQ && !flush.in
+  private val memReqFromRetry  = state === LdState.MEM && !reqOutstanding && !flush.in
   private val memReqFromFwd    = canSendMemFromFwd
   private val memReqActive     = memReqFromAccept || memReqFromRetry || memReqFromFwd
 
@@ -168,7 +170,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val willHaveOutstanding = (reqOutstanding && !memRespFire) || memReqFire
 
   debug.out.busy         := state =/= LdState.IDLE
-  debug.out.wait_mem     := state === LdState.MEM_REQ || state === LdState.WAIT_MEM
+  debug.out.wait_mem     := state === LdState.MEM
   debug.out.wait_forward := state === LdState.FWD_REQ || state === LdState.FWD_RESP
 
   when(flush.in) {
@@ -202,22 +204,12 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
             fwdDataReg := Mux(partialForward, fwdRespBits.data, 0.U)
             fwdMaskReg := Mux(partialForward, fwdRespBits.mask, 0.U)
 
-            when(memReqFire) {
-              state := LdState.WAIT_MEM
-            }.otherwise {
-              state := LdState.MEM_REQ
-            }
+            state := LdState.MEM
           }
         }
       }
 
-      is(LdState.MEM_REQ) {
-        when(memReqFire) {
-          state := LdState.WAIT_MEM
-        }
-      }
-
-      is(LdState.WAIT_MEM) {
+      is(LdState.MEM) {
         when(memRespFire) {
           when(fuResp.out.ready) {
             state := LdState.IDLE
@@ -253,7 +245,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
       when(acceptHasOlderStore) {
         state := LdState.FWD_REQ
       }.otherwise {
-        state := Mux(memReqFire, LdState.WAIT_MEM, LdState.MEM_REQ)
+        state := LdState.MEM
       }
     }
   }
