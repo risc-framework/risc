@@ -32,7 +32,9 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
     val bpu_pred_taken   = Vec(p(IssueWidth), Bool())
     val bpu_pred_target  = Vec(p(IssueWidth), UInt(p(XLen).W))
     val bpu_pht_index    = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
-    val bpu_ghr_snapshot = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
+    val bpu_ghr_snapshot = Vec(p(IssueWidth), UInt(p(BpuHistoryWidth).W))
+    val bpu_provider     = Vec(p(IssueWidth), UInt(p(TageProviderWidth).W))
+    val bpu_alt_taken    = Vec(p(IssueWidth), Bool())
   }
 
   private val metaQ = Module(new Queue(new FetchMeta, 8, hasFlush = true))
@@ -113,6 +115,8 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
   metaQ.io.enq.bits.bpu_pred_target  := bpuResp.in.target
   metaQ.io.enq.bits.bpu_pht_index    := bpuResp.in.pht_index
   metaQ.io.enq.bits.bpu_ghr_snapshot := bpuResp.in.ghr_snapshot
+  metaQ.io.enq.bits.bpu_provider     := bpuResp.in.provider
+  metaQ.io.enq.bits.bpu_alt_taken    := bpuResp.in.alt_taken
 
   when(redirect.in.valid) {
     pc := redirect.in.target
@@ -148,5 +152,7 @@ class Ifu(implicit p: Parameters) extends Node[Parameters]("ifu") {
     issued.out.lanes(w).bits.bpu_pred_target  := metaQ.io.deq.bits.bpu_pred_target(w)
     issued.out.lanes(w).bits.bpu_pht_index    := metaQ.io.deq.bits.bpu_pht_index(w)
     issued.out.lanes(w).bits.bpu_ghr_snapshot := metaQ.io.deq.bits.bpu_ghr_snapshot(w)
+    issued.out.lanes(w).bits.bpu_provider     := metaQ.io.deq.bits.bpu_provider(w)
+    issued.out.lanes(w).bits.bpu_alt_taken    := metaQ.io.deq.bits.bpu_alt_taken(w)
   }
 }

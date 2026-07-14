@@ -44,6 +44,8 @@ object DecodeTableKind extends RegisteredNodeUtils[DecodeKindImpl] {
       out.bpu_pred_target  := in.bpu_pred_target
       out.bpu_pht_index    := in.bpu_pht_index
       out.bpu_ghr_snapshot := in.bpu_ghr_snapshot
+      out.bpu_provider     := in.bpu_provider
+      out.bpu_alt_taken    := in.bpu_alt_taken
       out.bpu_branch_kind  := Mux(
         isBranch,
         BpuBranchKind.BRANCH,

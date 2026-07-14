@@ -16,6 +16,8 @@ object StaticNotTakenPredictor extends RegisteredNodeUtils[PredictorKindImpl] {
         resp.taken(w)        := false.B
         resp.pht_index(w)    := 0.U
         resp.ghr_snapshot(w) := 0.U
+        resp.provider(w)     := 0.U
+        resp.alt_taken(w)    := false.B
       }
   }
 
@@ -34,6 +36,8 @@ object StaticTakenPredictor extends RegisteredNodeUtils[PredictorKindImpl] {
         resp.taken(w)        := true.B
         resp.pht_index(w)    := 0.U
         resp.ghr_snapshot(w) := 0.U
+        resp.provider(w)     := 0.U
+        resp.alt_taken(w)    := true.B
       }
   }
 

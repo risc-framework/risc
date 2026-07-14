@@ -17,6 +17,7 @@ object PredictorKindFactory extends PredictorDims.KIND.Registry[PredictorKindImp
 
 object BpuInit {
   val gshare   = impls.predictor.GSharePredictor.registered
+  val tage     = impls.predictor.TagePredictor.registered
   val staticNT = impls.predictor.StaticNotTakenPredictor.registered
   val staticT  = impls.predictor.StaticTakenPredictor.registered
 }

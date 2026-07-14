@@ -52,7 +52,7 @@ object GSharePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCo
 
       val updateOldCnt  = pht(update.pht_index)
       val updateNewCnt  = satUpdate(updateOldCnt, update.taken)
-      val updateNextGhr = shiftHist(update.ghr_snapshot, update.taken)
+      val updateNextGhr = shiftHist(update.ghr_snapshot(p(GShareGhrWidth) - 1, 0), update.taken)
 
       val queryGhr = Wire(Vec(p(IssueWidth) + 1, UInt(p(GShareGhrWidth).W)))
       queryGhr(0) := specGhr
@@ -67,6 +67,8 @@ object GSharePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCo
         resp.taken(w)        := dirTaken
         resp.pht_index(w)    := index
         resp.ghr_snapshot(w) := queryGhr(w)
+        resp.provider(w)     := 0.U
+        resp.alt_taken(w)    := dirTaken
         queryGhr(w + 1)      := Mux(req.is_branch(w), shiftHist(queryGhr(w), dirTaken), queryGhr(w))
       }
 

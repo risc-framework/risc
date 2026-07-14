@@ -78,6 +78,11 @@ package object configs {
   object BTBSets          extends Field[Int]
   object BTBReplPolicy    extends Field[ReplPolicy]
   object GShareGhrWidth   extends Field[Int]
+  object TageTableEntries extends Field[Seq[Int]]
+  object TageHistoryLengths extends Field[Seq[Int]]
+  object TageTagWidths    extends Field[Seq[Int]]
+  object TageCounterWidth extends Field[Int]
+  object TageUsefulWidth  extends Field[Int]
   object RasSize          extends Field[Int]
 
   // Cache Parameters
@@ -180,6 +185,13 @@ package object configs {
 
   object RobTagWidth extends Field[Int](p => widthForCount("RobSize", p(RobSize)))
 
+  object BpuHistoryWidth extends Field[Int](p =>
+    math.max(p(GShareGhrWidth), p(TageHistoryLengths).max)
+  )
+  object TageProviderWidth extends Field[Int](p =>
+    widthForCount("Tage provider count", p(TageHistoryLengths).length + 1)
+  )
+
   object StoreSeqWidth
       extends Field[Int](p =>
         widthForCount("Store sequence space", 2 * (p(StoreBufferSize) + p(IssueWidth)))
@@ -246,6 +258,11 @@ package object configs {
       BTBSets,
       BTBReplPolicy,
       GShareGhrWidth,
+      TageTableEntries,
+      TageHistoryLengths,
+      TageTagWidths,
+      TageCounterWidth,
+      TageUsefulWidth,
       RasSize,
       L1ICacheWays,
       L1ICacheSets,
@@ -280,6 +297,8 @@ package object configs {
       NumBRUs,
       NumCSRs,
       RobTagWidth,
+      BpuHistoryWidth,
+      TageProviderWidth,
       StoreSeqWidth,
       L1ICacheParams,
       L1DCacheParams

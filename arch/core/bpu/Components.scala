@@ -53,7 +53,9 @@ class PredictorQueryReq(implicit p: Parameters) extends Bundle {
 class PredictorQueryResp(implicit p: Parameters) extends Bundle {
   val taken        = Vec(p(IssueWidth), Bool())
   val pht_index    = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
-  val ghr_snapshot = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
+  val ghr_snapshot = Vec(p(IssueWidth), UInt(p(BpuHistoryWidth).W))
+  val provider     = Vec(p(IssueWidth), UInt(p(TageProviderWidth).W))
+  val alt_taken    = Vec(p(IssueWidth), Bool())
 }
 
 class BpuIfuReq(implicit p: Parameters) extends Bundle {
@@ -67,7 +69,9 @@ class BpuIfuResp(implicit p: Parameters) extends Bundle {
   val taken        = Vec(p(IssueWidth), Bool())
   val target       = Vec(p(IssueWidth), UInt(p(XLen).W))
   val pht_index    = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
-  val ghr_snapshot = Vec(p(IssueWidth), UInt(p(GShareGhrWidth).W))
+  val ghr_snapshot = Vec(p(IssueWidth), UInt(p(BpuHistoryWidth).W))
+  val provider     = Vec(p(IssueWidth), UInt(p(TageProviderWidth).W))
+  val alt_taken    = Vec(p(IssueWidth), Bool())
 }
 
 class BpuUpdate(implicit p: Parameters) extends Bundle {
@@ -77,7 +81,10 @@ class BpuUpdate(implicit p: Parameters) extends Bundle {
   val taken        = Bool()
   val branch_kind  = UInt(BpuBranchKind.width.W)
   val pht_index    = UInt(p(GShareGhrWidth).W)
-  val ghr_snapshot = UInt(p(GShareGhrWidth).W)
+  val ghr_snapshot = UInt(p(BpuHistoryWidth).W)
+  val provider     = UInt(p(TageProviderWidth).W)
+  val alt_taken    = Bool()
+  val pred_taken   = Bool()
   val mispredict   = Bool()
 }
 

@@ -29,6 +29,8 @@ class Decode(implicit p: Parameters) extends Node[Parameters]("decode") {
     packet.bpu_pred_target  := issued.in.lanes(w).bits.bpu_pred_target
     packet.bpu_pht_index    := issued.in.lanes(w).bits.bpu_pht_index
     packet.bpu_ghr_snapshot := issued.in.lanes(w).bits.bpu_ghr_snapshot
+    packet.bpu_provider     := issued.in.lanes(w).bits.bpu_provider
+    packet.bpu_alt_taken    := issued.in.lanes(w).bits.bpu_alt_taken
 
     decoded.out.lanes(w).valid := issued.in.lanes(w).valid
     issued.in.lanes(w).ready   := decoded.out.lanes(w).ready

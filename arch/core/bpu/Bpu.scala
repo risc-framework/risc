@@ -66,6 +66,8 @@ class Bpu(implicit p: Parameters) extends Node[Parameters]("bpu") {
       !killedByOlderTaken(w)
     ifuResp.out.pht_index(w)    := predictor.queryResp.out.pht_index(w)
     ifuResp.out.ghr_snapshot(w) := predictor.queryResp.out.ghr_snapshot(w)
+    ifuResp.out.provider(w)     := predictor.queryResp.out.provider(w)
+    ifuResp.out.alt_taken(w)    := predictor.queryResp.out.alt_taken(w)
     selectedKindVec(w)          := Mux(ifuResp.out.taken(w), kind, BpuBranchKind.NONE)
     selectedPushVec(w)          := ifuReq.in.query_pc(w) + p(PCStep).U
   }
