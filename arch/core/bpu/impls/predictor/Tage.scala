@@ -49,10 +49,6 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
           VecInit(Seq.fill(entries)(0.U.asTypeOf(new TageEntry(tagWidth, counterWidth, usefulWidth))))
         )
       }
-      // Avoid permanently biasing allocation toward the shortest eligible
-      // history. Alternating the two ends gradually warms longer-history tables
-      // without adding storage ports or logic to the prediction path.
-      val allocateLongHistory = RegInit(true.B)
 
       def zeroExtend(bits: UInt, width: Int): UInt = {
         val bitWidth = bits.getWidth
@@ -159,30 +155,15 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       }
       val directionMiss = update.valid && update.pred_taken =/= update.taken
 
-      val candidates   = Wire(Vec(tableCount, Bool()))
-      val allocateLow  = Wire(Vec(tableCount, Bool()))
-      val allocateHigh = Wire(Vec(tableCount, Bool()))
-      val allocate     = Wire(Vec(tableCount, Bool()))
-      var foundLow: Bool = false.B
+      val allocate = Wire(Vec(tableCount, Bool()))
+      var foundCandidate: Bool = false.B
       for (i <- 0 until tableCount) {
         val isLonger    = update.provider < (i + 1).U
         val replaceable = !updateEntries(i).valid || updateEntries(i).useful === 0.U
         val candidate   = isLonger && replaceable
-        candidates(i)  := candidate
-        allocateLow(i) := candidate && !foundLow
-        foundLow        = foundLow || candidate
+        allocate(i)    := directionMiss && candidate && !foundCandidate
+        foundCandidate  = foundCandidate || candidate
       }
-
-      var foundHigh: Bool = false.B
-      for (i <- (0 until tableCount).reverse) {
-        allocateHigh(i) := candidates(i) && !foundHigh
-        foundHigh        = foundHigh || candidates(i)
-      }
-
-      for (i <- 0 until tableCount)
-        allocate(i) := directionMiss && Mux(allocateLongHistory, allocateHigh(i), allocateLow(i))
-
-      val foundCandidate  = candidates.asUInt.orR
       val allocationFailed = directionMiss && !foundCandidate
 
       for (i <- 0 until tableCount) {
@@ -212,10 +193,6 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       when(update.valid) {
         basePht(update.pht_index) := baseNewCounter
         commitGhr                 := updateNextGhr
-      }
-
-      when(directionMiss && foundCandidate) {
-        allocateLongHistory := !allocateLongHistory
       }
 
       when(req.accept) {
