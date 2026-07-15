@@ -44,7 +44,10 @@ class Alu(implicit p: Parameters) extends Node[Parameters]("alu") with Moore {
   fuReq.in.ready   := !flush.in && (fsm(AluState.IDLE).active || (fsm(
     AluState.RESP
   ).active && fuResp.out.ready))
-  fuResp.out.valid := fsm(AluState.RESP).active && !flush.in
+  // The FSM, Scheduler, and ROB are all cleared on the flush edge.  Keep
+  // request acceptance blocked, but do not feed raw globalFlush into the ALU
+  // completion-valid path; an old response cannot survive the clearing edge.
+  fuResp.out.valid := fsm(AluState.RESP).active
 
   private val result = isaImpl.execute(uopReg)
 
