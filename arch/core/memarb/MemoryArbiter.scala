@@ -2,7 +2,7 @@ package arch.core.memarb
 
 import arch.configs._
 import chisel3._
-import chisel3.util.{ Queue, RRArbiter, UIntToOH, log2Ceil }
+import chisel3.util.{ Arbiter, Queue, UIntToOH, log2Ceil }
 import vutils.graph.Node
 
 class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arbiter") {
@@ -27,8 +27,11 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   private val targetW     = log2Ceil(numReqs).max(1)
   private val storeTarget = numLoadPorts
 
-  private val memLdArb  = Module(new RRArbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
-  private val mmioLdArb = Module(new RRArbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
+  // Each load unit holds at most one outstanding operation. Fixed priority
+  // therefore cannot starve another port indefinitely, and it keeps the
+  // request path free of round-robin grant-state feedback.
+  private val memLdArb  = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
+  private val mmioLdArb = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
 
   private val memRespQ  = Module(new Queue(UInt(targetW.W), p(RobSize), pipe = false, flow = false))
   private val mmioRespQ = Module(new Queue(UInt(targetW.W), p(RobSize), pipe = false, flow = false))
