@@ -61,7 +61,10 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
 
   acceptIn.valid := fuReq.in.valid && !flush.in
   acceptIn.bits  := buildEntry(fuReq.in.bits)
-  fuReq.in.ready := acceptIn.ready && !flush.in
+  // StoreBuffer keeps its write ports ready, so this elastic pipeline can
+  // accept or turn over every cycle. A flush suppresses acceptIn.valid and
+  // clears both stages; upstream ready need not carry the flush broadcast.
+  fuReq.in.ready := true.B
 
   elastic(new StPipeEntry, StPipeNode.WRITE_SB, clear = flush.in) { g =>
     import g._
