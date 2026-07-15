@@ -66,7 +66,10 @@ class Div(implicit p: Parameters) extends Node[Parameters]("div") {
     }
   }
 
-  fuResp.out.valid := state === DivState.DONE && !flush.in
+  // The divider state, Scheduler, and ROB are all cleared on the flush edge.
+  // Keep request acceptance and divider kill flush-gated, but do not put raw
+  // globalFlush on the completed response path.
+  fuResp.out.valid := state === DivState.DONE
 
   fuResp.out.bits.result  := resultReg
   fuResp.out.bits.rd      := uopReg.rd
