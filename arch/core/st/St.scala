@@ -63,7 +63,7 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
   acceptIn.bits  := buildEntry(fuReq.in.bits)
   fuReq.in.ready := acceptIn.ready && !flush.in
 
-  elastic(new StPipeEntry, StPipeNode.WRITE_SB, clear = flush.in) { g =>
+  private val storePipe = elastic(new StPipeEntry, StPipeNode.WRITE_SB, clear = flush.in) { g =>
     import g._
 
     val WRITE_SB = stage(StPipeNode.WRITE_SB)
@@ -79,4 +79,10 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
       resp := RESP.bits.resp
     }
   }
+
+  // The elastic stages, Scheduler, and ROB are all cleared on the flush edge.
+  // Expose the final registered stage directly so raw globalFlush does not
+  // enter Store completion valid; request and StoreBuffer traffic remain
+  // blocked by the original clear path above.
+  fuResp.out.valid := storePipe(StPipeNode.RESP).valid
 }
