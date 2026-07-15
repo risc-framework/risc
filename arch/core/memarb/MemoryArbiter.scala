@@ -26,7 +26,6 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   private val numReqs     = numLoadPorts + 1
   private val targetW     = log2Ceil(numReqs).max(1)
   private val storeTarget = numLoadPorts
-  private val responseQueueDepth = 1 << log2Ceil(numReqs)
 
   // Each load unit holds at most one outstanding operation. Fixed priority
   // therefore cannot starve another port indefinitely, and it keeps the
@@ -34,13 +33,8 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   private val memLdArb  = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
   private val mmioLdArb = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
 
-  // Every requester permits at most one outstanding transaction: one per
-  // Load FU plus one StoreBuffer drain. Use the next power of two so the
-  // pointer wraps naturally while remaining close to the maximum occupancy.
-  private val memRespQ =
-    Module(new Queue(UInt(targetW.W), responseQueueDepth, pipe = false, flow = false))
-  private val mmioRespQ =
-    Module(new Queue(UInt(targetW.W), responseQueueDepth, pipe = false, flow = false))
+  private val memRespQ  = Module(new Queue(UInt(targetW.W), p(RobSize), pipe = false, flow = false))
+  private val mmioRespQ = Module(new Queue(UInt(targetW.W), p(RobSize), pipe = false, flow = false))
 
   private val memReqValid = RegInit(false.B)
   private val memReqBits  = Reg(new MemoryArbiterRoutedReq(targetW))
