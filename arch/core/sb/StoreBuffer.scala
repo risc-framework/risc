@@ -6,7 +6,12 @@ import arch.core.rob.RobSbCommit
 import vcache.CacheCommand
 import vutils.graph.Node
 import chisel3._
-import chisel3.util.{ Cat, Mux1H, PopCount, log2Ceil }
+import chisel3.util.{ Cat, Mux1H, PopCount, Queue, log2Ceil }
+
+private class StoreDrainReq(implicit p: Parameters) extends Bundle {
+  val cacheable = Bool()
+  val req       = new MemoryArbiterCacheReq
+}
 
 class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer") {
   val flush = in[Bool]
@@ -83,6 +88,10 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   private val tailSeq          = RegInit(0.U(p(StoreSeqWidth).W))
   private val drainOutstanding = RegInit(false.B)
   private val drainIsCacheable = RegInit(false.B)
+  // The flow-through entry accepts a drain independently of MemoryArbiter
+  // backpressure while preserving the zero-extra-cycle path when downstream
+  // is ready. This keeps arbiter ready/flush feedback out of drainOutstanding.
+  private val drainReqQ = Module(new Queue(new StoreDrainReq, 1, pipe = false, flow = true))
 
   private val freeCount = p(StoreBufferSize).U(cntW.W) - count
 
@@ -187,26 +196,33 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   private val canDrain  =
     headEntry.valid && headEntry.committed && headEntry.addrValid && !drainOutstanding
 
-  memReq.out.valid     := canDrain && headEntry.cacheable
-  memReq.out.bits.cmd  := CacheCommand.Write
-  memReq.out.bits.addr := headEntry.addr
-  memReq.out.bits.data := headEntry.data
-  memReq.out.bits.strb := headEntry.mask
+  drainReqQ.io.enq.valid          := canDrain
+  drainReqQ.io.enq.bits.cacheable := headEntry.cacheable
+  drainReqQ.io.enq.bits.req.cmd   := CacheCommand.Write
+  drainReqQ.io.enq.bits.req.addr  := headEntry.addr
+  drainReqQ.io.enq.bits.req.data  := headEntry.data
+  drainReqQ.io.enq.bits.req.strb  := headEntry.mask
 
-  mmioReq.out.valid     := canDrain && !headEntry.cacheable
-  mmioReq.out.bits.cmd  := CacheCommand.Write
-  mmioReq.out.bits.addr := headEntry.addr
-  mmioReq.out.bits.data := headEntry.data
-  mmioReq.out.bits.strb := headEntry.mask
+  memReq.out.valid := drainReqQ.io.deq.valid && drainReqQ.io.deq.bits.cacheable
+  memReq.out.bits  := drainReqQ.io.deq.bits.req
+
+  mmioReq.out.valid := drainReqQ.io.deq.valid && !drainReqQ.io.deq.bits.cacheable
+  mmioReq.out.bits  := drainReqQ.io.deq.bits.req
+
+  drainReqQ.io.deq.ready := Mux(
+    drainReqQ.io.deq.bits.cacheable,
+    memReq.out.ready,
+    mmioReq.out.ready
+  )
 
   memResp.in.ready  := drainOutstanding && drainIsCacheable
   mmioResp.in.ready := drainOutstanding && !drainIsCacheable
 
-  private val drainReqFire  = memReq.out.fire || mmioReq.out.fire
+  private val drainReqAccept = drainReqQ.io.enq.fire
   private val drainRespFire = memResp.in.fire || mmioResp.in.fire
 
   debug.out.busy       := count =/= 0.U || drainOutstanding
-  debug.out.wait_drain := drainOutstanding || (canDrain && !drainReqFire)
+  debug.out.wait_drain := drainOutstanding || (canDrain && !drainReqAccept)
 
   private val allocCount       = PopCount(allocValid)
   private val commitStoreCount = PopCount(
@@ -309,7 +325,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   committedCount := nextCommittedCount
   tailSeq        := normalSeq
 
-  when(drainReqFire) {
+  when(drainReqAccept) {
     drainOutstanding := true.B
     drainIsCacheable := headEntry.cacheable
   }
