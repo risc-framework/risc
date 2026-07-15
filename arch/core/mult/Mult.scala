@@ -24,9 +24,15 @@ class Mult(implicit p: Parameters) extends Node[Parameters]("mult") {
 
   private val ctrl = isaImpl.decode(fuReq.in.bits.uop)
 
+  // Scheduler, ROB, and the uop metadata queue are all flushed on the raw
+  // globalFlush edge.  Clear the multiplier's private pipeline one cycle
+  // later so raw globalFlush does not feed its output-valid path; requests and
+  // dequeues remain blocked on the original flush edge below.
+  private val multiplierKill = RegNext(flush.in, false.B)
+
   fuReq.in.ready := !flush.in && multiplier.io.in.ready && uopQ.io.enq.ready
 
-  multiplier.io.kill                 := flush.in
+  multiplier.io.kill                 := multiplierKill
   multiplier.io.in.valid             := !flush.in && fuReq.in.valid && uopQ.io.enq.ready
   multiplier.io.in.bits.multiplicand := fuReq.in.bits.rs1_data
   multiplier.io.in.bits.multiplier   := fuReq.in.bits.rs2_data
@@ -41,7 +47,7 @@ class Mult(implicit p: Parameters) extends Node[Parameters]("mult") {
   multiplier.io.out.ready := !flush.in && uopQ.io.deq.valid && fuResp.out.ready
   uopQ.io.deq.ready       := !flush.in && multiplier.io.out.valid && fuResp.out.ready
 
-  fuResp.out.valid := !flush.in && multiplier.io.out.valid && uopQ.io.deq.valid
+  fuResp.out.valid := multiplier.io.out.valid && uopQ.io.deq.valid
 
   fuResp.out.bits.result  := multiplier.io.out.bits.result
   fuResp.out.bits.rd      := uopQ.io.deq.bits.rd
