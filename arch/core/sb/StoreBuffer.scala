@@ -93,11 +93,8 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   status.out.oldest_valid := count =/= 0.U
   status.out.oldest_seq   := entries(head).seq
 
-  // Store writes are produced by elastic stages that are cleared on flush.
-  // Keeping ready asserted removes globalFlush from Store FU backpressure and
-  // the scheduler issue-selection path.
   for (s <- 0 until numStorePorts)
-    storeWrite.in.lanes(s).ready := true.B
+    storeWrite.in.lanes(s).ready := !flush.in
 
   private val sqIdxForLane = Wire(Vec(p(IssueWidth), UInt(idxW.W)))
   private val sqSeqForLane = Wire(Vec(p(IssueWidth), UInt(p(StoreSeqWidth).W)))
