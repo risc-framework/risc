@@ -27,11 +27,12 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   private val targetW     = log2Ceil(numReqs).max(1)
   private val storeTarget = numLoadPorts
 
-  // Each load unit holds at most one outstanding operation. Fixed priority
-  // therefore cannot starve another port indefinitely, and it keeps the
-  // request path free of round-robin grant-state feedback.
-  private val memLdArb  = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
-  private val mmioLdArb = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
+  // A single fixed-priority arbiter preserves Load0 > Load1 > Store ordering
+  // without a second load-versus-store selection layer. Each load unit holds
+  // at most one outstanding operation, so lower-priority ports still make
+  // progress while an accepted load waits for its response.
+  private val memArb  = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numReqs))
+  private val mmioArb = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numReqs))
 
   private val memRespQ  = Module(new Queue(UInt(targetW.W), p(RobSize), pipe = false, flow = false))
   private val mmioRespQ = Module(new Queue(UInt(targetW.W), p(RobSize), pipe = false, flow = false))
@@ -43,24 +44,25 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   private val mmioReqBits  = Reg(new MemoryArbiterRoutedReq(targetW))
 
   for (i <- 0 until numLoadPorts) {
-    memLdArb.io.in(i).valid       := loadMemReq.in.lanes(i).valid
-    memLdArb.io.in(i).bits.target := i.U(targetW.W)
-    memLdArb.io.in(i).bits.req    := loadMemReq.in.lanes(i).bits
-    loadMemReq.in.lanes(i).ready  := memLdArb.io.in(i).ready
+    memArb.io.in(i).valid        := loadMemReq.in.lanes(i).valid
+    memArb.io.in(i).bits.target  := i.U(targetW.W)
+    memArb.io.in(i).bits.req     := loadMemReq.in.lanes(i).bits
+    loadMemReq.in.lanes(i).ready := memArb.io.in(i).ready
 
-    mmioLdArb.io.in(i).valid       := loadMmioReq.in.lanes(i).valid
-    mmioLdArb.io.in(i).bits.target := i.U(targetW.W)
-    mmioLdArb.io.in(i).bits.req    := loadMmioReq.in.lanes(i).bits
-    loadMmioReq.in.lanes(i).ready  := mmioLdArb.io.in(i).ready
+    mmioArb.io.in(i).valid        := loadMmioReq.in.lanes(i).valid
+    mmioArb.io.in(i).bits.target  := i.U(targetW.W)
+    mmioArb.io.in(i).bits.req     := loadMmioReq.in.lanes(i).bits
+    loadMmioReq.in.lanes(i).ready := mmioArb.io.in(i).ready
   }
 
-  private val memLdSelected    = memLdArb.io.out.valid
-  private val memStoreSelected = !memLdSelected && sbMemReq.in.valid
-  private val memChosenValid   = memLdSelected || memStoreSelected
-  private val memChosenBits    = Wire(new MemoryArbiterRoutedReq(targetW))
+  memArb.io.in(storeTarget).valid       := sbMemReq.in.valid
+  memArb.io.in(storeTarget).bits.target := storeTarget.U(targetW.W)
+  memArb.io.in(storeTarget).bits.req    := sbMemReq.in.bits
 
-  memChosenBits.target := Mux(memLdSelected, memLdArb.io.out.bits.target, storeTarget.U(targetW.W))
-  memChosenBits.req    := Mux(memLdSelected, memLdArb.io.out.bits.req, sbMemReq.in.bits)
+  private val memChosenValid = memArb.io.out.valid
+  private val memChosenBits  = Wire(new MemoryArbiterRoutedReq(targetW))
+
+  memChosenBits := memArb.io.out.bits
   // Read data is unused.  Do not let the load-valid arbitration result become
   // a reset/select input on all 32 registered request-data bits.
   memChosenBits.req.data := sbMemReq.in.bits.data
@@ -71,8 +73,8 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   private val memIssueFire  = memReqValid && dcacheReq.out.ready && memRespQ.io.enq.ready
   private val memStageReady = !memReqValid || memIssueFire
 
-  memLdArb.io.out.ready := memStageReady
-  sbMemReq.in.ready     := memStageReady && !memLdSelected
+  memArb.io.out.ready := memStageReady
+  sbMemReq.in.ready   := memArb.io.in(storeTarget).ready
 
   memRespQ.io.enq.valid := memIssueFire
   memRespQ.io.enq.bits  := memReqBits.target
@@ -106,17 +108,14 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   dcacheResp.in.ready   := memRespQ.io.deq.valid && memTargetReady
   memRespQ.io.deq.ready := dcacheResp.in.valid && memTargetReady
 
-  private val mmioLdSelected    = mmioLdArb.io.out.valid
-  private val mmioStoreSelected = !mmioLdSelected && sbMmioReq.in.valid
-  private val mmioChosenValid   = mmioLdSelected || mmioStoreSelected
-  private val mmioChosenBits    = Wire(new MemoryArbiterRoutedReq(targetW))
+  mmioArb.io.in(storeTarget).valid       := sbMmioReq.in.valid
+  mmioArb.io.in(storeTarget).bits.target := storeTarget.U(targetW.W)
+  mmioArb.io.in(storeTarget).bits.req    := sbMmioReq.in.bits
 
-  mmioChosenBits.target := Mux(
-    mmioLdSelected,
-    mmioLdArb.io.out.bits.target,
-    storeTarget.U(targetW.W)
-  )
-  mmioChosenBits.req      := Mux(mmioLdSelected, mmioLdArb.io.out.bits.req, sbMmioReq.in.bits)
+  private val mmioChosenValid = mmioArb.io.out.valid
+  private val mmioChosenBits  = Wire(new MemoryArbiterRoutedReq(targetW))
+
+  mmioChosenBits          := mmioArb.io.out.bits
   mmioChosenBits.req.data := sbMmioReq.in.bits.data
 
   mmioReq.out.valid := mmioReqValid && mmioRespQ.io.enq.ready
@@ -125,8 +124,8 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   private val mmioIssueFire  = mmioReqValid && mmioReq.out.ready && mmioRespQ.io.enq.ready
   private val mmioStageReady = !mmioReqValid || mmioIssueFire
 
-  mmioLdArb.io.out.ready := mmioStageReady
-  sbMmioReq.in.ready     := mmioStageReady && !mmioLdSelected
+  mmioArb.io.out.ready := mmioStageReady
+  sbMmioReq.in.ready   := mmioArb.io.in(storeTarget).ready
 
   mmioRespQ.io.enq.valid := mmioIssueFire
   mmioRespQ.io.enq.bits  := mmioReqBits.target
