@@ -227,8 +227,9 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
       val consumed    = Wire(Vec(p(IssueWidth), Bool()))
       val allocOH     = Wire(Vec(p(IssueWidth), UInt(rsSize.W)))
 
-      // Keep dispatch backpressure independent of same-cycle wakeup and issue decisions.
-      freeEntries(0) := VecInit(entries.map(e => !e.valid)).asUInt
+      // Recycle entries that successfully issue this cycle so a full station can
+      // sustain issue and dispatch without inserting a one-cycle turnover bubble.
+      freeEntries(0) := VecInit(entries.map(e => !e.valid)).asUInt | allIssued
 
       for (w <- 0 until p(IssueWidth)) {
         val (rs1Hit, rs1Data) = cdbLookup(dispatched(w).bits.rs1_tag)
