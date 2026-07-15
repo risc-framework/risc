@@ -38,8 +38,24 @@ object LdRv32iIsa extends RegisteredNodeUtils[LdIsaImpl] with Rv32iLdUopConsts {
     private def unsigned(uop: FuReq): Bool =
       uop.uop(2)
 
-    private def ea(uop: FuReq): UInt =
-      uop.rs1_data + uop.imm
+    private def ea(uop: FuReq)(implicit p: Parameters): UInt = {
+      require(p(XLen) == 32, "RV32I load address generation requires XLEN=32")
+
+      // Load immediates are sign-extended 12-bit I-type values.  Compute the
+      // low-word carry in parallel with both possible high-word adjustments,
+      // instead of placing all 32 address bits on one carry chain.
+      val lowSum     = uop.rs1_data(11, 0) +& uop.imm(11, 0)
+      val upper      = uop.rs1_data(31, 12)
+      val upperPlus  = upper + 1.U
+      val upperMinus = upper - 1.U
+      val adjustedUpper = Mux(
+        uop.imm(11),
+        Mux(lowSum(12), upper, upperMinus),
+        Mux(lowSum(12), upperPlus, upper)
+      )
+
+      Cat(adjustedUpper, lowSum(11, 0))
+    }
 
     private def packData(accessBytes: Int, data: UInt)(implicit p: Parameters): UInt = {
       val bits = accessBytes * 8
