@@ -109,7 +109,11 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val currentRespValid = fwdCompleteNow || memCompleteNow || doneCompleteNow
   private val currentRespFire  = currentRespValid && fuResp.out.ready
 
-  fuReq.in.ready := !flush.in && (state === LdState.IDLE || currentRespFire)
+  // Scheduler and load-unit state are both discarded on the raw flush edge.
+  // Keep ready dependent only on registered local state so a flush may
+  // acknowledge-and-drop an invalidated request without feeding the second
+  // load selector, address generation, and memory-request path.
+  fuReq.in.ready := state === LdState.IDLE || currentRespFire
 
   private val acceptFire = fuReq.in.fire && !flush.in
 
