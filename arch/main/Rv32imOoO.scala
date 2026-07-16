@@ -52,7 +52,7 @@ object Rv32imOoO extends App {
       IsRegfileUseBypass            -> true,
       NumPhyRegs                    -> 64,
       ScheduleType                  -> "tomasulo",
-      ReservationStationSize        -> 8,
+      ReservationStationSize        -> 9,
       IssueWidth                    -> 2,
       CommitWidth                   -> 2,
       FunctionalUnits               -> Seq(
