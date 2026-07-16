@@ -2,7 +2,7 @@ package arch.core.memarb
 
 import arch.configs._
 import chisel3._
-import chisel3.util.{ Arbiter, Queue, UIntToOH, log2Ceil }
+import chisel3.util.{ Arbiter, Queue, RRArbiter, UIntToOH, log2Ceil }
 import vutils.graph.Node
 
 class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arbiter") {
@@ -27,10 +27,10 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   private val targetW     = log2Ceil(numReqs).max(1)
   private val storeTarget = numLoadPorts
 
-  // Each load unit holds at most one outstanding operation. Fixed priority
-  // therefore cannot starve another port indefinitely, and it keeps the
-  // request path free of round-robin grant-state feedback.
-  private val memLdArb  = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
+  // Cacheable stores share the round-robin domain with loads so a stream of
+  // load requests cannot indefinitely block the committed StoreBuffer head.
+  // The selected request still enters the registered stage below.
+  private val memArb    = Module(new RRArbiter(new MemoryArbiterRoutedReq(targetW), numReqs))
   private val mmioLdArb = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
 
   private val memRespQ  = Module(new Queue(UInt(targetW.W), p(RobSize), pipe = false, flow = false))
@@ -43,10 +43,10 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   private val mmioReqBits  = Reg(new MemoryArbiterRoutedReq(targetW))
 
   for (i <- 0 until numLoadPorts) {
-    memLdArb.io.in(i).valid       := loadMemReq.in.lanes(i).valid
-    memLdArb.io.in(i).bits.target := i.U(targetW.W)
-    memLdArb.io.in(i).bits.req    := loadMemReq.in.lanes(i).bits
-    loadMemReq.in.lanes(i).ready  := memLdArb.io.in(i).ready
+    memArb.io.in(i).valid       := loadMemReq.in.lanes(i).valid
+    memArb.io.in(i).bits.target := i.U(targetW.W)
+    memArb.io.in(i).bits.req    := loadMemReq.in.lanes(i).bits
+    loadMemReq.in.lanes(i).ready  := memArb.io.in(i).ready
 
     mmioLdArb.io.in(i).valid       := loadMmioReq.in.lanes(i).valid
     mmioLdArb.io.in(i).bits.target := i.U(targetW.W)
@@ -54,13 +54,14 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
     loadMmioReq.in.lanes(i).ready  := mmioLdArb.io.in(i).ready
   }
 
-  private val memLdSelected    = memLdArb.io.out.valid
-  private val memStoreSelected = !memLdSelected && sbMemReq.in.valid
-  private val memChosenValid   = memLdSelected || memStoreSelected
-  private val memChosenBits    = Wire(new MemoryArbiterRoutedReq(targetW))
+  memArb.io.in(storeTarget).valid       := sbMemReq.in.valid
+  memArb.io.in(storeTarget).bits.target := storeTarget.U(targetW.W)
+  memArb.io.in(storeTarget).bits.req    := sbMemReq.in.bits
 
-  memChosenBits.target := Mux(memLdSelected, memLdArb.io.out.bits.target, storeTarget.U(targetW.W))
-  memChosenBits.req    := Mux(memLdSelected, memLdArb.io.out.bits.req, sbMemReq.in.bits)
+  private val memChosenValid = memArb.io.out.valid
+  private val memChosenBits  = Wire(new MemoryArbiterRoutedReq(targetW))
+
+  memChosenBits := memArb.io.out.bits
   // Read data is unused.  Do not let the load-valid arbitration result become
   // a reset/select input on all 32 registered request-data bits.
   memChosenBits.req.data := sbMemReq.in.bits.data
@@ -71,8 +72,8 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   private val memIssueFire  = memReqValid && dcacheReq.out.ready && memRespQ.io.enq.ready
   private val memStageReady = !memReqValid || memIssueFire
 
-  memLdArb.io.out.ready := memStageReady
-  sbMemReq.in.ready     := memStageReady && !memLdSelected
+  memArb.io.out.ready := memStageReady
+  sbMemReq.in.ready   := memArb.io.in(storeTarget).ready
 
   memRespQ.io.enq.valid := memIssueFire
   memRespQ.io.enq.bits  := memReqBits.target
