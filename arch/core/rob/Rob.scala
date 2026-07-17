@@ -1,7 +1,7 @@
 package arch.core.rob
 
 import arch.configs._
-import arch.core.bpu.{ BpuBranchKind, BpuUpdate }
+import arch.core.bpu.{ BpuBranchKind, BpuHistoryRepair, BpuUpdate }
 import arch.core.ifu.RedirectInfo
 import arch.core.bru.BruResolveBundle
 import arch.core.dispatch.{ DispatchRobPacket, DispatchRobResp }
@@ -25,6 +25,10 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val bpuUpdate         = out[BpuUpdate]
   val committedRedirect = outVec[RedirectInfo](p => p(CommitWidth))
   val committedSync     = outVec[ExceptionSyncReq](p => p(CommitWidth))
+  val earlyRedirect     = out[RedirectInfo]
+  val earlyHistoryRepair = out[BpuHistoryRepair]
+  val earlyRedirectPending = out[Bool]
+  val preserveFrontend  = out[Bool]
   val flush             = in[Bool]
   val debug             = out[RobDebugInfo]
 
@@ -36,6 +40,20 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   private val head   = RegInit(0.U(p(RobTagWidth).W))
   private val tail   = RegInit(0.U(p(RobTagWidth).W))
   private val count  = RegInit(0.U(CntW.W))
+
+  // A resolved mispredict may redirect only the fetch side before the branch
+  // reaches the ROB head.  Correct-path instructions are buffered, but held
+  // out of dispatch until the normal precise commit-time backend flush.
+  private val earlyRedirectPendingReg = RegInit(false.B)
+  private val earlyRedirectTag        = RegInit(0.U(p(RobTagWidth).W))
+  private val earlyRedirectValidReg   = RegInit(false.B)
+  private val earlyRedirectTargetReg  = RegInit(0.U(p(XLen).W))
+  private val earlyRedirectIssuedReg  = RegInit(false.B)
+  private val earlyRedirectConditionalReg = RegInit(false.B)
+  private val earlyRedirectGhrReg     = RegInit(0.U(p(BpuHistoryWidth).W))
+  private val earlyRedirectTakenReg   = RegInit(false.B)
+
+  earlyRedirectValidReg := false.B
 
   for (i <- 0 until p(NumFUs))
     fuDone.in.lanes(i).ready := true.B
@@ -114,14 +132,21 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       }
     }
 
-  for (i <- 0 until p(NumBRUs))
+  private val bruMispredictVec = Wire(Vec(p(NumBRUs), Bool()))
+  private val bruActualTarget  = Wire(Vec(p(NumBRUs), UInt(p(XLen).W)))
+
+  for (i <- 0 until p(NumBRUs)) {
+    val resolved      = bruResolved.in.lanes(i).bits
+    val idx           = resolved.rob_tag
+    val oldPredTaken  = buffer(idx).pred_taken
+    val oldPredTarget = buffer(idx).pred_target
+    val actualTarget  = Mux(resolved.taken, resolved.target, resolved.fallthrough)
+    val bruMispredict = resolved.taken =/= oldPredTaken || actualTarget =/= oldPredTarget
+
+    bruMispredictVec(i) := bruResolved.in.lanes(i).valid && buffer(idx).valid && bruMispredict
+    bruActualTarget(i)  := actualTarget
+
     when(bruResolved.in.lanes(i).valid) {
-      val resolved      = bruResolved.in.lanes(i).bits
-      val idx           = resolved.rob_tag
-      val oldPredTaken  = buffer(idx).pred_taken
-      val oldPredTarget = buffer(idx).pred_target
-      val actualTarget  = Mux(resolved.taken, resolved.target, resolved.fallthrough)
-      val bruMispredict = resolved.taken =/= oldPredTaken || actualTarget =/= oldPredTarget
 
       buffer(idx).actual_taken  := resolved.taken
       buffer(idx).actual_target := actualTarget
@@ -131,6 +156,36 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
         buffer(idx).flush_target   := actualTarget
       }
     }
+  }
+
+  private val earlyRedirectAny  = bruMispredictVec.asUInt.orR
+  private val earlyRedirectSlot = PriorityEncoder(bruMispredictVec.asUInt)
+
+  when(earlyRedirectAny && !earlyRedirectPendingReg && !flush.in) {
+    earlyRedirectPendingReg := true.B
+    earlyRedirectTag        := bruResolved.in.lanes(earlyRedirectSlot).bits.rob_tag
+    earlyRedirectTargetReg  := bruActualTarget(earlyRedirectSlot)
+    earlyRedirectValidReg   := true.B
+    earlyRedirectIssuedReg  := false.B
+    earlyRedirectConditionalReg :=
+      buffer(bruResolved.in.lanes(earlyRedirectSlot).bits.rob_tag).branch_kind === BpuBranchKind.BRANCH
+    earlyRedirectGhrReg :=
+      buffer(bruResolved.in.lanes(earlyRedirectSlot).bits.rob_tag).ghr_snapshot
+    earlyRedirectTakenReg := bruResolved.in.lanes(earlyRedirectSlot).bits.taken
+  }
+
+  private val earlyRedirectCanIssue = earlyRedirectValidReg && !flush.in
+
+  when(earlyRedirectCanIssue) {
+    earlyRedirectIssuedReg := true.B
+  }
+
+  earlyRedirect.out.valid  := earlyRedirectCanIssue
+  earlyRedirect.out.target := earlyRedirectTargetReg
+  earlyHistoryRepair.out.valid := earlyRedirectCanIssue && earlyRedirectConditionalReg
+  earlyHistoryRepair.out.ghr_snapshot := earlyRedirectGhrReg
+  earlyHistoryRepair.out.taken := earlyRedirectTakenReg
+  earlyRedirectPending.out := earlyRedirectPendingReg
 
   private val commitPrefix = Wire(Vec(p(CommitWidth) + 1, Bool()))
   private val commitIndex  = Wire(Vec(p(CommitWidth), UInt(p(RobTagWidth).W)))
@@ -178,6 +233,21 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   }
 
   private val commitCount               = PopCount(commitPops)
+  private val committedEarlyRedirect    = earlyRedirectPendingReg && earlyRedirectIssuedReg &&
+    (0 until p(CommitWidth))
+    .map(w =>
+      commitPops(w) && commitIndex(w) === earlyRedirectTag && commitInfo(w).flush_pipeline &&
+        !commitInfo(w).sync_valid
+    )
+    .reduce(_ || _)
+
+  preserveFrontend.out := committedEarlyRedirect
+
+  when(committedEarlyRedirect || flush.in) {
+    earlyRedirectPendingReg := false.B
+    earlyRedirectIssuedReg  := false.B
+  }
+
   private val availableSlots            = p(RobSize).U(CntW.W) - count
   private val availableSlotsAfterCommit = availableSlots + commitCount
   private val laneActive                = Wire(Vec(p(IssueWidth), Bool()))
@@ -335,6 +405,8 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       bpuUpdateWire.alt_taken    := lane.bpu_alt_taken
       bpuUpdateWire.pred_taken   := lane.bpu_pred_taken
       bpuUpdateWire.mispredict   := lane.flush_pipeline
+      bpuUpdateWire.preserve_spec := committedEarlyRedirect &&
+        lane.bpu_branch_kind === BpuBranchKind.BRANCH
     }
   }
 

@@ -104,6 +104,7 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       val baseOldCounter = basePht(update.pht_index)
       val baseNewCounter = satUpdate(baseOldCounter, update.taken, SZ_BHT)
       val updateNextGhr  = shiftHist(update.ghr_snapshot, update.taken)
+      val repairedGhr    = shiftHist(req.history_repair_ghr, req.history_repair_taken)
 
       // Keep tagged-table lookups for all fetch lanes parallel. Their predicted
       // outcomes are folded into the speculative history only for the next cycle.
@@ -226,8 +227,12 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
         specGhr := commitGhr
       }
 
-      when(update.valid && update.mispredict) {
+      when(update.valid && update.mispredict && !update.preserve_spec) {
         specGhr := updateNextGhr
+      }
+
+      when(req.history_repair_valid) {
+        specGhr := repairedGhr
       }
     }
   }

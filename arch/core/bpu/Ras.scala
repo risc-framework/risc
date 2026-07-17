@@ -113,7 +113,8 @@ class Ras(implicit p: Parameters) extends Node[Parameters]("ras") {
     commitNextCount := next._2
   }
 
-  private val restoreSpec = req.in.flush || (req.in.update.valid && req.in.update.mispredict)
+  private val restoreSpec = req.in.flush ||
+    (req.in.update.valid && req.in.update.mispredict && !req.in.update.preserve_spec)
   private val specBaseSp    = Mux(restoreSpec, commitNextSp, specSp)
   private val specBaseCount = Mux(restoreSpec, commitNextCount, specCount)
 

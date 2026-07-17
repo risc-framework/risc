@@ -9,6 +9,7 @@ class Bpu(implicit p: Parameters) extends Node[Parameters]("bpu") {
   val ifuReq    = in[BpuIfuReq]
   val ifuResp   = out[BpuIfuResp]
   val robUpdate = in[BpuUpdate]
+  val historyRepair = in[BpuHistoryRepair]
   val debug     = out[BpuDebugInfo]
 
   private val btb       = subnode(new Btb)
@@ -24,6 +25,9 @@ class Bpu(implicit p: Parameters) extends Node[Parameters]("bpu") {
   predictor.queryReq.in.pc     := ifuReq.in.query_pc
   predictor.queryReq.in.accept := ifuReq.in.advance_valid && !ifuReq.in.flush
   predictor.queryReq.in.flush  := ifuReq.in.flush
+  predictor.queryReq.in.history_repair_valid := historyRepair.in.valid
+  predictor.queryReq.in.history_repair_ghr   := historyRepair.in.ghr_snapshot
+  predictor.queryReq.in.history_repair_taken := historyRepair.in.taken
   predictor.update.in          := predictorUpdate
   ras.req.in.flush             := ifuReq.in.flush
   ras.req.in.update            := robUpdate.in

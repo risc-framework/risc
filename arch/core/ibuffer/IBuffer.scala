@@ -10,6 +10,7 @@ class IBuffer(implicit p: Parameters) extends Node[Parameters]("ibuffer") {
   val deq = outDVec[IBufferEntry](p => p(IssueWidth))
 
   val flush  = in[Bool]
+  val hold   = in[Bool]
   val status = out[IBufferStatus]
 
   require(isPow2(p(IBufferSize)), "IBufferSize must be a power of 2")
@@ -49,7 +50,7 @@ class IBuffer(implicit p: Parameters) extends Node[Parameters]("ibuffer") {
   for (w <- 0 until p(IssueWidth)) {
     val idx = if (w == 0) head else ((head + w.U) & mask)(idxW - 1, 0)
 
-    deq.out.lanes(w).valid := count > w.U
+    deq.out.lanes(w).valid := count > w.U && !hold.in
     deq.out.lanes(w).bits  := buffer(idx)
   }
 

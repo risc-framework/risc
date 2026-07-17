@@ -44,10 +44,13 @@ class BtbQueryResp(implicit p: Parameters) extends Bundle {
 }
 
 class PredictorQueryReq(implicit p: Parameters) extends Bundle {
-  val pc        = Vec(p(IssueWidth), UInt(p(XLen).W))
-  val accept    = Bool()
-  val flush     = Bool()
-  val is_branch = Vec(p(IssueWidth), Bool())
+  val pc                   = Vec(p(IssueWidth), UInt(p(XLen).W))
+  val accept               = Bool()
+  val flush                = Bool()
+  val is_branch            = Vec(p(IssueWidth), Bool())
+  val history_repair_valid = Bool()
+  val history_repair_ghr   = UInt(p(BpuHistoryWidth).W)
+  val history_repair_taken = Bool()
 }
 
 class PredictorQueryResp(implicit p: Parameters) extends Bundle {
@@ -74,6 +77,12 @@ class BpuIfuResp(implicit p: Parameters) extends Bundle {
   val alt_taken    = Vec(p(IssueWidth), Bool())
 }
 
+class BpuHistoryRepair(implicit p: Parameters) extends Bundle {
+  val valid        = Bool()
+  val ghr_snapshot = UInt(p(BpuHistoryWidth).W)
+  val taken        = Bool()
+}
+
 class BpuUpdate(implicit p: Parameters) extends Bundle {
   val valid        = Bool()
   val pc           = UInt(p(XLen).W)
@@ -86,6 +95,7 @@ class BpuUpdate(implicit p: Parameters) extends Bundle {
   val alt_taken    = Bool()
   val pred_taken   = Bool()
   val mispredict   = Bool()
+  val preserve_spec = Bool()
 }
 
 class BpuDebugInfo extends Bundle {

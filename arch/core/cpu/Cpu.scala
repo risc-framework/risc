@@ -108,6 +108,10 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     memoryArbiter.sbMmioResp   -> storeBuffer.mmioResp,
     rob.committedRedirect      -> exception.committedRedirect,
     rob.committedSync          -> exception.committedSync,
+    rob.earlyRedirect          -> ifu.earlyRedirect,
+    rob.earlyHistoryRepair     -> bpu.historyRepair,
+    rob.earlyRedirectPending   -> ibuffer.hold,
+    rob.preserveFrontend       -> ifu.preserveCommittedRedirect,
     fuPool.async               -> exception.async,
     fuPool.csrBusy             -> exception.csrBusy,
     exception.sync             -> flush.sync,
@@ -115,7 +119,6 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     exception.redirect         -> ifu.redirect,
     exception.trapUpdate       -> flush.trapUpdate,
     exception.trapUpdate       -> fuPool.trapUpdate,
-    flush.globalFlush          -> ibuffer.flush,
     flush.globalFlush          -> dispatch.flush,
     flush.globalFlush          -> scheduler.flush,
     flush.globalFlush          -> fuPool.flush,
@@ -123,6 +126,12 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     flush.globalFlush          -> rob.flush,
     irq                        -> fuPool.irq,
   )
+
+  // An early branch redirect discards the old fetch stream immediately.  At
+  // that same branch's precise commit, retain the already-buffered target
+  // stream while all backend speculative state is flushed normally.
+  ibuffer.flush.in := rob.earlyRedirect.out.valid ||
+    (flush.globalFlush.out && !rob.preserveFrontend.out)
 
   debug.out.cycle_count   := cycleCount
   debug.out.instret_count := instretCount
