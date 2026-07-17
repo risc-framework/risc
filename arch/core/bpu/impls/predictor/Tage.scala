@@ -30,6 +30,10 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       val providerWidth = p(TageProviderWidth)
       val baseEntries   = 1 << p(GShareGhrWidth)
 
+      val localEntries      = 64
+      val localIndexWidth   = log2Ceil(localEntries)
+      val localCounterWidth = 3
+
       require(tableCount > 0, "TAGE requires at least one tagged table")
       require(tableEntries.length == tableCount, "TAGE entry/history table counts must match")
       require(tagWidths.length == tableCount, "TAGE tag/history table counts must match")
@@ -44,6 +48,12 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       val commitGhr = RegInit(0.U(historyWidth.W))
       val specGhr   = RegInit(0.U(historyWidth.W))
       val basePht   = RegInit(VecInit(Seq.fill(baseEntries)(BHT_WT.value.U(SZ_BHT.W))))
+      // A small PC-local confidence corrector complements TAGE's global-history
+      // view. It only overrides a weak TAGE provider after the local counter has
+      // reached a strongly biased state, so noisy branches continue to use TAGE.
+      val localInit  = (BigInt(1) << (localCounterWidth - 1)).U(localCounterWidth.W)
+      val localPht   = Mem(localEntries, UInt(localCounterWidth.W))
+      val localValid = RegInit(VecInit(Seq.fill(localEntries)(false.B)))
       val tables = tableEntries.zip(tagWidths).map { case (entries, tagWidth) =>
         RegInit(
           VecInit(Seq.fill(entries)(0.U.asTypeOf(new TageEntry(tagWidth, counterWidth, usefulWidth))))
@@ -101,10 +111,13 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       def updateUseful(old: UInt, increment: Bool): UInt =
         satUpdate(old, increment, usefulWidth)
 
-      val baseOldCounter = basePht(update.pht_index)
-      val baseNewCounter = satUpdate(baseOldCounter, update.taken, SZ_BHT)
-      val updateNextGhr  = shiftHist(update.ghr_snapshot, update.taken)
-      val repairedGhr    = shiftHist(req.history_repair_ghr, req.history_repair_taken)
+      val baseOldCounter   = basePht(update.pht_index)
+      val baseNewCounter   = satUpdate(baseOldCounter, update.taken, SZ_BHT)
+      val localUpdateIndex = foldPc(update.pc, localIndexWidth)
+      val localOldCounter  = Mux(localValid(localUpdateIndex), localPht(localUpdateIndex), localInit)
+      val localNewCounter  = satUpdate(localOldCounter, update.taken, localCounterWidth)
+      val updateNextGhr    = shiftHist(update.ghr_snapshot, update.taken)
+      val repairedGhr      = shiftHist(req.history_repair_ghr, req.history_repair_taken)
 
       // Keep tagged-table lookups for all fetch lanes parallel. Their predicted
       // outcomes are folded into the speculative history only for the next cycle.
@@ -115,28 +128,44 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
         val baseBypass  = update.valid && update.pht_index === baseIdx
         val baseCounter = Mux(baseBypass, baseNewCounter, basePht(baseIdx))
         val baseTaken   = baseCounter(SZ_BHT - 1)
+        val localIdx     = foldPc(req.pc(w), localIndexWidth)
+        val localBypass  = update.valid && localUpdateIndex === localIdx
+        val localCounter = Mux(
+          localBypass,
+          localNewCounter,
+          Mux(localValid(localIdx), localPht(localIdx), localInit)
+        )
+        val localTaken   = localCounter(localCounterWidth - 1)
+        val localStrong  =
+          localCounter(localCounterWidth - 1) === localCounter(localCounterWidth - 2)
         val hits        = Wire(Vec(tableCount, Bool()))
         val predictions = Wire(Vec(tableCount, Bool()))
+        val strong       = Wire(Vec(tableCount, Bool()))
 
         for (i <- 0 until tableCount) {
           val index = tableIndex(req.pc(w), specGhr, i)
           val entry = tables(i)(index)
           hits(i)        := entry.valid && entry.tag === tableTag(req.pc(w), specGhr, i)
           predictions(i) := entry.counter(counterWidth - 1)
+          strong(i)      := entry.counter(counterWidth - 1) === entry.counter(counterWidth - 2)
         }
 
         var selected: Bool = baseTaken
         var alternate: Bool = baseTaken
         var provider: UInt = 0.U(providerWidth.W)
+        var selectedStrong: Bool = baseCounter(SZ_BHT - 1) === baseCounter(SZ_BHT - 2)
 
         for (i <- 0 until tableCount) {
           alternate = Mux(hits(i), selected, alternate)
           selected  = Mux(hits(i), predictions(i), selected)
           provider  = Mux(hits(i), (i + 1).U(providerWidth.W), provider)
+          selectedStrong = Mux(hits(i), strong(i), selectedStrong)
         }
 
-        queryTaken(w)        := selected
-        resp.taken(w)        := selected
+        val correctedTaken = Mux(localStrong && !selectedStrong, localTaken, selected)
+
+        queryTaken(w)        := correctedTaken
+        resp.taken(w)        := correctedTaken
         resp.pht_index(w)    := baseIdx
         resp.ghr_snapshot(w) := specGhr
         resp.provider(w)     := provider
@@ -212,7 +241,9 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
 
       when(update.valid) {
         basePht(update.pht_index) := baseNewCounter
-        commitGhr                 := updateNextGhr
+        localPht.write(localUpdateIndex, localNewCounter)
+        localValid(localUpdateIndex) := true.B
+        commitGhr := updateNextGhr
       }
 
       when(directionMiss && foundCandidate) {
