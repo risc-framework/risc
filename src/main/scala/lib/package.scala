@@ -6,6 +6,7 @@ package object configs {
   import system.device.DeviceDescriptor
   import vcache.{ CacheAccess, CacheMissMode, CacheParams }
   import vcache.repl.ReplPolicy
+  import vutils.buf.BufStorageBackend
   import chisel3.util.{ BitPat, log2Ceil }
 
   private[configs] def requirePositive(name: String, value: Int): Int = {
@@ -83,11 +84,15 @@ package object configs {
   object L1ICacheSets       extends Field[Int]
   object L1ICacheLineSize   extends Field[Int]
   object L1ICacheReplPolicy extends Field[ReplPolicy]
+  object L1ICacheDataBackend extends Field[BufStorageBackend]
+  object L1ICacheMetaBackend extends Field[BufStorageBackend]
 
   object L1DCacheWays       extends Field[Int]
   object L1DCacheSets       extends Field[Int]
   object L1DCacheLineSize   extends Field[Int]
   object L1DCacheReplPolicy extends Field[ReplPolicy]
+  object L1DCacheDataBackend extends Field[BufStorageBackend]
+  object L1DCacheMetaBackend extends Field[BufStorageBackend]
 
   // Bus Parameters
   object BusType                       extends Field[String]
@@ -195,7 +200,9 @@ package object configs {
           numWays = p(L1ICacheWays),
           access = CacheAccess.ReadOnly,
           missMode = CacheMissMode.NonBlocking,
-          replPolicy = p(L1ICacheReplPolicy)
+          replPolicy = p(L1ICacheReplPolicy),
+          dataBackend = p(L1ICacheDataBackend),
+          metaBackend = p(L1ICacheMetaBackend)
         )
       })
 
@@ -211,7 +218,9 @@ package object configs {
           numWays = p(L1DCacheWays),
           access = CacheAccess.ReadWrite,
           missMode = CacheMissMode.NonBlocking,
-          replPolicy = p(L1DCacheReplPolicy)
+          replPolicy = p(L1DCacheReplPolicy),
+          dataBackend = p(L1DCacheDataBackend),
+          metaBackend = p(L1DCacheMetaBackend)
         )
       })
 
@@ -242,10 +251,14 @@ package object configs {
       L1ICacheSets,
       L1ICacheLineSize,
       L1ICacheReplPolicy,
+      L1ICacheDataBackend,
+      L1ICacheMetaBackend,
       L1DCacheWays,
       L1DCacheSets,
       L1DCacheLineSize,
       L1DCacheReplPolicy,
+      L1DCacheDataBackend,
+      L1DCacheMetaBackend,
       BusType,
       BusCrossbarFifoDepthPerClient,
       BusRouteQueuePipe,

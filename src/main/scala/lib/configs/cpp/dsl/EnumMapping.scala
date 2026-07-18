@@ -2,6 +2,7 @@ package arch.configs.cpp.dsl
 
 import arch.system.device.DeviceType
 import vcache.repl.ReplPolicy
+import vutils.buf.BufStorageBackend
 
 private[cpp] object CppEnumMapping {
   def deviceType(t: DeviceType): String =
@@ -20,6 +21,14 @@ private[cpp] object CppEnumMapping {
       case ReplPolicy.LRU       => "REPL_POLICY_LRU"
       case ReplPolicy.PseudoLRU => "REPL_POLICY_PSEUDO_LRU"
       case _                    => "REPL_POLICY_UNKNOWN"
+    }
+
+  def bufBackend(backend: BufStorageBackend): String =
+    backend match {
+      case BufStorageBackend.Reg     => "BUF_STORAGE_BACKEND_REG"
+      case BufStorageBackend.Mem     => "BUF_STORAGE_BACKEND_MEM"
+      case BufStorageBackend.SyncMem => "BUF_STORAGE_BACKEND_SYNC_MEM"
+      case _                         => "BUF_STORAGE_BACKEND_UNKNOWN"
     }
 
   def bus(s: String): String =

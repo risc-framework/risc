@@ -25,6 +25,7 @@ import arch.configs.cmake.CMakeCodegen
 import arch.configs.mk.MakeCodegen
 import arch.configs.runtime.{ RuntimeBackendInit, RuntimeCodegen }
 import vcache.repl.ReplPolicy
+import vutils.buf.BufStorageBackend
 import vutils._
 
 object Rv32imOoO extends App {
@@ -113,10 +114,14 @@ object Rv32imOoO extends App {
       L1ICacheSets                  -> 16,
       L1ICacheLineSize              -> 64,
       L1ICacheReplPolicy            -> ReplPolicy.LRU,
+      L1ICacheDataBackend           -> BufStorageBackend.SyncMem,
+      L1ICacheMetaBackend           -> BufStorageBackend.Reg,
       L1DCacheWays                  -> 4,
       L1DCacheSets                  -> 8,
       L1DCacheLineSize              -> 64,
       L1DCacheReplPolicy            -> ReplPolicy.PseudoLRU,
+      L1DCacheDataBackend           -> BufStorageBackend.Mem,
+      L1DCacheMetaBackend           -> BufStorageBackend.Reg,
       BusType                       -> "axif",
       BusCrossbarFifoDepthPerClient -> 4,
       BusRouteQueuePipe             -> true,

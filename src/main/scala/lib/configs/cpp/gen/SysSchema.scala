@@ -33,6 +33,16 @@ private[cpp] object CppSysSchema {
       )
     ),
     EnumDecl(
+      "BufStorageBackend",
+      "uint8_t",
+      Seq(
+        "BUF_STORAGE_BACKEND_UNKNOWN"  -> 0,
+        "BUF_STORAGE_BACKEND_REG"      -> 1,
+        "BUF_STORAGE_BACKEND_MEM"      -> 2,
+        "BUF_STORAGE_BACKEND_SYNC_MEM" -> 3,
+      )
+    ),
+    EnumDecl(
       "BusType",
       "uint8_t",
       Seq(
@@ -57,6 +67,8 @@ private[cpp] object CppSysSchema {
         "uint32_t"   -> "ways",
         "uint32_t"   -> "line_size",
         "ReplPolicy" -> "repl_policy",
+        "BufStorageBackend" -> "data_backend",
+        "BufStorageBackend" -> "meta_backend",
       )
     ),
   )
@@ -85,6 +97,8 @@ private[cpp] object CppSysSchema {
           u32Lit(p(L1ICacheWays)),
           u32Lit(p(L1ICacheLineSize)),
           enumLit("ReplPolicy", repl(p(L1ICacheReplPolicy))),
+          enumLit("BufStorageBackend", bufBackend(p(L1ICacheDataBackend))),
+          enumLit("BufStorageBackend", bufBackend(p(L1ICacheMetaBackend))),
         )
     ),
     struct(
@@ -96,6 +110,8 @@ private[cpp] object CppSysSchema {
           u32Lit(p(L1DCacheWays)),
           u32Lit(p(L1DCacheLineSize)),
           enumLit("ReplPolicy", repl(p(L1DCacheReplPolicy))),
+          enumLit("BufStorageBackend", bufBackend(p(L1DCacheDataBackend))),
+          enumLit("BufStorageBackend", bufBackend(p(L1DCacheMetaBackend))),
         )
     ),
     array(
