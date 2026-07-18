@@ -4,7 +4,13 @@ import arch.configs._
 import arch.core.fupool.{ FuReq, FuResp }
 import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
 import arch.core.pma.PmaModeFactory
-import arch.core.sb.{ StoreBufferSequence, StoreBufferStatus, StoreForwardReq, StoreForwardResp }
+import arch.core.sb.{
+  StoreBufferAddressSignature,
+  StoreBufferSequence,
+  StoreBufferStatus,
+  StoreForwardReq,
+  StoreForwardResp
+}
 import vcache.CacheCommand
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
@@ -73,6 +79,12 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
       sbStatus.in.oldest_seq,
       fuReq.in.bits.sq_seq
     )
+  private val acceptStoreSignatureHit =
+    sbStatus.in.address_signature(StoreBufferAddressSignature.index(acceptAddr))
+  private val acceptCanSkipForward =
+    acceptHasOlderStore && acceptPmaResult.cacheable && !sbStatus.in.unknown_addr &&
+      !acceptStoreSignatureHit
+  private val acceptNeedsForward = acceptHasOlderStore && !acceptCanSkipForward
 
   private val fwdRespBits    = fwdResp.in.bits
   private val fwdRespFire    = fwdResp.in.fire
@@ -128,6 +140,10 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
 
   fwdResp.in.ready := state === LdState.FWD_RESP && !flush.in
 
+  // Keep the same-cycle request path identical to the proven baseline.  A
+  // signature-proven non-aliasing load enters MEM here, then issues from the
+  // registered address on the following cycle; this still skips forwarding
+  // without extending Scheduler control into the D-cache request handshake.
   private val memReqFromAccept = acceptFire && !acceptHasOlderStore
   private val memReqFromRetry  = state === LdState.MEM && !reqOutstanding && !flush.in
   private val memReqFromFwd    = canSendMemFromFwd
@@ -249,7 +265,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
       fwdDataReg      := 0.U
       fwdMaskReg      := 0.U
 
-      when(acceptHasOlderStore) {
+      when(acceptNeedsForward) {
         state := LdState.FWD_REQ
       }.otherwise {
         state := LdState.MEM

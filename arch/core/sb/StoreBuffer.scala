@@ -59,6 +59,17 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     }
   }
 
+  private def balancedOr(terms: Seq[UInt]): UInt = {
+    require(terms.nonEmpty)
+
+    if (terms.size == 1) {
+      terms.head
+    } else {
+      val split = (terms.size + 1) / 2
+      balancedOr(terms.take(split)) | balancedOr(terms.drop(split))
+    }
+  }
+
   private def equalByChunks(lhs: UInt, rhs: UInt, chunkWidth: Int = 3): Bool = {
     require(lhs.getWidth == rhs.getWidth)
     require(chunkWidth > 0)
@@ -108,6 +119,20 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     drainReqQ.io.deq.valid,
     drainReqQ.io.deq.bits.seq,
     entries(head).seq
+  )
+  status.out.unknown_addr := VecInit(entries.map(e => e.valid && !e.addrValid)).asUInt.orR
+  status.out.address_signature := balancedOr(
+    entries.map(e =>
+      Mux(
+        e.valid && e.addrValid,
+        StoreBufferAddressSignature.oneHot(e.addr),
+        0.U(StoreBufferAddressSignature.Width.W)
+      )
+    ) :+ Mux(
+      drainReqQ.io.deq.valid,
+      StoreBufferAddressSignature.oneHot(drainReqQ.io.deq.bits.req.addr),
+      0.U(StoreBufferAddressSignature.Width.W)
+    )
   )
 
   for (s <- 0 until numStorePorts)

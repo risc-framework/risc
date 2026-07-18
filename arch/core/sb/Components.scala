@@ -2,13 +2,37 @@ package arch.core.sb
 
 import arch.configs._
 import chisel3._
-import chisel3.util.log2Ceil
+import chisel3.util.{ Cat, UIntToOH, log2Ceil }
 
 object StoreBufferSequence {
   def isOlder(lhs: UInt, rhs: UInt)(implicit p: Parameters): Bool = {
     val distance = rhs - lhs
     lhs =/= rhs && !distance(p(StoreSeqWidth) - 1)
   }
+}
+
+object StoreBufferAddressSignature {
+  val Width      = 16
+  val IndexWidth = log2Ceil(Width)
+
+  def index(addr: UInt)(implicit p: Parameters): UInt = {
+    val lineLo    = log2Ceil(p(BytesPerWord))
+    val wordAddr  = addr(p(XLen) - 1, lineLo)
+    val wordWidth = p(XLen) - lineLo
+    val chunks = (0 until wordWidth by IndexWidth).map { lo =>
+      val hi         = math.min(lo + IndexWidth, wordWidth) - 1
+      val chunkWidth = hi - lo + 1
+      if (chunkWidth == IndexWidth) {
+        wordAddr(hi, lo)
+      } else {
+        Cat(0.U((IndexWidth - chunkWidth).W), wordAddr(hi, lo))
+      }
+    }
+
+    chunks.reduce(_ ^ _)
+  }
+
+  def oneHot(addr: UInt)(implicit p: Parameters): UInt = UIntToOH(index(addr), Width)
 }
 
 class StoreBufferTicket(implicit p: Parameters) extends Bundle {
@@ -68,8 +92,10 @@ class StoreBufferEntry(implicit p: Parameters) extends Bundle {
 }
 
 class StoreBufferStatus(implicit p: Parameters) extends Bundle {
-  val oldest_valid = Bool()
-  val oldest_seq   = UInt(p(StoreSeqWidth).W)
+  val oldest_valid     = Bool()
+  val oldest_seq       = UInt(p(StoreSeqWidth).W)
+  val unknown_addr     = Bool()
+  val address_signature = UInt(StoreBufferAddressSignature.Width.W)
 }
 
 class StoreBufferDebugInfo extends Bundle {
