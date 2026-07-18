@@ -99,6 +99,8 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     storeBuffer.fwdResp        -> fuPool.storeForwardResp,
     storeBuffer.status         -> fuPool.storeBufferStatus,
     fuPool.storeWrite          -> storeBuffer.storeWrite,
+    dispatch.storeAddr         -> storeBuffer.dispatchAddr,
+    scheduler.storeAddr        -> storeBuffer.schedulerAddr,
     storeBuffer.allocStatus    -> rob.sbAllocStatus,
     rob.sbAlloc                -> storeBuffer.robAlloc,
     rob.sbCommit               -> storeBuffer.robCommit,

@@ -109,10 +109,9 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val currentRespValid = fwdCompleteNow || memCompleteNow || doneCompleteNow
   private val currentRespFire  = currentRespValid && fuResp.out.ready
 
-  // Scheduler and load-unit state are both discarded on the raw flush edge.
-  // Keep ready dependent only on registered local state so a flush may
-  // acknowledge-and-drop an invalidated request without feeding the second
-  // load selector, address generation, and memory-request path.
+  // Allow same-cycle turnover after a consumed completion. Tomasulo computes
+  // the two oldest Load candidates ahead of this late ready signal, so the
+  // response path only controls a final two-input choice for the second LD.
   fuReq.in.ready := state === LdState.IDLE || currentRespFire
 
   private val acceptFire = fuReq.in.fire && !flush.in

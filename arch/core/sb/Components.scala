@@ -35,6 +35,11 @@ class StoreWriteBundle(implicit p: Parameters) extends Bundle {
   val cacheable = Bool()
 }
 
+class StoreAddressBundle(implicit p: Parameters) extends Bundle {
+  val sq_idx = UInt(log2Ceil(p(StoreBufferSize)).W)
+  val addr   = UInt(p(XLen).W)
+}
+
 class StoreForwardReq(implicit p: Parameters) extends Bundle {
   val sq_seq = UInt(p(StoreSeqWidth).W)
   val addr   = UInt(p(XLen).W)

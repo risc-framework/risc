@@ -27,7 +27,9 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   val status = out[StoreBufferStatus]
   val debug  = out[StoreBufferDebugInfo]
 
-  val storeWrite = inDVec[StoreWriteBundle](p => p(NumSTs))
+  val storeWrite     = inDVec[StoreWriteBundle](p => p(NumSTs))
+  val dispatchAddr   = inVVec[StoreAddressBundle](p => p(IssueWidth))
+  val schedulerAddr  = inVVec[StoreAddressBundle](p => p(NumSTs))
 
   val memReq   = outD[MemoryArbiterCacheReq]
   val memResp  = inD[MemoryArbiterCacheResp]
@@ -151,19 +153,20 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
       val inRange     = logical.U < count
       val olderLive   = inRange && e.valid && StoreBufferSequence.isOlder(e.seq, req.sq_seq)
       val liveUnknown = olderLive && !e.addrValid
-      val forwardable = olderLive && e.addrValid
+      val addressKnown = olderLive && e.addrValid
       val lineLo      = log2Ceil(p(BytesPerWord))
-      val sameLine    = forwardable && equalByChunks(
+      val sameLine    = addressKnown && equalByChunks(
         e.addr(p(XLen) - 1, lineLo),
         req.addr(p(XLen) - 1, lineLo)
       )
+      val forwardable = sameLine && e.fwdValid
 
       olderVec(logical) := olderLive
-      blockVec(logical) := liveUnknown
+      blockVec(logical) := liveUnknown || (sameLine && !e.fwdValid)
       entryData(logical) := e.data
 
       for (b <- 0 until p(BytesPerWord))
-        byteHitVec(logical)(b) := sameLine && e.mask(b) && req.mask(b)
+        byteHitVec(logical)(b) := forwardable && e.mask(b) && req.mask(b)
     }
 
     // A forwarding request comes from a registered RS entry, so stores allocated
@@ -222,7 +225,7 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   private val canDrainMmio =
     !headEntry.cacheable && cacheableOutstanding === 0.U && !mmioOutstanding
   private val canDrain =
-    headEntry.valid && headEntry.committed && headEntry.addrValid &&
+    headEntry.valid && headEntry.committed && headEntry.fwdValid &&
       (canDrainCacheable || canDrainMmio)
 
   drainReqQ.io.enq.valid          := canDrain
@@ -281,6 +284,8 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   for (i <- 0 until p(StoreBufferSize)) {
     val drainedThis = headRetireFire && head === i.U
     val writeHit    = Wire(Vec(numStorePorts, Bool()))
+    val dispatchAddrHit = Wire(Vec(p(IssueWidth), Bool()))
+    val schedulerAddrHit = Wire(Vec(p(NumSTs), Bool()))
     val commitHit   = Wire(Vec(p(CommitWidth), Bool()))
     val allocHit    = Wire(Vec(p(IssueWidth), Bool()))
 
@@ -288,6 +293,14 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
       writeHit(s) := storeWrite.in
         .lanes(s)
         .fire && storeWrite.in.lanes(s).bits.sq_idx === i.U && entries(i).valid && !drainedThis
+
+    for (a <- 0 until p(IssueWidth))
+      dispatchAddrHit(a) := dispatchAddr.in.lanes(a).valid &&
+        dispatchAddr.in.lanes(a).bits.sq_idx === i.U && !drainedThis
+
+    for (a <- 0 until p(NumSTs))
+      schedulerAddrHit(a) := schedulerAddr.in.lanes(a).valid &&
+        schedulerAddr.in.lanes(a).bits.sq_idx === i.U && !drainedThis
 
     for (c <- 0 until p(CommitWidth))
       commitHit(c) := robCommit.in.lanes(c).valid && robCommit.in
@@ -299,6 +312,9 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
       allocHit(a) := allocValid(a) && sqIdxForLane(a) === i.U
 
     val anyWrite       = writeHit.asUInt.orR
+    val anyDispatchAddr = dispatchAddrHit.asUInt.orR
+    val anySchedulerAddr = schedulerAddrHit.asUInt.orR
+    val anyAddr        = anyDispatchAddr || anySchedulerAddr
     val anyCommit      = commitHit.asUInt.orR
     val anyAlloc       = allocHit.asUInt.orR
     val writeAddr      = Mux1H(
@@ -313,6 +329,17 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     val writeCacheable = Mux1H(
       (0 until numStorePorts).map(s => writeHit(s) -> storeWrite.in.lanes(s).bits.cacheable)
     )
+    val dispatchEarlyAddr = Mux1H(
+      (0 until p(IssueWidth)).map(a =>
+        dispatchAddrHit(a) -> dispatchAddr.in.lanes(a).bits.addr
+      )
+    )
+    val schedulerEarlyAddr = Mux1H(
+      (0 until p(NumSTs)).map(a =>
+        schedulerAddrHit(a) -> schedulerAddr.in.lanes(a).bits.addr
+      )
+    )
+    val earlyAddr      = Mux(anyDispatchAddr, dispatchEarlyAddr, schedulerEarlyAddr)
     val allocSeq       = Mux1H((0 until p(IssueWidth)).map(a => allocHit(a) -> sqSeqForLane(a)))
     val e              = Wire(new StoreBufferEntry)
 
@@ -325,10 +352,18 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     }.elsewhen(anyAlloc) {
       e.valid     := true.B
       e.committed := false.B
-      e.addrValid := false.B
+      e.addrValid := anyAddr
       e.fwdValid  := false.B
       e.seq       := allocSeq
+      when(anyAddr) {
+        e.addr := earlyAddr
+      }
     }.otherwise {
+      when(anyAddr) {
+        e.addrValid := true.B
+        e.addr      := earlyAddr
+      }
+
       when(anyWrite) {
         e.addrValid := true.B
         e.fwdValid  := true.B

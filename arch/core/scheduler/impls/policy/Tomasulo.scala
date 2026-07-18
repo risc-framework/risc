@@ -2,10 +2,11 @@ package arch.core.scheduler.impls.policy.tomasulo
 
 import arch.configs._
 import arch.core.fupool.{ FuReq, FuResp, FunctionalUnitType }
+import arch.core.sb.StoreAddressBundle
 import arch.core.scheduler._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ DecoupledIO, Mux1H, PopCount, PriorityEncoderOH, log2Ceil }
+import chisel3.util.{ DecoupledIO, Mux1H, PopCount, PriorityEncoderOH, ValidIO, log2Ceil }
 
 private class ReservationStationEntry(implicit p: Parameters) extends Bundle {
   val valid        = Bool()
@@ -13,6 +14,7 @@ private class ReservationStationEntry(implicit p: Parameters) extends Bundle {
   val op           = new FuReq
   val rs1Ready     = Bool()
   val rs2Ready     = Bool()
+  val storeAddrKnown = Bool()
 }
 
 object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
@@ -24,6 +26,7 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
       dispatched: Int => DecoupledIO[FuReq],
       fuReq: Int => DecoupledIO[FuReq],
       fuDone: Int => DecoupledIO[FuResp],
+      storeAddr: Int => ValidIO[StoreAddressBundle],
       debug: SchedulerDebugInfo
     )(implicit p: Parameters): Unit = {
       val rsSize = p(ReservationStationSize)
@@ -58,6 +61,8 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
       val rs1Wake         = Wire(Vec(rsSize, Bool()))
       val rs2Wake         = Wire(Vec(rsSize, Bool()))
       val issueEntries    = Wire(Vec(rsSize, new FuReq))
+      val storeAddrValidReg = RegInit(false.B)
+      val storeAddrBitsReg  = Reg(new StoreAddressBundle)
 
       for (f <- 0 until p(NumFUs)) {
         fuReq(f).valid  := false.B
@@ -91,7 +96,6 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
       val older            = Wire(Vec(rsSize, Vec(rsSize, Bool())))
       val registeredReady  = Wire(Vec(rsSize, Bool()))
       val operandsReady    = Wire(Vec(rsSize, Bool()))
-      val loadReady        = Wire(Vec(rsSize, Bool()))
       val serializingReady = Wire(Vec(rsSize, Bool()))
 
       for (i <- 0 until rsSize) {
@@ -106,17 +110,62 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         }
       }
 
+      // Capture addresses for stores whose base becomes ready after dispatch,
+      // without waiting for their data operand. The registered sideband keeps
+      // RS age selection and address generation out of the StoreBuffer path.
+      val storeAddrCandidates = VecInit((0 until rsSize).map { i =>
+        entries(i).valid &&
+          entries(i).op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U &&
+          entries(i).rs1Ready && !entries(i).storeAddrKnown
+      })
+      // One oldest publication per cycle is sufficient: StoreBuffer ordering
+      // remains authoritative, while avoiding two 64-entry rank/popcount trees.
+      val oldestStoreAddrSelect = VecInit((0 until rsSize).map { i =>
+        val olderCandidate = (0 until rsSize)
+          .filter(_ != i)
+          .map(j => storeAddrCandidates(j) && older(j)(i))
+          .reduce(_ || _)
+
+        storeAddrCandidates(i) && !olderCandidate
+      }).asUInt
+      val storeAddrSelect = oldestStoreAddrSelect
+      val publishStoreAddr = storeAddrCandidates.asUInt.orR
+      val selectedStoreOp  = Wire(new FuReq)
+
+      selectedStoreOp := Mux1H(storeAddrSelect, entries.map(_.op))
+
+      for (s <- 0 until p(NumSTs)) {
+        if (s == 0) {
+          storeAddr(s).valid := storeAddrValidReg && !flush
+          storeAddr(s).bits  := storeAddrBitsReg
+        } else {
+          storeAddr(s).valid := false.B
+          storeAddr(s).bits  := 0.U.asTypeOf(new StoreAddressBundle)
+        }
+      }
+
+      when(flush) {
+        storeAddrValidReg := false.B
+      }.otherwise {
+        storeAddrValidReg := publishStoreAddr
+        when(publishStoreAddr) {
+          storeAddrBitsReg.sq_idx := selectedStoreOp.sq_idx
+          storeAddrBitsReg.addr   := selectedStoreOp.rs1_data + selectedStoreOp.imm
+        }
+      }
+
+      val storeAddrPublished = storeAddrSelect
+      for (i <- 0 until rsSize)
+        when(storeAddrPublished(i)) {
+          nextEntries(i).storeAddrKnown := true.B
+        }
+
       for (i <- 0 until rsSize) {
         val entry = entries(i)
         val olderEntries = (0 until rsSize)
           .filter(_ != i)
           .map(j => entries(j).valid && older(j)(i))
         val olderEntry = olderEntries.reduce(_ || _)
-        val olderStore = (0 until rsSize)
-          .filter(_ != i)
-          .map(j => entries(j).valid && older(j)(i) &&
-            entries(j).op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U)
-          .reduce(_ || _)
         val olderSerializing = (0 until rsSize)
           .filter(_ != i)
           .map(j => entries(j).valid && older(j)(i) &&
@@ -126,8 +175,6 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         registeredReady(i) := entry.rs1Ready && entry.rs2Ready
         operandsReady(i) := (entry.rs1Ready || rs1Wake(i)) &&
           (entry.rs2Ready || rs2Wake(i))
-        loadReady(i) := entry.op.fu_type =/= FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD.index.U ||
-          !olderStore
         serializingReady(i) := Mux(
           entry.op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_CSR.index.U,
           !olderEntry,
@@ -135,85 +182,131 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         )
       }
 
+      // Both LDs consume the same precomputed oldest/second-oldest candidates.
+      // The late completion -> ready signal from LD0 then controls only a 2:1
+      // choice for LD1, rather than a second 64-entry age-rank/select tree.
+      val loadFuIndices = (0 until p(NumFUs)).filter { f =>
+        p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD
+      }
+      val loadCandidates = Wire(Vec(rsSize, Bool()))
+      val olderLoadCount = Wire(Vec(rsSize, UInt(log2Ceil(rsSize + 1).W)))
+
+      for (i <- 0 until rsSize) {
+        val entry = entries(i)
+        loadCandidates(i) := entry.valid && registeredReady(i) && serializingReady(i) &&
+          entry.op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD.index.U
+        olderLoadCount(i) := PopCount(VecInit(
+          (0 until rsSize)
+            .filter(_ != i)
+            .map(j => loadCandidates(j) && older(j)(i))
+        ))
+      }
+
+      val oldestLoadOH = VecInit((0 until rsSize).map { i =>
+        loadCandidates(i) && olderLoadCount(i) === 0.U
+      }).asUInt
+      val secondLoadOH = VecInit((0 until rsSize).map { i =>
+        loadCandidates(i) && olderLoadCount(i) === 1.U
+      }).asUInt
+      val oldestLoadOp = Mux1H(oldestLoadOH, entries.map(_.op))
+      val secondLoadOp = Mux1H(secondLoadOH, entries.map(_.op))
+
       for (f <- 0 until p(NumFUs)) {
-        val baseCandidates = Wire(Vec(rsSize, Bool()))
         val isLoadUnit =
           p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD
-        val isStoreUnit =
-          p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST
-        val isMemoryUnit = isLoadUnit || isStoreUnit
-        val useRegisteredOperands =
-          isMemoryUnit ||
-            p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV
-        val priorSameTypeAccepted = (0 until f)
-          .filter(prev => p(FunctionalUnits)(prev).`type` == p(FunctionalUnits)(f).`type`)
-          .map(prev => fuReq(prev).fire)
 
-        for (i <- 0 until rsSize) {
-          val entry = entries(i)
-          // Memory operations and divides issue only from operands captured in
-          // the RS on a previous cycle, cutting their same-cycle CDB paths.
-          val issueOperandsReady =
-            if (useRegisteredOperands)
-              registeredReady(i)
+        if (isLoadUnit && loadFuIndices.size == 2) {
+          val isFirstLoad    = f == loadFuIndices.head
+          val firstLoadFire  = fuReq(loadFuIndices.head).fire
+          val selectOH       =
+            if (isFirstLoad) oldestLoadOH else Mux(firstLoadFire, secondLoadOH, oldestLoadOH)
+          val selected       =
+            if (isFirstLoad)
+              oldestLoadOH.orR
             else
-              operandsReady(i)
+              Mux(firstLoadFire, secondLoadOH.orR, oldestLoadOH.orR)
+          val issueOp        = Wire(new FuReq)
 
-          baseCandidates(i) := entry.valid && issueOperandsReady && loadReady(i) &&
-            serializingReady(i) &&
-            entry.op.fu_type === p(FunctionalUnits)(f).`type`.index.U
-        }
+          if (isFirstLoad)
+            issueOp := oldestLoadOp
+          else
+            issueOp := Mux(firstLoadFire, secondLoadOp, oldestLoadOp)
 
-        val selectOH = if (priorSameTypeAccepted.nonEmpty) {
-          // Select the candidate whose age rank equals the number of earlier
-          // same-type FUs that accepted a request. This is equivalent to
-          // repeatedly masking each earlier oldest entry, but computes later
-          // FU data selection in parallel with the earlier one-hot selectors.
-          val acceptedRank = PopCount(VecInit(priorSameTypeAccepted))
-          VecInit((0 until rsSize).map { i =>
-            val olderCandidateCount = PopCount(VecInit(
-              (0 until rsSize)
-                .filter(_ != i)
-                .map(j => baseCandidates(j) && older(j)(i))
-            ))
-            baseCandidates(i) && olderCandidateCount === acceptedRank
-          }).asUInt
+          issueOp.fu_id := f.U
+
+          fuReq(f).valid := selected
+          fuReq(f).bits  := issueOp
+          issuedMask(f)  := Mux(fuReq(f).fire, selectOH, 0.U)
         } else {
-          val oldest = Wire(Vec(rsSize, Bool()))
+          val baseCandidates = Wire(Vec(rsSize, Bool()))
+          val isStoreUnit =
+            p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST
+          val isMemoryUnit = isLoadUnit || isStoreUnit
+          val useRegisteredOperands =
+            isMemoryUnit ||
+              p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV
+          val priorSameTypeAccepted = (0 until f)
+            .filter(prev => p(FunctionalUnits)(prev).`type` == p(FunctionalUnits)(f).`type`)
+            .map(prev => fuReq(prev).fire)
 
           for (i <- 0 until rsSize) {
-            val olderCandidate = (0 until rsSize)
-              .filter(_ != i)
-              .map(j => baseCandidates(j) && older(j)(i))
-              .reduce(_ || _)
+            val entry = entries(i)
+            // Memory operations and divides issue only from operands captured in
+            // the RS on a previous cycle, cutting their same-cycle CDB paths.
+            val issueOperandsReady =
+              if (useRegisteredOperands)
+                registeredReady(i)
+              else
+                operandsReady(i)
 
-            oldest(i) := baseCandidates(i) && !olderCandidate
+            baseCandidates(i) := entry.valid && issueOperandsReady && serializingReady(i) &&
+              entry.op.fu_type === p(FunctionalUnits)(f).`type`.index.U
           }
 
-          oldest.asUInt
+          val selectOH = if (priorSameTypeAccepted.nonEmpty) {
+            val acceptedRank = PopCount(VecInit(priorSameTypeAccepted))
+            VecInit((0 until rsSize).map { i =>
+              val olderCandidateCount = PopCount(VecInit(
+                (0 until rsSize)
+                  .filter(_ != i)
+                  .map(j => baseCandidates(j) && older(j)(i))
+              ))
+              baseCandidates(i) && olderCandidateCount === acceptedRank
+            }).asUInt
+          } else {
+            val oldest = Wire(Vec(rsSize, Bool()))
+
+            for (i <- 0 until rsSize) {
+              val olderCandidate = (0 until rsSize)
+                .filter(_ != i)
+                .map(j => baseCandidates(j) && older(j)(i))
+                .reduce(_ || _)
+
+              oldest(i) := baseCandidates(i) && !olderCandidate
+            }
+
+            oldest.asUInt
+          }
+
+          val selected = if (priorSameTypeAccepted.nonEmpty)
+            PopCount(baseCandidates) > PopCount(VecInit(priorSameTypeAccepted))
+          else
+            baseCandidates.asUInt.orR
+          val issueOp = Wire(new FuReq)
+
+          if (useRegisteredOperands)
+            issueOp := Mux1H(selectOH, entries.map(_.op))
+          else
+            issueOp := Mux1H(selectOH, issueEntries)
+
+          issueOp.fu_id := f.U
+
+          // Keep Decoupled valid independent of downstream ready. The actual
+          // issue and RS removal remain guarded by fire below.
+          fuReq(f).valid := selected
+          fuReq(f).bits  := issueOp
+          issuedMask(f)  := Mux(fuReq(f).fire, selectOH, 0.U)
         }
-
-        // A later same-type FU only needs to know whether enough candidates
-        // remain. Keep its valid path independent of the earlier FU's
-        // one-hot selection.
-        val selected = if (priorSameTypeAccepted.nonEmpty)
-          PopCount(baseCandidates) > PopCount(VecInit(priorSameTypeAccepted))
-        else
-          baseCandidates.asUInt.orR
-        val issueOp  = Wire(new FuReq)
-
-        if (useRegisteredOperands)
-          issueOp := Mux1H(selectOH, entries.map(_.op))
-        else
-          issueOp := Mux1H(selectOH, issueEntries)
-
-        issueOp.fu_id := f.U
-
-        // Keep Decoupled valid independent of downstream ready. The actual
-        // issue and RS removal remain guarded by fire below.
-        fuReq(f).valid := selected
-        fuReq(f).bits  := issueOp
-        issuedMask(f)  := Mux(fuReq(f).fire, selectOH, 0.U)
       }
 
       val allIssued = issuedMask.reduce(_ | _)
@@ -259,6 +352,10 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
             nextEntries(i).op          := dispatched(w).bits
             nextEntries(i).rs1Ready    := rs1Ready
             nextEntries(i).rs2Ready    := !dispatched(w).bits.rs2_pending || rs2Wake
+            nextEntries(i).storeAddrKnown :=
+              dispatched(w).bits.fu_type =/=
+                FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U ||
+                !dispatched(w).bits.rs1_pending
             nextEntries(i).op.rs1_data := dispatchRs1
             nextEntries(i).op.rs2_data := Mux(rs2Wake, rs2Data, dispatched(w).bits.rs2_data)
           }

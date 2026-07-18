@@ -2,10 +2,11 @@ package arch.core.scheduler.impls.policy.scoreboard
 
 import arch.configs._
 import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.sb.StoreAddressBundle
 import arch.core.scheduler._
 import vutils.graph.{ NodeDimensionRegistry, RegisteredNodeUtils }
 import chisel3._
-import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder, UIntToOH }
+import chisel3.util.{ DecoupledIO, Mux1H, PriorityEncoder, UIntToOH, ValidIO }
 
 object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] {
   override def utils: SchedulerPolicyImpl = new SchedulerPolicyImpl {
@@ -16,6 +17,7 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       dispatched: Int => DecoupledIO[FuReq],
       fuReq: Int => DecoupledIO[FuReq],
       fuDone: Int => DecoupledIO[FuResp],
+      storeAddr: Int => ValidIO[StoreAddressBundle],
       debug: SchedulerDebugInfo
     )(implicit p: Parameters): Unit = {
       val fuTypes = p(FunctionalUnits).map(_.`type`.index.U(p(FuTypeWidth).W))
@@ -77,6 +79,11 @@ object ScoreboardSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl
       defaultFuReqs()
       defaultDispatchReady()
       defaultFuDoneReady()
+
+      for (s <- 0 until p(NumSTs)) {
+        storeAddr(s).valid := false.B
+        storeAddr(s).bits  := 0.U.asTypeOf(new StoreAddressBundle)
+      }
 
       val cdbWriteMasks = Wire(Vec(p(NumFUs), UInt(p(NumArchRegs).W)))
 

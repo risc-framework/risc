@@ -2,9 +2,10 @@ package arch.core.scheduler
 
 import arch.configs._
 import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.sb.StoreAddressBundle
 import vutils.graph.NodeDims
 import chisel3._
-import chisel3.util.DecoupledIO
+import chisel3.util.{ DecoupledIO, ValidIO }
 
 object SchedulerDims extends NodeDims("scheduler") {
   val POLICY = dim("policy")
@@ -16,6 +17,7 @@ trait SchedulerPolicyImpl extends SchedulerDims.POLICY.Impl {
     dispatched: Int => DecoupledIO[FuReq],
     fuReq: Int => DecoupledIO[FuReq],
     fuDone: Int => DecoupledIO[FuResp],
+    storeAddr: Int => ValidIO[StoreAddressBundle],
     debug: SchedulerDebugInfo
   )(implicit p: Parameters): Unit
 }

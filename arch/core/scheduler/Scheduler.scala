@@ -2,6 +2,7 @@ package arch.core.scheduler
 
 import arch.configs._
 import arch.core.fupool.{ FuReq, FuResp }
+import arch.core.sb.StoreAddressBundle
 import vutils.graph.{ Node, NodeConfig, NodeSelector }
 import chisel3._
 
@@ -16,6 +17,7 @@ class Scheduler(implicit p: Parameters) extends Node[Parameters]("scheduler") {
   val dispatched = inDVec[FuReq](p => p(IssueWidth))
   val fuReq      = outDVec[FuReq](p => p(NumFUs))
   val fuDone     = inDVec[FuResp](p => p(NumFUs))
+  val storeAddr  = outVVec[StoreAddressBundle](p => p(NumSTs))
   val debug      = out[SchedulerDebugInfo]
 
   private val policy = SchedulerPolicyFactory.select(cfg)
@@ -25,6 +27,7 @@ class Scheduler(implicit p: Parameters) extends Node[Parameters]("scheduler") {
     w => dispatched.in.lanes(w),
     i => fuReq.out.lanes(i),
     i => fuDone.in.lanes(i),
+    i => storeAddr.out.lanes(i),
     debug.out
   )
 }

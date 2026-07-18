@@ -4,6 +4,7 @@ import arch.configs._
 import arch.core.decode.DecodedPacket
 import arch.core.fupool.FuReq
 import arch.core.regfile.{ RegfileReadReq, RegfileReadResp }
+import arch.core.sb.StoreAddressBundle
 import vutils.graph.Node
 import chisel3._
 
@@ -17,10 +18,13 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
   val robReq     = outDVec[DispatchRobPacket](p => p(IssueWidth))
   val robResp    = inVec[DispatchRobResp](p => p(IssueWidth))
   val dispatched = outDVec[FuReq](p => p(IssueWidth))
+  val storeAddr  = outVVec[StoreAddressBundle](p => p(IssueWidth))
 
   private val laneBaseReqOk  = Wire(Vec(p(IssueWidth), Bool()))
   private val lanePrefixFire = Wire(Vec(p(IssueWidth), Bool()))
   private val coreValidReq   = Wire(Vec(p(IssueWidth), Bool()))
+  private val storeAddrValidReg = RegInit(VecInit(Seq.fill(p(IssueWidth))(false.B)))
+  private val storeAddrBitsReg  = Reg(Vec(p(IssueWidth), new StoreAddressBundle))
 
   for (w <- 0 until p(IssueWidth)) {
     val dec = decoded.in.lanes(w).bits
@@ -107,6 +111,25 @@ class Dispatch(implicit p: Parameters) extends Node[Parameters]("dispatch") {
 
     dis.valid := coreValidReq(w)
     dis.bits  := issueOp
+
+    // Publish a store address as soon as its base is available at dispatch.
+    // The one-cycle sideband register keeps ROB bypass and address generation
+    // out of the StoreBuffer write path. A younger load cannot query forwarding
+    // until the following cycle, so this delay does not add a load bubble.
+    val publishStoreAddr = dis.fire && dec.isStore && !issueOp.rs1_pending
+
+    storeAddr.out.lanes(w).valid := storeAddrValidReg(w) && !flush.in
+    storeAddr.out.lanes(w).bits  := storeAddrBitsReg(w)
+
+    when(flush.in) {
+      storeAddrValidReg(w) := false.B
+    }.otherwise {
+      storeAddrValidReg(w) := publishStoreAddr
+      when(publishStoreAddr) {
+        storeAddrBitsReg(w).sq_idx := issueOp.sq_idx
+        storeAddrBitsReg(w).addr   := issueOp.rs1_data + issueOp.imm
+      }
+    }
 
     robReq.out.lanes(w).valid := dis.fire
   }
