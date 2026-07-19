@@ -85,8 +85,11 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
         chunks.reduce(_ ^ _)
       }
 
-      def baseIndex(pc: UInt, hist: UInt): UInt =
-        foldPc(pc, p(GShareGhrWidth)) ^ hist(p(GShareGhrWidth) - 1, 0)
+      // Controlled no-GShare comparison: keep the TAGE tables and all sizes
+      // unchanged, but make the base predictor PC-indexed (bimodal) instead
+      // of XORing the PC with global history.
+      def baseIndex(pc: UInt): UInt =
+        foldPc(pc, p(GShareGhrWidth))
 
       def tableIndex(pc: UInt, hist: UInt, table: Int): UInt = {
         val indexWidth = log2Ceil(tableEntries(table))
@@ -124,7 +127,7 @@ object TagePredictor extends RegisteredNodeUtils[PredictorKindImpl] with BHTCons
       val queryTaken = Wire(Vec(p(IssueWidth), Bool()))
 
       for (w <- 0 until p(IssueWidth)) {
-        val baseIdx     = baseIndex(req.pc(w), specGhr)
+        val baseIdx     = baseIndex(req.pc(w))
         val baseBypass  = update.valid && update.pht_index === baseIdx
         val baseCounter = Mux(baseBypass, baseNewCounter, basePht(baseIdx))
         val baseTaken   = baseCounter(SZ_BHT - 1)
