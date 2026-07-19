@@ -85,16 +85,10 @@ class Ras(implicit p: Parameters) extends Node[Parameters]("ras") {
     (nextSp, nextCount)
   }
 
-  private val topPtr = dec(specSp)
-
-  resp.out.valid  := specCount =/= 0.U
-  private val topTarget = Mux(specDirty(topPtr), specStack(topPtr), commitStack(topPtr))
-  resp.out.target := Mux(resp.out.valid, topTarget, 0.U)
-
   private val commitPushAddr = req.in.update.pc + p(PCStep).U(p(XLen).W)
   private val doCommitOp = req.in.update.valid && req.in.update.taken &&
     changesRas(req.in.update.branch_kind)
-  private val doSpecOp = req.in.accept && changesRas(req.in.predictKind)
+  private val rawSpecOp = req.in.accept && changesRas(req.in.predictKind)
 
   private val commitStackNext = WireDefault(commitStack)
   private val commitNextSp    = WireDefault(commitSp)
@@ -113,17 +107,46 @@ class Ras(implicit p: Parameters) extends Node[Parameters]("ras") {
     commitNextCount := next._2
   }
 
-  private val restoreSpec = req.in.flush ||
-    (req.in.update.valid && req.in.update.mispredict && !req.in.update.preserve_spec)
-  private val specBaseSp    = Mux(restoreSpec, commitNextSp, specSp)
-  private val specBaseCount = Mux(restoreSpec, commitNextCount, specCount)
+  // Restore speculative state one cycle after any redirect that discards the
+  // predicted stream.  Keeping the restore pulse registered prevents the wide
+  // ROB/BPU update selector from directly driving every RAS state control.
+  // Commit training itself remains on the original cycle; by the time this
+  // pulse is observed, commitSp/commitCount already include that update.
+  private val restorePending = RegNext(
+    req.in.flush ||
+      (req.in.update.valid && req.in.update.mispredict && !req.in.update.preserve_spec),
+    false.B
+  )
+  private val restoreSpec   = restorePending
+  private val specBaseSp    = Mux(restoreSpec, commitSp, specSp)
+  private val specBaseCount = Mux(restoreSpec, commitCount, specCount)
+
+  // During the recovery cycle, prediction observes the committed stack
+  // directly.  A newly accepted CALL/RET is then applied on top of that state,
+  // so delaying recovery does not discard the redirected stream's first RAS op.
+  private val topPtr = dec(specBaseSp)
+  resp.out.valid := specBaseCount =/= 0.U
+  private val topTarget = Mux(
+    restoreSpec,
+    commitStack(topPtr),
+    Mux(specDirty(topPtr), specStack(topPtr), commitStack(topPtr))
+  )
+  resp.out.target := Mux(resp.out.valid, topTarget, 0.U)
+
+  private val doSpecOp = rawSpecOp
 
   private val specStackNext = WireDefault(specStack)
   private val specNextSp    = WireDefault(specBaseSp)
   private val specNextCount = WireDefault(specBaseCount)
 
   when(doSpecOp) {
-    val next = applyOp(specStackNext, specBaseSp, specBaseCount, req.in.predictKind, req.in.pushAddr)
+    val next = applyOp(
+      specStackNext,
+      specBaseSp,
+      specBaseCount,
+      req.in.predictKind,
+      req.in.pushAddr
+    )
 
     specNextSp    := next._1
     specNextCount := next._2

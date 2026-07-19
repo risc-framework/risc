@@ -12,7 +12,9 @@ object StoreBufferSequence {
 }
 
 object StoreBufferAddressSignature {
-  val Width      = 16
+  // Reduce conservative hash collisions; full forwarding comparison still
+  // validates every signature hit, so this only admits proven non-aliases.
+  val Width      = 32
   val IndexWidth = log2Ceil(Width)
 
   def index(addr: UInt)(implicit p: Parameters): UInt = {

@@ -11,7 +11,7 @@ import arch.core.regfile.RegfileWrite
 import arch.core.sb.{ StoreBufferAllocReq, StoreBufferAllocStatus }
 import vutils.graph.Node
 import chisel3._
-import chisel3.util.{ Mux1H, PopCount, PriorityEncoder, UIntToOH, log2Ceil }
+import chisel3.util.{ PopCount, PriorityEncoder, log2Ceil }
 
 class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   val dispatchReq       = inDVec[DispatchRobPacket](p => p(IssueWidth))
@@ -40,6 +40,14 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
   private val head   = RegInit(0.U(p(RobTagWidth).W))
   private val tail   = RegInit(0.U(p(RobTagWidth).W))
   private val count  = RegInit(0.U(CntW.W))
+
+  // Track the youngest in-flight producer of each architectural register.
+  // Dispatch previously rediscovered this information by scanning all ROB
+  // entries from tail to head for every source operand.  The compact tag map
+  // preserves the same dependency semantics while removing that wide
+  // tail/valid/rd priority network from the ROB -> Scheduler path.
+  private val producerValid = RegInit(VecInit(Seq.fill(p(NumArchRegs))(false.B)))
+  private val producerTag   = Reg(Vec(p(NumArchRegs), UInt(p(RobTagWidth).W)))
 
   // A resolved mispredict may redirect only the fetch side before the branch
   // reaches the ROB head.  Correct-path instructions are buffered, but held
@@ -71,39 +79,15 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     Mux(sum >= p(StoreBufferSize).U, sum - p(StoreBufferSize).U, sum)(SqIdxW - 1, 0)
   }
 
-  private def indexFromNewest(distance: Int): UInt = {
-    val sub = distance + 1
-    if ((p(RobSize) & (p(RobSize) - 1)) == 0)
-      (tail - sub.U)(p(RobTagWidth) - 1, 0)
-    else
-      Mux(tail >= sub.U, tail - sub.U, tail + p(RobSize).U - sub.U)(p(RobTagWidth) - 1, 0)
-  }
-
   private def bypassNewest(rs: UInt): (Bool, UInt, Bool, UInt) = {
-    val matchVec = Wire(Vec(p(RobSize), Bool()))
-    val readyVec = Wire(Vec(p(RobSize), Bool()))
-    val dataVec  = Wire(Vec(p(RobSize), UInt(p(XLen).W)))
-    val tagVec   = Wire(Vec(p(RobSize), UInt(p(RobTagWidth).W)))
+    val mappedTag   = producerTag(rs)
+    val mappedEntry = buffer(mappedTag)
+    val anyMatch    = rs =/= 0.U && producerValid(rs) && mappedEntry.valid
+    val ready       = anyMatch && mappedEntry.ready
+    val data        = Mux(ready, mappedEntry.data, 0.U(p(XLen).W))
+    val tag         = Mux(anyMatch, mappedTag, 0.U(p(RobTagWidth).W))
 
-    for (d <- 0 until p(RobSize)) {
-      val idx   = indexFromNewest(d)
-      val entry = buffer(idx)
-
-      matchVec(d) := entry.valid && entry.rd_write && entry.rd === rs
-      readyVec(d) := matchVec(d) && entry.ready
-      dataVec(d)  := entry.data
-      tagVec(d)   := idx
-    }
-
-    val anyMatch    = matchVec.asUInt.orR
-    val newest      = PriorityEncoder(matchVec)
-    val newestOH    = UIntToOH(newest, p(RobSize))
-    val newestReady = anyMatch && Mux1H(newestOH, readyVec)
-    val newestData  = Mux(anyMatch, Mux1H(newestOH, dataVec), 0.U(p(XLen).W))
-    val newestTag   = Mux(anyMatch, Mux1H(newestOH, tagVec), 0.U(p(RobTagWidth).W))
-    val pending     = anyMatch && !newestReady
-
-    (newestReady, newestData, pending, newestTag)
+    (ready, data, anyMatch && !ready, tag)
   }
 
   for (i <- 0 until p(NumFUs))
@@ -310,6 +294,18 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     }
   }
 
+  // A committing producer only clears the map when it is still the youngest
+  // producer of that register.  A younger WAW mapping therefore survives.
+  for (w <- 0 until p(CommitWidth)) {
+    val lane = commitInfo(w)
+    when(
+      commitPops(w) && lane.rd_write && lane.rd =/= 0.U &&
+        producerValid(lane.rd) && producerTag(lane.rd) === commitIndex(w)
+    ) {
+      producerValid(lane.rd) := false.B
+    }
+  }
+
   for (w <- 0 until p(IssueWidth))
     when(enqFire(w)) {
       val idx = enqIdx(w)
@@ -342,6 +338,11 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
       buffer(idx).sq_idx         := enqSqIdx(w)
       buffer(idx).sync_valid     := false.B
       buffer(idx).sync_kind      := 0.U
+
+      when(dec.rd_write && dec.rd =/= 0.U) {
+        producerValid(dec.rd) := true.B
+        producerTag(dec.rd)   := idx
+      }
     }
 
   head  := wrapAdd(head, commitCount)
@@ -355,6 +356,8 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
 
     for (i <- 0 until p(RobSize))
       buffer(i).valid := false.B
+
+    producerValid := VecInit(Seq.fill(p(NumArchRegs))(false.B))
   }
 
   for (w <- 0 until p(IssueWidth)) {

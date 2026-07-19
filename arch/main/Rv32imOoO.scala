@@ -54,7 +54,7 @@ object Rv32imOoO extends App {
       ScheduleType                  -> "tomasulo",
       ReservationStationSize        -> 9,
       IssueWidth                    -> 2,
-      CommitWidth                   -> 2,
+      CommitWidth                   -> 3,
       FunctionalUnits               -> Seq(
         FunctionalUnitDescriptor(
           name = "ALU_0",
