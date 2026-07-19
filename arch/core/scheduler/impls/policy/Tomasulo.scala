@@ -55,6 +55,10 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         (hit, data)
       }
 
+      def isMemory(op: FuReq): Bool =
+        op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD.index.U ||
+          op.fu_type === FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U
+
       val entries         = RegInit(VecInit(Seq.fill(rsSize)(0.U.asTypeOf(new ReservationStationEntry))))
       val sequenceCounter = RegInit(0.U(seqW.W))
       val nextEntries     = WireDefault(entries)
@@ -79,7 +83,20 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
 
         when(rs1Wake(i)) {
           nextEntries(i).rs1Ready    := true.B
-          nextEntries(i).op.rs1_data := rs1Data
+          // Loads and stores already wait for this registered wakeup before
+          // issue.  Fold their effective address into the same RS write so
+          // the later age-select -> FU accept path does not contain a 32-bit
+          // address carry chain.
+          nextEntries(i).op.rs1_data := Mux(
+            isMemory(entries(i).op),
+            rs1Data + entries(i).op.imm,
+            rs1Data
+          )
+          nextEntries(i).op.imm := Mux(
+            isMemory(entries(i).op),
+            0.U,
+            entries(i).op.imm
+          )
         }
 
         when(rs2Wake(i)) {
@@ -150,7 +167,7 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         storeAddrValidReg := publishStoreAddr
         when(publishStoreAddr) {
           storeAddrBitsReg.sq_idx := selectedStoreOp.sq_idx
-          storeAddrBitsReg.addr   := selectedStoreOp.rs1_data + selectedStoreOp.imm
+          storeAddrBitsReg.addr   := selectedStoreOp.rs1_data
         }
       }
 
@@ -182,9 +199,9 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
         )
       }
 
-      // Both LDs consume the same precomputed oldest/second-oldest candidates.
-      // The late completion -> ready signal from LD0 then controls only a 2:1
-      // choice for LD1, rather than a second 64-entry age-rank/select tree.
+      // All LDs consume the same precomputed age-ranked candidates.  A late
+      // completion -> ready signal then controls only a small final rank mux,
+      // rather than replicating the RS-wide age-rank/select tree per Load FU.
       val loadFuIndices = (0 until p(NumFUs)).filter { f =>
         p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD
       }
@@ -208,30 +225,51 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
       val secondLoadOH = VecInit((0 until rsSize).map { i =>
         loadCandidates(i) && olderLoadCount(i) === 1.U
       }).asUInt
+      val thirdLoadOH = VecInit((0 until rsSize).map { i =>
+        loadCandidates(i) && olderLoadCount(i) === 2.U
+      }).asUInt
       val oldestLoadOp = Mux1H(oldestLoadOH, entries.map(_.op))
       val secondLoadOp = Mux1H(secondLoadOH, entries.map(_.op))
+      val thirdLoadOp  = Mux1H(thirdLoadOH, entries.map(_.op))
 
       for (f <- 0 until p(NumFUs)) {
         val isLoadUnit =
           p(FunctionalUnits)(f).`type` == FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD
 
-        if (isLoadUnit && loadFuIndices.size == 2) {
-          val isFirstLoad    = f == loadFuIndices.head
-          val firstLoadFire  = fuReq(loadFuIndices.head).fire
-          val selectOH       =
-            if (isFirstLoad) oldestLoadOH else Mux(firstLoadFire, secondLoadOH, oldestLoadOH)
-          val selected       =
-            if (isFirstLoad)
-              oldestLoadOH.orR
-            else
-              Mux(firstLoadFire, secondLoadOH.orR, oldestLoadOH.orR)
+        if (isLoadUnit && (loadFuIndices.size == 2 || loadFuIndices.size == 3)) {
+          val loadPosition = loadFuIndices.indexOf(f)
+          val priorLoadFires = loadFuIndices
+            .take(loadPosition)
+            .map(prev => fuReq(prev).fire)
+          val acceptedRank = if (priorLoadFires.isEmpty)
+            0.U(log2Ceil(loadFuIndices.size + 1).W)
+          else
+            PopCount(VecInit(priorLoadFires))
+          val selectOH = if (loadFuIndices.size == 2)
+            Mux(acceptedRank === 1.U, secondLoadOH, oldestLoadOH)
+          else
+            Mux(
+              acceptedRank === 2.U,
+              thirdLoadOH,
+              Mux(acceptedRank === 1.U, secondLoadOH, oldestLoadOH)
+            )
+          val selected = PopCount(loadCandidates) > acceptedRank
           val issueOp        = Wire(new FuReq)
 
-          if (isFirstLoad)
-            issueOp := oldestLoadOp
+          if (loadFuIndices.size == 2)
+            issueOp := Mux(acceptedRank === 1.U, secondLoadOp, oldestLoadOp)
           else
-            issueOp := Mux(firstLoadFire, secondLoadOp, oldestLoadOp)
+            issueOp := Mux(
+              acceptedRank === 2.U,
+              thirdLoadOp,
+              Mux(acceptedRank === 1.U, secondLoadOp, oldestLoadOp)
+            )
 
+          // Ready memory entries carry their effective address in rs1_data.
+          // Keep this explicit constant at the FU boundary so synthesis can
+          // remove the redundant address adder rather than relying on the RS
+          // value invariant alone.
+          issueOp.imm   := 0.U
           issueOp.fu_id := f.U
 
           fuReq(f).valid := selected
@@ -299,6 +337,9 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
           else
             issueOp := Mux1H(selectOH, issueEntries)
 
+          if (isMemoryUnit)
+            issueOp.imm := 0.U
+
           issueOp.fu_id := f.U
 
           // Keep Decoupled valid independent of downstream ready. The actual
@@ -344,6 +385,7 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
           when(consumed(w) && allocOH(w)(i)) {
             val dispatchRs1 = Mux(rs1Wake, rs1Data, dispatched(w).bits.rs1_data)
             val rs1Ready = !dispatched(w).bits.rs1_pending || rs1Wake
+            val memory = isMemory(dispatched(w).bits)
 
             nextEntries(i)             := 0.U.asTypeOf(new ReservationStationEntry)
             nextEntries(i).valid       := true.B
@@ -356,7 +398,16 @@ object TomasuloSchedulerPolicy extends RegisteredNodeUtils[SchedulerPolicyImpl] 
               dispatched(w).bits.fu_type =/=
                 FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST.index.U ||
                 !dispatched(w).bits.rs1_pending
-            nextEntries(i).op.rs1_data := dispatchRs1
+            nextEntries(i).op.rs1_data := Mux(
+              memory && rs1Ready,
+              dispatchRs1 + dispatched(w).bits.imm,
+              dispatchRs1
+            )
+            nextEntries(i).op.imm := Mux(
+              memory && rs1Ready,
+              0.U,
+              dispatched(w).bits.imm
+            )
             nextEntries(i).op.rs2_data := Mux(rs2Wake, rs2Data, dispatched(w).bits.rs2_data)
           }
       }

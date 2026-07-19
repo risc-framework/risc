@@ -81,6 +81,10 @@ object Rv32imOoO extends App {
           `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD
         ),
         FunctionalUnitDescriptor(
+          name = "LD_2",
+          `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD
+        ),
+        FunctionalUnitDescriptor(
           name = "ST_0",
           `type` = FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST
         ),
