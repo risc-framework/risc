@@ -2,7 +2,7 @@ package arch.core.ld
 
 import arch.configs._
 import arch.core.fupool.{ FuReq, FuResp }
-import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
+import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp, MemoryArbiterLoadReq }
 import arch.core.pma.PmaModeFactory
 import arch.core.sb.{
   StoreBufferAddressSignature,
@@ -37,7 +37,7 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   val fuResp = outD[FuResp]
   val flush  = in[Bool]
 
-  val memReq   = outD[MemoryArbiterCacheReq]
+  val memReq   = outD[MemoryArbiterLoadReq]
   val memResp  = inD[MemoryArbiterCacheResp]
   val mmioReq  = outD[MemoryArbiterCacheReq]
   val mmioResp = inD[MemoryArbiterCacheResp]
@@ -153,12 +153,21 @@ class Ld(implicit p: Parameters) extends Node[Parameters]("ld") {
   private val memReqAddr      = Mux(memReqFromAccept, acceptAddr, addrReg)
   private val memReqMask      = Mux(memReqFromAccept, acceptLoadMask, loadMaskReg)
 
-  memReq.out.valid     := memReqActive && memReqCacheable && !flush.in
-  memReq.out.bits      := 0.U.asTypeOf(new MemoryArbiterCacheReq)
-  memReq.out.bits.cmd  := CacheCommand.Read
-  memReq.out.bits.addr := memReqAddr
-  memReq.out.bits.data := 0.U
-  memReq.out.bits.strb := memReqMask
+  memReq.out.valid                := memReqActive && memReqCacheable && !flush.in
+  memReq.out.bits                 := 0.U.asTypeOf(new MemoryArbiterLoadReq)
+  memReq.out.bits.req.cmd         := CacheCommand.Read
+  memReq.out.bits.req.addr        := memReqAddr
+  memReq.out.bits.req.data        := 0.U
+  memReq.out.bits.req.strb        := memReqMask
+  memReq.out.bits.bypass_req.cmd  := CacheCommand.Read
+  memReq.out.bits.bypass_req.addr := addrReg
+  memReq.out.bits.bypass_req.data := 0.U
+  memReq.out.bits.bypass_req.strb := loadMaskReg
+  // Requests launched from MEM or a registered forwarding response have
+  // stable address/control registers.  Only those may bypass an empty
+  // MemoryArbiter stage; the Scheduler accept path remains registered.
+  memReq.out.bits.bypass_valid :=
+    (memReqFromRetry || memReqFromFwd) && pmaCacheableReg && !flush.in
 
   mmioReq.out.valid     := memReqActive && !memReqCacheable && !flush.in
   mmioReq.out.bits      := 0.U.asTypeOf(new MemoryArbiterCacheReq)

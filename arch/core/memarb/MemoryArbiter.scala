@@ -2,11 +2,11 @@ package arch.core.memarb
 
 import arch.configs._
 import chisel3._
-import chisel3.util.{ Arbiter, Queue, RRArbiter, UIntToOH, log2Ceil }
+import chisel3.util.{ Arbiter, Mux1H, OHToUInt, PriorityEncoderOH, Queue, RRArbiter, UIntToOH, log2Ceil }
 import vutils.graph.Node
 
 class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arbiter") {
-  val loadMemReq   = inDVec[MemoryArbiterCacheReq](p => p(NumLDs))
+  val loadMemReq   = inDVec[MemoryArbiterLoadReq](p => p(NumLDs))
   val loadMemResp  = outDVec[MemoryArbiterCacheResp](p => p(NumLDs))
   val loadMmioReq  = inDVec[MemoryArbiterCacheReq](p => p(NumLDs))
   val loadMmioResp = outDVec[MemoryArbiterCacheResp](p => p(NumLDs))
@@ -30,8 +30,10 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   // Cacheable stores share the round-robin domain with loads so a stream of
   // load requests cannot indefinitely block the committed StoreBuffer head.
   // The selected request still enters the registered stage below.
-  private val memArb    = Module(new RRArbiter(new MemoryArbiterRoutedReq(targetW), numReqs))
-  private val mmioLdArb = Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
+  private val memArb =
+    Module(new RRArbiter(new MemoryArbiterRoutedReq(targetW), numReqs))
+  private val mmioLdArb =
+    Module(new Arbiter(new MemoryArbiterRoutedReq(targetW), numLoadPorts))
 
   private val memRespQ  = Module(new Queue(UInt(targetW.W), p(RobSize), pipe = false, flow = false))
   private val mmioRespQ = Module(new Queue(UInt(targetW.W), p(RobSize), pipe = false, flow = false))
@@ -45,8 +47,7 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   for (i <- 0 until numLoadPorts) {
     memArb.io.in(i).valid       := loadMemReq.in.lanes(i).valid
     memArb.io.in(i).bits.target := i.U(targetW.W)
-    memArb.io.in(i).bits.req    := loadMemReq.in.lanes(i).bits
-    loadMemReq.in.lanes(i).ready  := memArb.io.in(i).ready
+    memArb.io.in(i).bits.req    := loadMemReq.in.lanes(i).bits.req
 
     mmioLdArb.io.in(i).valid       := loadMmioReq.in.lanes(i).valid
     mmioLdArb.io.in(i).bits.target := i.U(targetW.W)
@@ -66,17 +67,58 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   // a reset/select input on all 32 registered request-data bits.
   memChosenBits.req.data := sbMemReq.in.bits.data
 
-  dcacheReq.out.valid := memReqValid && memRespQ.io.enq.ready
-  dcacheReq.out.bits  := memReqBits.req
+  // The bypass selector is physically independent from the normal request
+  // valid/payload cone.  Its inputs are sourced only from Ld state and address
+  // registers, so Scheduler-accept logic cannot reach D-cache.  Static lane
+  // priority is sufficient because a selected Ld cannot present another
+  // bypass request until its current response returns.
+  private val memBypassValidVec =
+    VecInit((0 until numLoadPorts).map(i => loadMemReq.in.lanes(i).bits.bypass_valid))
+  private val memBypassSelectOH =
+    PriorityEncoderOH(memBypassValidVec.asUInt)
+  private val memBypassReqVec =
+    VecInit((0 until numLoadPorts).map(i => loadMemReq.in.lanes(i).bits.bypass_req))
+  private val memBypassReq =
+    Mux1H(memBypassSelectOH, memBypassReqVec)
+  private val memBypassTarget = Wire(UInt(targetW.W))
+  memBypassTarget := OHToUInt(memBypassSelectOH)
 
-  private val memIssueFire  = memReqValid && dcacheReq.out.ready && memRespQ.io.enq.ready
+  // A waiting committed store disables bypass so a continuous load stream
+  // cannot starve the normal round-robin domain.
+  private val memCanBypass =
+    !memReqValid && !sbMemReq.in.valid && memBypassValidVec.asUInt.orR
+  private val memOutgoingValid = memReqValid || memCanBypass
+  private val memOutgoingReq   = Mux(
+    memReqValid,
+    memReqBits.req,
+    memBypassReq
+  )
+  private val memOutgoingTarget = Mux(
+    memReqValid,
+    memReqBits.target,
+    memBypassTarget
+  )
+
+  dcacheReq.out.valid := memOutgoingValid && memRespQ.io.enq.ready
+  dcacheReq.out.bits  := memOutgoingReq
+
+  private val memIssueFire  = dcacheReq.out.fire
   private val memStageReady = !memReqValid || memIssueFire
 
-  memArb.io.out.ready := memStageReady
+  // While a direct request is active, leave the normal stage empty and accept
+  // exactly the selected bypass input only when D-cache accepts it.
+  memArb.io.out.ready := memStageReady && !memCanBypass
   sbMemReq.in.ready   := memArb.io.in(storeTarget).ready
 
+  for (i <- 0 until numLoadPorts) {
+    val bypassGrant =
+      memCanBypass && memIssueFire && memBypassSelectOH(i)
+
+    loadMemReq.in.lanes(i).ready := memArb.io.in(i).ready || bypassGrant
+  }
+
   memRespQ.io.enq.valid := memIssueFire
-  memRespQ.io.enq.bits  := memReqBits.target
+  memRespQ.io.enq.bits  := memOutgoingTarget
 
   // Keep the stage payload enable independent of upstream request validity.
   // Otherwise synthesis can fold a long upstream request-valid path into the
@@ -84,8 +126,10 @@ class MemoryArbiter(implicit p: Parameters) extends Node[Parameters]("memory_arb
   // care while valid is low, so loading them whenever the stage advances is
   // equivalent while leaving validity on the narrow control register only.
   when(memStageReady) {
-    memReqValid := memChosenValid
-    memReqBits  := memChosenBits
+    memReqValid := memChosenValid && !memCanBypass
+    when(memChosenValid && !memCanBypass) {
+      memReqBits := memChosenBits
+    }
   }
 
   private val memTarget       = memRespQ.io.deq.bits

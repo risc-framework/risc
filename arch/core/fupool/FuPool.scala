@@ -7,7 +7,7 @@ import arch.core.csr.{ Csr, InterruptLines }
 import arch.core.div.Div
 import arch.core.exception.{ ExceptionAsyncReq, ExceptionTrapUpdate }
 import arch.core.ld.Ld
-import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp }
+import arch.core.memarb.{ MemoryArbiterCacheReq, MemoryArbiterCacheResp, MemoryArbiterLoadReq }
 import arch.core.mult.Mult
 import arch.core.sb.{ StoreBufferStatus, StoreForwardReq, StoreForwardResp, StoreWriteBundle }
 import arch.core.st.St
@@ -28,7 +28,7 @@ class FuPool(implicit p: Parameters) extends Node[Parameters]("fu_pool") {
 
   val bruResolved = outVVec[BruResolveBundle](p => p(NumBRUs))
 
-  val loadMemReq   = outDVec[MemoryArbiterCacheReq](p => p(NumLDs))
+  val loadMemReq   = outDVec[MemoryArbiterLoadReq](p => p(NumLDs))
   val loadMemResp  = inDVec[MemoryArbiterCacheResp](p => p(NumLDs))
   val loadMmioReq  = outDVec[MemoryArbiterCacheReq](p => p(NumLDs))
   val loadMmioResp = inDVec[MemoryArbiterCacheResp](p => p(NumLDs))

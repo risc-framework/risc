@@ -10,6 +10,12 @@ class MemoryArbiterCacheReq(implicit p: Parameters)
 class MemoryArbiterCacheResp(implicit p: Parameters)
     extends CacheResp(UInt(p(XLen).W), p(L1DCacheParams))
 
+class MemoryArbiterLoadReq(implicit p: Parameters) extends Bundle {
+  val req          = new MemoryArbiterCacheReq
+  val bypass_req   = new MemoryArbiterCacheReq
+  val bypass_valid = Bool()
+}
+
 class MemoryArbiterRoutedReq(targetWidth: Int)(implicit p: Parameters) extends Bundle {
   val target = UInt(targetWidth.W)
   val req    = new MemoryArbiterCacheReq
