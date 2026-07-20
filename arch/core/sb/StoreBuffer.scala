@@ -135,8 +135,10 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     )
   )
 
+  // St suppresses write valid during flush. Keeping ready unconditional avoids
+  // putting the global recovery net on Store completion valid.
   for (s <- 0 until numStorePorts)
-    storeWrite.in.lanes(s).ready := !flush.in
+    storeWrite.in.lanes(s).ready := true.B
 
   private val sqIdxForLane = Wire(Vec(p(IssueWidth), UInt(idxW.W)))
   private val sqSeqForLane = Wire(Vec(p(IssueWidth), UInt(p(StoreSeqWidth).W)))

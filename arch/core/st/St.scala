@@ -10,7 +10,7 @@ import chisel3._
 import chisel3.util.Decoupled
 
 object StPipeNode extends ChiselEnum {
-  val WRITE_SB, RESP = Value
+  val WRITE_SB = Value
 }
 
 private class StPipeEntry(implicit p: Parameters) extends Bundle {
@@ -67,22 +67,23 @@ class St(implicit p: Parameters) extends Node[Parameters]("st") with ElasticGrap
     import g._
 
     val WRITE_SB = stage(StPipeNode.WRITE_SB)
-    val RESP     = stage(StPipeNode.RESP)
 
     source(acceptIn -> WRITE_SB)
 
-    request(WRITE_SB -> storeWrite.out -> RESP) { store =>
-      store := WRITE_SB.bits.store
-    }
-
-    sinkMap(RESP -> fuResp.out) { resp =>
-      resp := RESP.bits.resp
+    sinkMap(WRITE_SB -> fuResp.out, trigger = storeWrite.out.ready) { resp =>
+      resp := WRITE_SB.bits.resp
     }
   }
 
-  // The elastic stages, Scheduler, and ROB are all cleared on the flush edge.
-  // Expose the final registered stage directly so raw globalFlush does not
-  // enter Store completion valid; request and StoreBuffer traffic remain
-  // blocked by the original clear path above.
-  fuResp.out.valid := storePipe(StPipeNode.RESP).valid
+  private val writeStage = storePipe(StPipeNode.WRITE_SB)
+
+  // StoreBuffer accepts every non-flushed execution write. Couple its write
+  // to the ROB completion handshake so both effects occur together, while
+  // completing directly from the registered WRITE_SB payload.
+  storeWrite.out.valid := writeStage.valid && fuResp.out.ready && !flush.in
+  storeWrite.out.bits  := writeStage.bits.store
+
+  // Scheduler and ROB clear on the flush edge. Keep raw completion valid off
+  // the global recovery net; the StoreBuffer write itself remains suppressed.
+  fuResp.out.valid := writeStage.valid && storeWrite.out.ready
 }
