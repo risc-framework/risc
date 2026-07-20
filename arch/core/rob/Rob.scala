@@ -234,6 +234,16 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
 
   private val availableSlots            = p(RobSize).U(CntW.W) - count
   private val availableSlotsAfterCommit = availableSlots + commitCount
+  private val robFull                    = count === p(RobSize).U
+  private val robAlmostFull              = count === (p(RobSize) - 1).U
+  private val hasOneSlotAfterCommit      = !robFull || commitPops(0)
+  private val hasTwoSlotsAfterCommit =
+    if (p(CommitWidth) >= 2)
+      (!robFull && !robAlmostFull) ||
+        (robAlmostFull && commitPops(0)) ||
+        (robFull && commitPops(1))
+    else
+      false.B
   private val laneActive                = Wire(Vec(p(IssueWidth), Bool()))
   private val laneIsStore               = Wire(Vec(p(IssueWidth), Bool()))
   private val laneCanReserve            = Wire(Vec(p(IssueWidth), Bool()))
@@ -252,7 +262,15 @@ class Rob(implicit p: Parameters) extends Node[Parameters]("rob") {
     val pkt           = dispatchReq.in.lanes(w).bits
     val olderRobUsed  = Wire(UInt(CntW.W))
     val olderSqUsed   = Wire(UInt(SqCntW.W))
-    val robCanReserve = !laneActive(w) || availableSlotsAfterCommit > robUsed(w)
+    val robHasCapacity =
+      if (p(IssueWidth) == 2 && p(CommitWidth) >= 2)
+        if (w == 0)
+          hasOneSlotAfterCommit
+        else
+          Mux(robUsed(w).orR, hasTwoSlotsAfterCommit, hasOneSlotAfterCommit)
+      else
+        availableSlotsAfterCommit > robUsed(w)
+    val robCanReserve = !laneActive(w) || robHasCapacity
     val sqCanReserve  = !laneIsStore(w) || sbAllocStatus.in.free_count > sqUsed(w)
 
     olderRobUsed := robUsed(w)

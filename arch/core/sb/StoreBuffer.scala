@@ -141,12 +141,10 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     storeWrite.in.lanes(s).ready := true.B
 
   private val sqIdxForLane = Wire(Vec(p(IssueWidth), UInt(idxW.W)))
-  private val sqSeqForLane = Wire(Vec(p(IssueWidth), UInt(p(StoreSeqWidth).W)))
   private val allocValid   = Wire(Vec(p(IssueWidth), Bool()))
 
   for (w <- 0 until p(IssueWidth)) {
     sqIdxForLane(w) := robAlloc.in.lanes(w).bits.sq_idx
-    sqSeqForLane(w) := robAlloc.in.lanes(w).bits.sq_seq
     allocValid(w)   := robAlloc.in.lanes(w).valid && !flush.in
   }
 
@@ -307,6 +305,15 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
   private val normalSeq           = tailSeq + allocCount
 
   private val afterOpsEntries = Wire(Vec(p(StoreBufferSize), new StoreBufferEntry))
+  private val seqPreloadIdx = VecInit(
+    (0 until p(IssueWidth)).map(rank => wrapAdd(tail, rank.U))
+  )
+  private val seqPreloadValid = VecInit(
+    (0 until p(IssueWidth)).map(rank => freeCount > rank.U)
+  )
+  private val seqPreloadData = VecInit(
+    (0 until p(IssueWidth)).map(rank => tailSeq + rank.U)
+  )
 
   for (i <- 0 until p(StoreBufferSize)) {
     val drainedThis = headRetireFire && head === i.U
@@ -319,21 +326,21 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
     for (s <- 0 until numStorePorts)
       writeHit(s) := storeWrite.in
         .lanes(s)
-        .fire && storeWrite.in.lanes(s).bits.sq_idx === i.U && entries(i).valid && !drainedThis
+        .fire && storeWrite.in.lanes(s).bits.sq_idx === i.U && entries(i).valid
 
     for (a <- 0 until p(IssueWidth))
       dispatchAddrHit(a) := dispatchAddr.in.lanes(a).valid &&
-        dispatchAddr.in.lanes(a).bits.sq_idx === i.U && !drainedThis
+        dispatchAddr.in.lanes(a).bits.sq_idx === i.U
 
     for (a <- 0 until p(NumSTs))
       schedulerAddrHit(a) := schedulerAddr.in.lanes(a).valid &&
-        schedulerAddr.in.lanes(a).bits.sq_idx === i.U && !drainedThis
+        schedulerAddr.in.lanes(a).bits.sq_idx === i.U
 
     for (c <- 0 until p(CommitWidth))
       commitHit(c) := robCommit.in.lanes(c).valid && robCommit.in
         .lanes(c)
         .bits
-        .is_store && robCommit.in.lanes(c).bits.sq_idx === i.U && entries(i).valid && !drainedThis
+        .is_store && robCommit.in.lanes(c).bits.sq_idx === i.U && entries(i).valid
 
     for (a <- 0 until p(IssueWidth))
       allocHit(a) := allocValid(a) && sqIdxForLane(a) === i.U
@@ -367,42 +374,70 @@ class StoreBuffer(implicit p: Parameters) extends Node[Parameters]("store_buffer
       )
     )
     val earlyAddr      = Mux(anyDispatchAddr, dispatchEarlyAddr, schedulerEarlyAddr)
-    val allocSeq       = Mux1H((0 until p(IssueWidth)).map(a => allocHit(a) -> sqSeqForLane(a)))
     val e              = Wire(new StoreBufferEntry)
 
     e := entries(i)
+
+    // The registered tail and free count prove that each preload target is a
+    // free slot. Prepare only those slots rather than driving every invalid
+    // entry on every cycle. For every legal allocation, the preloaded sequence
+    // is identical to the ROB ticket (tailSeq plus the store-lane prefix), and
+    // its enable stays independent of the current dispatch-ready chain.
+    for (rank <- 0 until p(IssueWidth)) {
+      when(
+        seqPreloadValid(rank) && seqPreloadIdx(rank) === i.U
+      ) {
+        e.committed := false.B
+        e.addrValid := false.B
+        e.fwdValid  := false.B
+        e.seq       := seqPreloadData(rank)
+      }
+    }
 
     when(drainedThis) {
       // Once valid is clear, the payload is unreachable and can remain stale.
       // Avoid driving every payload register with the drain condition.
       e.valid := false.B
     }.elsewhen(anyAlloc) {
-      e.valid     := true.B
-      e.committed := false.B
-      e.addrValid := anyAddr
-      e.fwdValid  := false.B
-      e.seq       := allocSeq
-      when(anyAddr) {
-        e.addr := earlyAddr
-      }
-    }.otherwise {
-      when(anyAddr) {
-        e.addrValid := true.B
-        e.addr      := earlyAddr
-      }
+      e.valid := true.B
+    }
 
-      when(anyWrite) {
-        e.addrValid := true.B
-        e.fwdValid  := true.B
-        e.addr      := writeAddr
-        e.data      := writeData
-        e.mask      := writeMask
-        e.cacheable := writeCacheable
-      }
+    // Writes and commits only hit pre-existing valid entries, whereas an
+    // allocation always targets a free slot.  Keeping these updates
+    // independent prevents allocation control from being replicated across
+    // their register inputs.
+    when(anyWrite) {
+      e.addrValid := true.B
+      e.fwdValid  := true.B
+      e.data      := writeData
+      e.mask      := writeMask
+      e.cacheable := writeCacheable
+    }
 
-      when(anyCommit) {
-        e.committed := true.B
-      }
+    when(anyCommit) {
+      e.committed := true.B
+    }
+
+    // An early address may arrive with allocation, so it is intentionally
+    // outside the allocation-priority block. A draining entry becomes invalid
+    // before afterOpsEntries is observable, so adding drain to this enable only
+    // pulls the long retirement cone into every address-valid register.
+    when(anyAddr) {
+      e.addrValid := true.B
+    }
+
+    // Address updates do not need the allocation-priority selector that
+    // governs the rest of the entry payload. Allocation and execution write
+    // are mutually exclusive for one live SQ slot; an early address may
+    // accompany allocation, while a later execution write is authoritative.
+    // Keeping this field separate prevents current dispatch/alloc control from
+    // feeding every address-register clock enable.
+    e.addr := entries(i).addr
+    when(anyAddr) {
+      e.addr := earlyAddr
+    }
+    when(anyWrite) {
+      e.addr := writeAddr
     }
 
     afterOpsEntries(i) := e

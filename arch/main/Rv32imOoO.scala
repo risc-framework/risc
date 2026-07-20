@@ -118,7 +118,7 @@ object Rv32imOoO extends App {
       TageUsefulWidth               -> 2,
       RasSize                       -> 16,
       L1ICacheWays                  -> 2,
-      L1ICacheSets                  -> 16,
+      L1ICacheSets                  -> 64,
       L1ICacheLineSize              -> 64,
       L1ICacheReplPolicy            -> ReplPolicy.LRU,
       L1DCacheWays                  -> 4,
