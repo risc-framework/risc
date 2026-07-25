@@ -1,0 +1,306 @@
+mainmenu "RISC Build Configuration"
+
+menu "Generated directories"
+
+config RISC_BUILD_DIR
+  string "Top-level generated build directory"
+  default "build"
+
+config GEN_DIR
+  string "Generated RTL directory"
+  default "build"
+
+config GENERATED_INCLUDE_DIR
+  string "Generated C/C++ include directory"
+  default "build/include"
+
+config SYNTH_DIR
+  string "Synthesis output directory"
+  default "synth"
+
+config SIM_BUILD_DIR
+  string "Simulator CMake build directory"
+  default "build/sim"
+
+config RUNTIME_ROOT
+  string "Generated runtime root"
+  default "build/runtime"
+
+endmenu
+
+menu "CMake"
+
+choice CMAKE_GENERATOR
+  prompt "CMake generator"
+  default CMAKE_GENERATOR_NINJA
+
+config CMAKE_GENERATOR_NINJA
+  bool "Ninja"
+
+config CMAKE_GENERATOR_MAKE
+  bool "Unix Makefiles"
+
+endchoice
+
+config BUILD_TYPE
+  string "CMake build type"
+  default "Release"
+
+config BUILD_JOBS
+  int "Parallel build jobs"
+  range 0 1024
+  default 0
+  help
+    Number of jobs passed to Make/Ninja/CMake build commands.
+
+    0 means do not pass an explicit -j/--parallel option.
+    Example:
+      8  -> make -j8 / cmake --build ... --parallel 8
+      16 -> make -j16 / cmake --build ... --parallel 16
+
+config USE_CCACHE
+  bool "Use ccache"
+  default y
+
+endmenu
+
+menu "Simulator"
+
+config ENABLE_SIM
+  bool "Enable simulator"
+  default y
+
+config ENABLE_DBG
+  bool "Enable debugger"
+  default y
+
+config ENABLE_DIFF
+  bool "Enable difftest"
+  default y
+
+config ENABLE_TESTING
+  bool "Enable tests"
+  default y
+
+config ENABLE_TRACE
+  bool "Enable waveform tracing"
+  default y
+
+config ENABLE_COVERAGE
+  bool "Enable coverage"
+  default y
+
+config NUM_THREADS
+  int "Verilator simulation threads"
+  range 1 1024
+  default 1
+
+config NUM_TRACE_THREADS
+  int "Verilator trace threads"
+  range 1 1024
+  default 2
+
+endmenu
+
+menu "Bare-metal runtime package"
+
+config RUNTIME_PROFILE
+  string "Bare-metal runtime profile"
+  default "bare-metal"
+
+config LINKER_SCRIPT_NAME
+  string "Generated linker script filename"
+  default "linker.ld"
+
+config STARTUP_SOURCE_NAME
+  string "Generated startup source filename"
+  default "start.S"
+
+config ENABLE_BAREMETAL_RUNTIME
+  bool "Build bare-metal runtime package"
+  default y
+
+config BAREMETAL_CC
+  string "Bare-metal C compiler command"
+  default ""
+  depends on ENABLE_BAREMETAL_RUNTIME
+
+config BAREMETAL_OBJCOPY
+  string "Bare-metal objcopy command"
+  default ""
+  depends on ENABLE_BAREMETAL_RUNTIME
+
+config BAREMETAL_OBJDUMP
+  string "Bare-metal objdump command"
+  default ""
+  depends on ENABLE_BAREMETAL_RUNTIME
+
+config BAREMETAL_CFLAGS
+  string "Bare-metal C flags"
+  default "-O3 -ffreestanding -fno-builtin -fno-common -ffunction-sections -fdata-sections -Wall"
+  depends on ENABLE_BAREMETAL_RUNTIME
+
+config BAREMETAL_ASFLAGS
+  string "Bare-metal assembler flags"
+  default "-x assembler-with-cpp"
+  depends on ENABLE_BAREMETAL_RUNTIME
+
+config BAREMETAL_LDFLAGS
+  string "Bare-metal linker flags"
+  default "-nostartfiles -nostdlib -Wl,--gc-sections"
+  depends on ENABLE_BAREMETAL_RUNTIME
+
+endmenu
+
+menu "RT-Thread Nano runtime package"
+
+config ENABLE_RTTHREAD
+  bool "Build RT-Thread Nano runtime package"
+  default n
+  help
+    Disabled by default because the bundled RT-Thread tree is target-specific.
+    Enable only when the selected platform, libcpu target, and configured
+    toolchain match the generated hardware ISA.
+
+choice RTTHREAD_PLATFORM
+  prompt "RT-Thread platform"
+  default RTTHREAD_PLATFORM_DEMU
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_PLATFORM_DEMU
+  bool "demu"
+
+config RTTHREAD_PLATFORM_QEMU
+  bool "qemu"
+
+endchoice
+
+choice RTTHREAD_LIBCPU_TARGET
+  prompt "RT-Thread libcpu target"
+  default RTTHREAD_LIBCPU_TARGET_MANUAL
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_LIBCPU_TARGET_MANUAL
+  bool "manual"
+
+config RTTHREAD_LIBCPU_TARGET_RISCV_RV32M1
+  bool "risc-v/rv32m1"
+
+endchoice
+
+config RTTHREAD_ROOT
+  string "RT-Thread Nano source root"
+  default "sims/runtime/rtthread-nano/rt-thread"
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_PACKAGE_ROOT
+  string "RT-Thread Nano generated package root"
+  default "build/runtime/rtthread-nano"
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_BSP_DIR_REL
+  string "RT-Thread BSP directory relative to RTTHREAD_ROOT"
+  default ""
+  depends on ENABLE_RTTHREAD
+  help
+    Leave empty to use:
+      bsp/<platform>-<TARGET_FAMILY>-<TARGET_ARCH>
+
+config RTTHREAD_EXTRA_INC_DIRS_REL
+  string "Extra RT-Thread include dirs relative to RTTHREAD_ROOT"
+  default ""
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_PORT_C_SRCS_REL
+  string "Extra RT-Thread port C sources relative to RTTHREAD_ROOT"
+  default ""
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_PORT_ASM_SRCS_REL
+  string "Extra RT-Thread port assembly sources relative to RTTHREAD_ROOT"
+  default ""
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_CC
+  string "RT-Thread C compiler command"
+  default ""
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_AR
+  string "RT-Thread archiver command"
+  default ""
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_OBJCOPY
+  string "RT-Thread objcopy command"
+  default ""
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_OBJDUMP
+  string "RT-Thread objdump command"
+  default ""
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_CFLAGS
+  string "RT-Thread C flags"
+  default "-Os -ffunction-sections -fdata-sections -fno-common -fno-builtin -ffreestanding -Wall"
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_ASFLAGS
+  string "RT-Thread assembler flags"
+  default "-x assembler-with-cpp"
+  depends on ENABLE_RTTHREAD
+
+config RTTHREAD_LDFLAGS
+  string "Extra RT-Thread linker flags"
+  default ""
+  depends on ENABLE_RTTHREAD
+  help
+    Extra RT-Thread linker flags appended after the bare-metal linker flags.
+    The linker script is reused from the bare-metal package.
+
+endmenu
+
+menu "Benchmarks"
+
+config ENABLE_COREMARK
+  bool "Enable CoreMark"
+  default n
+
+config COREMARK_ENABLE_DEBUG
+  bool "Enable CoreMark debug"
+  default n
+  depends on ENABLE_COREMARK
+
+config COREMARK_TOTAL_DATA_SIZE
+  string "CoreMark total data size"
+  default "2000"
+  depends on ENABLE_COREMARK
+
+config COREMARK_ITERATIONS
+  string "CoreMark iterations"
+  default "1"
+  depends on ENABLE_COREMARK
+
+config COREMARK_EXECS
+  string "CoreMark execs"
+  default "1"
+  depends on ENABLE_COREMARK
+
+endmenu
+
+menu "STA"
+
+choice STA_TOOL
+  prompt "Default STA tool"
+  default STA_TOOL_YOSYS
+
+config STA_TOOL_YOSYS
+  bool "Yosys"
+
+config STA_TOOL_VIVADO
+  bool "Vivado"
+
+endchoice
+
+endmenu
