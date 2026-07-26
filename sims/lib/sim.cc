@@ -154,39 +154,11 @@ void DemuSimulator::reset() {
 
   _bpu_mispredicts = 0;
   _branches_committed = 0;
-  _bpu_miss_btb = 0;
-  _bpu_miss_direction = 0;
-  _bpu_miss_btb_target = 0;
-  _bpu_miss_ras_target = 0;
-  _bpu_miss_false_hit = 0;
-  _bpu_miss_other = 0;
   _flush_cycles = 0;
   _rob_empty_cycles = 0;
   _issue_count = 0;
   _frontend_stalls = 0;
   _backend_stalls = 0;
-  _stall_if_redirect = 0;
-  _stall_if_ras_wait = 0;
-  _stall_ibuffer_full = 0;
-  _stall_decode_not_ready = 0;
-  _stall_dispatch_not_ready = 0;
-  _stall_rob_full = 0;
-  _stall_issue_queue_full = 0;
-  _stall_lsq_full = 0;
-  _stall_flush_recovery = 0;
-  _sched_raw_wait = 0;
-  _sched_waw_wait = 0;
-  _sched_fu_busy = 0;
-  _sched_older_lane_block = 0;
-  _sched_no_matching_fu = 0;
-  _mul_wait = 0;
-  _div_wait = 0;
-  _load_use_wait = 0;
-  _lsu_busy = 0;
-  _dcache_wait = 0;
-  _store_wait = 0;
-  _wb_conflict = 0;
-  _rob_head_not_ready = 0;
 
   terminate_ = false;
   register_values_.fill(0);
@@ -239,69 +211,13 @@ void DemuSimulator::run(uint64_t max_cycles) {
   DEMU_INFO("--- Pipeline Profiling ---");
   DEMU_INFO("  BPU Hit Rate:       {:.2f} % ({} misses / {} branches)",
             bpu_hit_rate() * 100, _bpu_mispredicts, _branches_committed);
-  DEMU_INFO("    BTB miss:          {:6} ({:.2f} % of misses)",
-            _bpu_miss_btb, bpu_miss_share(_bpu_miss_btb) * 100);
-  DEMU_INFO("    direction miss:    {:6} ({:.2f} % of misses)",
-            _bpu_miss_direction, bpu_miss_share(_bpu_miss_direction) * 100);
-  DEMU_INFO("    BTB target miss:   {:6} ({:.2f} % of misses)",
-            _bpu_miss_btb_target, bpu_miss_share(_bpu_miss_btb_target) * 100);
-  DEMU_INFO("    RAS target miss:   {:6} ({:.2f} % of misses)",
-            _bpu_miss_ras_target, bpu_miss_share(_bpu_miss_ras_target) * 100);
-  DEMU_INFO("    BTB false hit:     {:6} ({:.2f} % of misses)",
-            _bpu_miss_false_hit, bpu_miss_share(_bpu_miss_false_hit) * 100);
-  DEMU_INFO("    other:             {:6} ({:.2f} % of misses)",
-            _bpu_miss_other, bpu_miss_share(_bpu_miss_other) * 100);
   DEMU_INFO("  Issue Rate:         {:.3f} uOps/cycle", issue_rate());
   DEMU_INFO("  Frontend Starved:   {:.2f} % of cycles (ROB Empty)",
             frontend_starvation_rate() * 100);
   DEMU_INFO("  Frontend Stalled:   {:.2f} % of cycles (Hazards/Full)",
             frontend_stall_rate() * 100);
-  DEMU_INFO("    stall_if_redirect:        {:.2f} % of cycles",
-            stall_rate(_stall_if_redirect) * 100);
-  DEMU_INFO("    stall_if_ras_wait:        {:.2f} % of cycles",
-            stall_rate(_stall_if_ras_wait) * 100);
-  DEMU_INFO("    stall_ibuffer_full:       {:.2f} % of cycles",
-            stall_rate(_stall_ibuffer_full) * 100);
-  DEMU_INFO("    stall_decode_not_ready:   {:.2f} % of cycles",
-            stall_rate(_stall_decode_not_ready) * 100);
-  DEMU_INFO("    stall_dispatch_not_ready: {:.2f} % of cycles",
-            stall_rate(_stall_dispatch_not_ready) * 100);
-  DEMU_INFO("    stall_rob_full:           {:.2f} % of cycles",
-            stall_rate(_stall_rob_full) * 100);
-  DEMU_INFO("    stall_issue_queue_full:   {:.2f} % of cycles",
-            stall_rate(_stall_issue_queue_full) * 100);
-  DEMU_INFO("      sched_raw_wait:         {:.2f} % of cycles",
-            stall_rate(_sched_raw_wait) * 100);
-  DEMU_INFO("      sched_waw_wait:         {:.2f} % of cycles",
-            stall_rate(_sched_waw_wait) * 100);
-  DEMU_INFO("      sched_fu_busy:          {:.2f} % of cycles",
-            stall_rate(_sched_fu_busy) * 100);
-  DEMU_INFO("      sched_older_lane_block: {:.2f} % of cycles",
-            stall_rate(_sched_older_lane_block) * 100);
-  DEMU_INFO("      sched_no_matching_fu:   {:.2f} % of cycles",
-            stall_rate(_sched_no_matching_fu) * 100);
-  DEMU_INFO("    stall_lsq_full:           {:.2f} % of cycles",
-            stall_rate(_stall_lsq_full) * 100);
-  DEMU_INFO("    stall_flush_recovery:     {:.2f} % of cycles",
-            stall_rate(_stall_flush_recovery) * 100);
   DEMU_INFO("  Backend Stalled:    {:.2f} % of cycles (Waiting Exe/Mem)",
             backend_stall_rate() * 100);
-  DEMU_INFO("    mul_wait:           {:.2f} % of cycles",
-            stall_rate(_mul_wait) * 100);
-  DEMU_INFO("    div_wait:           {:.2f} % of cycles",
-            stall_rate(_div_wait) * 100);
-  DEMU_INFO("    load_use_wait:      {:.2f} % of cycles",
-            stall_rate(_load_use_wait) * 100);
-  DEMU_INFO("    lsu_busy:           {:.2f} % of cycles",
-            stall_rate(_lsu_busy) * 100);
-  DEMU_INFO("    dcache_wait:        {:.2f} % of cycles",
-            stall_rate(_dcache_wait) * 100);
-  DEMU_INFO("    store_wait:         {:.2f} % of cycles",
-            stall_rate(_store_wait) * 100);
-  DEMU_INFO("    wb_conflict:        {:.2f} % of cycles",
-            stall_rate(_wb_conflict) * 100);
-  DEMU_INFO("    rob_head_not_ready: {:.2f} % of cycles",
-            stall_rate(_rob_head_not_ready) * 100);
   DEMU_INFO("")
 }
 
@@ -403,49 +319,11 @@ void DemuSimulator::handle_cache_profiling() {
 void DemuSimulator::handle_performance_profiling() {
   _bpu_mispredicts += static_cast<uint64_t>(dut_->debug_bpu_mispredict);
   _branches_committed += static_cast<uint64_t>(dut_->debug_branch_commit);
-  _bpu_miss_btb += static_cast<uint64_t>(dut_->debug_bpu_miss_btb);
-  _bpu_miss_direction +=
-      static_cast<uint64_t>(dut_->debug_bpu_miss_direction);
-  _bpu_miss_btb_target +=
-      static_cast<uint64_t>(dut_->debug_bpu_miss_btb_target);
-  _bpu_miss_ras_target +=
-      static_cast<uint64_t>(dut_->debug_bpu_miss_ras_target);
-  _bpu_miss_false_hit +=
-      static_cast<uint64_t>(dut_->debug_bpu_miss_false_hit);
-  _bpu_miss_other += static_cast<uint64_t>(dut_->debug_bpu_miss_other);
   _flush_cycles += static_cast<uint64_t>(dut_->debug_flush_cycle);
   _rob_empty_cycles += static_cast<uint64_t>(dut_->debug_rob_empty);
   _issue_count += static_cast<uint64_t>(dut_->debug_issue_count);
   _frontend_stalls += static_cast<uint64_t>(dut_->debug_frontend_stall);
   _backend_stalls += static_cast<uint64_t>(dut_->debug_backend_stall);
-  _stall_if_redirect += static_cast<uint64_t>(dut_->debug_stall_if_redirect);
-  _stall_if_ras_wait += static_cast<uint64_t>(dut_->debug_stall_if_ras_wait);
-  _stall_ibuffer_full += static_cast<uint64_t>(dut_->debug_stall_ibuffer_full);
-  _stall_decode_not_ready +=
-      static_cast<uint64_t>(dut_->debug_stall_decode_not_ready);
-  _stall_dispatch_not_ready +=
-      static_cast<uint64_t>(dut_->debug_stall_dispatch_not_ready);
-  _stall_rob_full += static_cast<uint64_t>(dut_->debug_stall_rob_full);
-  _stall_issue_queue_full +=
-      static_cast<uint64_t>(dut_->debug_stall_issue_queue_full);
-  _stall_lsq_full += static_cast<uint64_t>(dut_->debug_stall_lsq_full);
-  _stall_flush_recovery +=
-      static_cast<uint64_t>(dut_->debug_stall_flush_recovery);
-  _sched_raw_wait += static_cast<uint64_t>(dut_->debug_sched_raw_wait);
-  _sched_waw_wait += static_cast<uint64_t>(dut_->debug_sched_waw_wait);
-  _sched_fu_busy += static_cast<uint64_t>(dut_->debug_sched_fu_busy);
-  _sched_older_lane_block +=
-      static_cast<uint64_t>(dut_->debug_sched_older_lane_block);
-  _sched_no_matching_fu +=
-      static_cast<uint64_t>(dut_->debug_sched_no_matching_fu);
-  _mul_wait += static_cast<uint64_t>(dut_->debug_mul_wait);
-  _div_wait += static_cast<uint64_t>(dut_->debug_div_wait);
-  _load_use_wait += static_cast<uint64_t>(dut_->debug_load_use_wait);
-  _lsu_busy += static_cast<uint64_t>(dut_->debug_lsu_busy);
-  _dcache_wait += static_cast<uint64_t>(dut_->debug_dcache_wait);
-  _store_wait += static_cast<uint64_t>(dut_->debug_store_wait);
-  _wb_conflict += static_cast<uint64_t>(dut_->debug_wb_conflict);
-  _rob_head_not_ready += static_cast<uint64_t>(dut_->debug_rob_head_not_ready);
 }
 
 } // namespace demu

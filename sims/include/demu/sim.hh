@@ -79,11 +79,6 @@ public:
                      static_cast<double>(_bpu_mispredicts) / _branches_committed
                : 0.0;
   }
-  [[nodiscard]] auto bpu_miss_share(uint64_t misses) const noexcept -> double {
-    return _bpu_mispredicts > 0
-               ? static_cast<double>(misses) / _bpu_mispredicts
-               : 0.0;
-  }
   [[nodiscard]] auto issue_rate() const noexcept -> double {
     return dut_->debug_cycle_count > 0
                ? static_cast<double>(_issue_count) / dut_->debug_cycle_count
@@ -98,11 +93,6 @@ public:
   [[nodiscard]] auto frontend_stall_rate() const noexcept -> double {
     return dut_->debug_cycle_count > 0
                ? static_cast<double>(_frontend_stalls) / dut_->debug_cycle_count
-               : 0.0;
-  }
-  [[nodiscard]] auto stall_rate(uint64_t cycles) const noexcept -> double {
-    return dut_->debug_cycle_count > 0
-               ? static_cast<double>(cycles) / dut_->debug_cycle_count
                : 0.0;
   }
   [[nodiscard]] auto backend_stall_rate() const noexcept -> double {
@@ -143,39 +133,11 @@ protected:
   // Advanced Pipeline Profiling
   uint64_t _bpu_mispredicts{0};
   uint64_t _branches_committed{0};
-  uint64_t _bpu_miss_btb{0};
-  uint64_t _bpu_miss_direction{0};
-  uint64_t _bpu_miss_btb_target{0};
-  uint64_t _bpu_miss_ras_target{0};
-  uint64_t _bpu_miss_false_hit{0};
-  uint64_t _bpu_miss_other{0};
   uint64_t _flush_cycles{0};
   uint64_t _rob_empty_cycles{0};
   uint64_t _issue_count{0};
   uint64_t _frontend_stalls{0};
   uint64_t _backend_stalls{0};
-  uint64_t _stall_if_redirect{0};
-  uint64_t _stall_if_ras_wait{0};
-  uint64_t _stall_ibuffer_full{0};
-  uint64_t _stall_decode_not_ready{0};
-  uint64_t _stall_dispatch_not_ready{0};
-  uint64_t _stall_rob_full{0};
-  uint64_t _stall_issue_queue_full{0};
-  uint64_t _stall_lsq_full{0};
-  uint64_t _stall_flush_recovery{0};
-  uint64_t _sched_raw_wait{0};
-  uint64_t _sched_waw_wait{0};
-  uint64_t _sched_fu_busy{0};
-  uint64_t _sched_older_lane_block{0};
-  uint64_t _sched_no_matching_fu{0};
-  uint64_t _mul_wait{0};
-  uint64_t _div_wait{0};
-  uint64_t _load_use_wait{0};
-  uint64_t _lsu_busy{0};
-  uint64_t _dcache_wait{0};
-  uint64_t _store_wait{0};
-  uint64_t _wb_conflict{0};
-  uint64_t _rob_head_not_ready{0};
 
   addr_t last_retire_pc_{0};
   std::array<word_t, isa_def::NUM_ARCH_REGS> register_values_{};

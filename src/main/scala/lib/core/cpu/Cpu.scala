@@ -7,8 +7,7 @@ import arch.core.csr.InterruptLines
 import arch.core.decode.Decode
 import arch.core.dispatch.Dispatch
 import arch.core.exception.Exception
-import arch.core.flush.Flush
-import arch.core.fupool.{ FuPool, FunctionalUnitType }
+import arch.core.fupool.FuPool
 import arch.core.ifu.Ifu
 import arch.core.ibuffer.IBuffer
 import arch.core.memarb.MemoryArbiter
@@ -42,7 +41,6 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   private val fuPool        = subnode(new FuPool)
   private val rob           = subnode(new Rob)
   private val exception     = subnode(new Exception)
-  private val flush         = subnode(new Flush)
   private val storeBuffer   = subnode(new StoreBuffer)
   private val dispatch      = subnode(new Dispatch)
   private val memoryArbiter = subnode(new MemoryArbiter)
@@ -116,24 +114,25 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
     rob.preserveFrontend       -> ifu.preserveCommittedRedirect,
     fuPool.async               -> exception.async,
     fuPool.csrBusy             -> exception.csrBusy,
-    exception.sync             -> flush.sync,
-    exception.redirect         -> flush.redirect,
     exception.redirect         -> ifu.redirect,
-    exception.trapUpdate       -> flush.trapUpdate,
     exception.trapUpdate       -> fuPool.trapUpdate,
-    flush.globalFlush          -> dispatch.flush,
-    flush.globalFlush          -> scheduler.flush,
-    flush.globalFlush          -> fuPool.flush,
-    flush.globalFlush          -> storeBuffer.flush,
-    flush.globalFlush          -> rob.flush,
     irq                        -> fuPool.irq,
   )
+
+  private val globalFlush =
+    exception.sync.out.valid || exception.redirect.out.valid || exception.trapUpdate.out.valid
+
+  dispatch.flush.in    := globalFlush
+  scheduler.flush.in   := globalFlush
+  fuPool.flush.in      := globalFlush
+  storeBuffer.flush.in := globalFlush
+  rob.flush.in         := globalFlush
 
   // An early branch redirect discards the old fetch stream immediately.  At
   // that same branch's precise commit, retain the already-buffered target
   // stream while all backend speculative state is flushed normally.
   ibuffer.flush.in := rob.earlyRedirect.out.valid ||
-    (flush.globalFlush.out && !rob.preserveFrontend.out)
+    (globalFlush && !rob.preserveFrontend.out)
 
   debug.out.cycle_count   := cycleCount
   debug.out.instret_count := instretCount
@@ -160,98 +159,20 @@ class Cpu(implicit p: Parameters) extends Node[Parameters]("cpu") {
   debug.out.l1_dcache_access := l1DCache.upperResp.out.fire
   debug.out.l1_dcache_miss   := l1DCache.upperResp.out.fire && !l1DCache.upperResp.out.bits.hit
 
-  debug.out.flush_cycle    := flush.globalFlush.out
+  debug.out.flush_cycle    := globalFlush
   debug.out.bpu_mispredict := rob.debug.out.bpu_mispredict
   debug.out.branch_commit  := rob.debug.out.branch_commit
-  debug.out.bpu_miss_btb        := rob.debug.out.bpu_miss_btb
-  debug.out.bpu_miss_direction  := rob.debug.out.bpu_miss_direction
-  debug.out.bpu_miss_btb_target := rob.debug.out.bpu_miss_btb_target
-  debug.out.bpu_miss_ras_target := rob.debug.out.bpu_miss_ras_target
-  debug.out.bpu_miss_false_hit  := rob.debug.out.bpu_miss_false_hit
-  debug.out.bpu_miss_other      := rob.debug.out.bpu_miss_other
   debug.out.rob_empty      := rob.debug.out.empty
   debug.out.issue_count    := PopCount(
     Seq.tabulate(p(IssueWidth))(w => dispatch.dispatched.out.lanes(w).fire)
   )
   debug.out.commit_count   := rob.debug.out.commit_count
 
-  debug.out.stall_if_redirect  := exception.redirect.out.valid
-  debug.out.stall_if_ras_wait  := bpu.debug.out.ras_wait
-  debug.out.stall_ibuffer_full := ibuffer.status.out.full
-
-  debug.out.stall_decode_not_ready := Seq
-    .tabulate(p(IssueWidth))(w => ibuffer.deq.out.lanes(w).valid && !ibuffer.deq.out.lanes(w).ready)
-    .reduce(_ || _)
-
-  debug.out.stall_dispatch_not_ready := Seq
+  debug.out.frontend_stall := Seq
     .tabulate(p(IssueWidth))(w =>
       decode.decoded.out.lanes(w).valid && !decode.decoded.out.lanes(w).ready
     )
     .reduce(_ || _)
 
-  debug.out.stall_rob_full := Seq
-    .tabulate(p(IssueWidth))(w =>
-      decode.decoded.out.lanes(w).valid && decode.decoded.out.lanes(w).bits.legal && !dispatch.robReq.out
-        .lanes(w)
-        .ready
-    )
-    .reduce(_ || _)
-
-  debug.out.stall_issue_queue_full := Seq
-    .tabulate(p(IssueWidth))(w =>
-      dispatch.dispatched.out.lanes(w).valid && !dispatch.dispatched.out.lanes(w).ready
-    )
-    .reduce(_ || _)
-
-  debug.out.stall_lsq_full := Seq
-    .tabulate(p(IssueWidth))(w =>
-      decode.decoded.out.lanes(w).valid &&
-        decode.decoded.out.lanes(w).bits.isStore &&
-        !dispatch.robReq.out.lanes(w).ready
-    )
-    .reduce(_ || _)
-
-  debug.out.stall_flush_recovery := flush.globalFlush.out
-
-  debug.out.sched_raw_wait         := scheduler.debug.out.raw_wait
-  debug.out.sched_waw_wait         := scheduler.debug.out.waw_wait
-  debug.out.sched_fu_busy          := scheduler.debug.out.fu_busy
-  debug.out.sched_older_lane_block := scheduler.debug.out.older_lane_block
-  debug.out.sched_no_matching_fu   := scheduler.debug.out.no_matching_fu
-
-  debug.out.frontend_stall := debug.out.stall_if_redirect ||
-    debug.out.stall_if_ras_wait ||
-    debug.out.stall_ibuffer_full ||
-    debug.out.stall_decode_not_ready ||
-    debug.out.stall_dispatch_not_ready ||
-    debug.out.stall_rob_full ||
-    debug.out.stall_issue_queue_full ||
-    debug.out.stall_lsq_full ||
-    debug.out.stall_flush_recovery
-
   debug.out.backend_stall := !rob.debug.out.empty && rob.debug.out.commit_count === 0.U
-
-  private def headFuIs(fuType: FunctionalUnitType): Bool =
-    rob.debug.out.head_fu_type === fuType.index.U(p(FuTypeWidth).W)
-
-  private val backendStall = debug.out.backend_stall
-  private val headWait     = backendStall && rob.debug.out.head_not_ready
-  private val dcacheWait   = backendStall && fuPool.debug.out.load_wait_mem
-  private val loadWait =
-    headWait && headFuIs(FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_LD)
-  private val storeWait =
-    backendStall &&
-      ((headFuIs(FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_ST) && rob.debug.out.head_not_ready) ||
-        storeBuffer.debug.out.wait_drain)
-
-  debug.out.mul_wait := headWait &&
-    headFuIs(FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_MULT)
-  debug.out.div_wait := headWait &&
-    headFuIs(FunctionalUnitType.FUNCTIONAL_UNIT_TYPE_DIV)
-  debug.out.load_use_wait      := loadWait && !dcacheWait
-  debug.out.lsu_busy           := backendStall && (fuPool.debug.out.lsu_busy || storeBuffer.debug.out.busy)
-  debug.out.dcache_wait        := dcacheWait
-  debug.out.store_wait         := storeWait
-  debug.out.wb_conflict        := false.B
-  debug.out.rob_head_not_ready := headWait
 }
